@@ -21,9 +21,10 @@ test("the timer's scans spare GitHub's quota: a quiet PR waits, a low quota wait
   // done and as it was: quiet, the timer's scans leave it
   pr({})
   await until(async () => (await prOf())?.checks === 'pass', 'its checks pass')
-  const n = views()
-  await new Promise(r => setTimeout(r, 2500))
-  assert.ok(views() <= n + 1, `quiet: ${views() - n} more`) // the one that found it as it was
+  // its asks stop (each 500 ms while it isn't quiet): 2.5 s without one. Not a count from the moment it passed: the
+  // daemon's start-up scan (main.ts, 2 s in) isn't the timer's, asks a quiet PR too, and once more after a scan it met
+  let n = -1, since = 0
+  await until(() => (views() !== n && ((n = views()), (since = Date.now())), Date.now() - since >= 2500), 'the quiet PR left alone', 10000)
   // Refresh (yours) asks at once
   const m = views()
   await rig.rpc('prRefresh')
