@@ -3,6 +3,10 @@
 version it builds, with the date. A version's first three lines are its What's new card after an update (U13): put
 the biggest first, and end a line with `[Try it](laki://…)` to give it a Try button there. -->
 
+## Next
+
+- The rail's buttons click again with Glass's *Grain* on, as in the Frosted design: its grain made the rail a place to drag the window from.
+
 ## 0.52.0 · Nov 14, 2026
 
 - Ship looks for secrets before it commits: an API key, a private key or a password in a URL in the lines it would add stops it, each shown by file and line, masked. Untick the file, or say *Not a secret* (remembered for that workspace). `laki ship` exits 1 unless `--allow-secrets`; an agent can't pass it.
