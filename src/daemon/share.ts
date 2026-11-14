@@ -1,11 +1,12 @@
 // A shared tab (remote.ts' shareStart, the app's Share live view): a view-only page anyone with its link opens, kept up to date. Here: what it
 // shows, as Markdown (Copy, Download) and as the page. An agent's chat from its transcript (claude's, codex's): your
 // prompts, its answers, its tool calls a line each; anything else (a shell, gemini…): the terminal's text.
+import { createHash } from 'node:crypto'
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { esc, imgsAsLinks, markdownHtml } from '../shared/markdown.ts'
 import { planFrom, type TabPlan } from '../shared/todos.ts'
-import { costOf, type Retry, type UsageWindow } from '../shared/types.ts'
+import { costOf, type Retry, type SecretFound, type UsageWindow } from '../shared/types.ts'
 import { codexRateWindows } from './usage.ts'
 
 export type Said = { who: 'you' | 'agent' | 'tool' | 'screen' | 'new'; text: string; fail?: number; stopped?: true; at?: number; end?: number; cost?: number } // F6: at, end: its first and last line's time (the transcript's); cost: on a `you`, what the turn it started cost so far (claude's usage at API prices; none: a model with no price, codex) // fail: a run of tool calls', how many failed (claude's is_error: the Reader's Hide successful keeps that run); stopped: you stopped the turn there (Esc): a prompt of yours with it had no answer (the Reader's Edit and resend); new: the Reader's line where the tab's next chat (a /clear) begins (meters.ts chatRead)
@@ -283,16 +284,37 @@ export function meterOf(agent: string, jsonl: string, m: Meter, now = Date.now()
 // Stripe's, GitHub's, Slack's, Google's, npm's, Hugging Face's, AWS's key ids), a private key's PEM block, a Bearer
 // token, a JWT, a token's, key's or secret's value in a URL, a URL's password, a NAME=value whose name says secret.
 // ponytail: shapes, not every secret
-const SECRETS: [RegExp, string][] = [
-  [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g, '••••'],
-  [/\b(sk-[A-Za-z0-9_-]{16,}|[sr]k_(?:live|test)_[A-Za-z0-9]{10,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abposr]-[A-Za-z0-9-]{10,}|AIza[A-Za-z0-9_-]{30,}|npm_[A-Za-z0-9]{30,}|hf_[A-Za-z0-9]{30,}|(?:AKIA|ASIA)[0-9A-Z]{16})\b/g, '••••'],
-  [/\b([a-z][a-z0-9+.-]{0,31}:\/\/[^\s:@/'"<>]{1,256}:)[^\s@/'"<>]{1,256}@/gi, '$1••••@'], // bounded: an unbounded scheme or name backtracks over a long word (100 KB: seconds)
-  [/\b([A-Z0-9_]{0,64}(?:SECRET|TOKEN|PASSWORD|PASSWD|API_?KEY)[A-Z0-9_]{0,64}\s*[=:]\s*)(?:(['"])[^'"\n]{2,}\2|(?![\d.]+(?![^\s'"&]))[^\s'"&]{4,})/g, '$1••••'], // an env var's way: in capitals; a number isn't one (MAX_TOKENS=4096)
-  [/\b(Bearer\s+)[A-Za-z0-9._~+/=-]{16,}/gi, '$1••••'],
-  [/(?<![\w-])eyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}/g, '••••'], // at a run's start, not \b: after each - of eyJ-eyJ-… it scanned the rest again (100 KB: 3 s). ponytail: x-eyJ… stays
-  [/([?&](?:token|access_token|key|api_key|apikey|secret|password|auth|sig|signature)=)[^&\s"'#<>]+/gi, '$1••••'],
+const SECRETS: [RegExp, string, string][] = [ // the pattern, what it's masked as, its kind (Ship's secret check)
+  [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g, '••••', 'private key'],
+  [/\b(sk-[A-Za-z0-9_-]{16,}|[sr]k_(?:live|test)_[A-Za-z0-9]{10,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abposr]-[A-Za-z0-9-]{10,}|AIza[A-Za-z0-9_-]{30,}|npm_[A-Za-z0-9]{30,}|hf_[A-Za-z0-9]{30,}|(?:AKIA|ASIA)[0-9A-Z]{16})\b/g, '••••', 'API key'],
+  [/\b([a-z][a-z0-9+.-]{0,31}:\/\/[^\s:@/'"<>]{1,256}:)[^\s@/'"<>]{1,256}@/gi, '$1••••@', 'password in a URL'], // bounded: an unbounded scheme or name backtracks over a long word (100 KB: seconds)
+  [/\b([A-Z0-9_]{0,64}(?:SECRET|TOKEN|PASSWORD|PASSWD|API_?KEY)[A-Z0-9_]{0,64}\s*[=:]\s*)(?:(['"])[^'"\n]{2,}\2|(?![\d.]+(?![^\s'"&]))[^\s'"&]{4,})/g, '$1••••', 'secret in a variable'], // an env var's way: in capitals; a number isn't one (MAX_TOKENS=4096)
+  [/\b(Bearer\s+)[A-Za-z0-9._~+/=-]{16,}/gi, '$1••••', 'Bearer token'],
+  [/(?<![\w-])eyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}/g, '••••', 'JWT'], // at a run's start, not \b: after each - of eyJ-eyJ-… it scanned the rest again (100 KB: 3 s). ponytail: x-eyJ… stays
+  [/([?&](?:token|access_token|key|api_key|apikey|secret|password|auth|sig|signature)=)[^&\s"'#<>]+/gi, '$1••••', 'token in a URL'],
 ]
 export const redact = (t: string) => SECRETS.reduce((s, [re, to]) => s.replace(re, to), t)
+// Ship's secret check (core.ts shipSecrets): each of SECRETS' shapes in the text, by its line (1-based, where it starts),
+// with its kind and itself masked (one masked whole keeps its first 4 characters: sk_l••••), and hash, salt's and its
+// sha-256 (a "Not a secret" is remembered by it). One match where two shapes overlap (PASSWORD=sk-…). Never the match
+export function findSecrets(text: string, salt = ''): Omit<SecretFound, 'file'>[] {
+  const out: (Omit<SecretFound, 'file'> & { at: number })[] = []
+  const took: [number, number][] = []
+  for (const [re, to, kind] of SECRETS)
+    for (const m of text.matchAll(re)) {
+      const at = m.index, end = at + m[0].length
+      if (took.some(([a, b]) => at < b && end > a)) continue
+      took.push([at, end])
+      const masked = to === '••••' ? `${m[0].slice(0, 4)}••••` : m[0].replace(re, to)
+      out.push({ at, line: 0, kind, masked: masked.length > 80 ? `${masked.slice(0, 40)}…${masked.slice(-8)}` : masked, hash: createHash('sha256').update(`${salt}\0${m[0]}`).digest('hex').slice(0, 32) })
+    }
+  out.sort((x, y) => x.at - y.at)
+  let line = 1, i = 0
+  return out.map(({ at, ...f }) => {
+    for (; i < at; i++) if (text.charCodeAt(i) === 10) line++
+    return { ...f, line }
+  })
+}
 const fence = (t: string) => (f => `${f}\n${t}\n${f}`)('`'.repeat(Math.max(3, ...[...t.matchAll(/`+/g)].map(m => m[0].length + 1))))
 export function shareMd(title: string, agent: string, said: Said[]) {
   const parts = [`# ${title}`]

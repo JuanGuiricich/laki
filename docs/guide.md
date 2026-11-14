@@ -602,7 +602,10 @@ tab (the last place you clicked), ⌘F finds words in the diff's lines instead: 
   title and body (from the workspace's name, its first prompt and the agent's last answer, no model asked), its base
   branch and reviewers, and *Draft*, *Merge when green*, *Send CI failures to the agent*. A line on top says how the
   Done check went, the Collision radar's overlaps and how far behind its base it is. *Commit only*, *Push* (commit and
-  push) or *Open PR* (⌘↵);
+  push) or *Open PR* (⌘↵). Before the commit it looks for secrets (API keys, private keys, passwords in URLs, a
+  `TOKEN=` value) in the lines it adds, lockfiles, binary files and files over 1 MB aside: each found shows its file,
+  line and itself masked, and stops the ship; *Untick* leaves the file out, *Not a secret* ships it and remembers that
+  one for the workspace (`laki ship` exits 1 unless `--allow-secrets`; an agent can't pass it);
 - search: the command palette (⌘K);
 - ⋯: the next step first (One next step, below), then split right/down, fork, archive, delete;
 - ▷ Run ▾: the project's run script in a *dev* tab, ■ Stop while it runs (^C). ▾ restarts it, shows its tab,
@@ -2895,6 +2898,8 @@ laki diff fix-login | less
 laki ship fix-login -m "Fix the login redirect"
 # or only two files, as a draft PR with its own title
 laki ship fix-login -m "Fix the redirect" --files src/login.ts,test/login.test.ts --title "Fix the login redirect" --draft
+# a token-shaped string in what it would commit stops it (file, line, masked); ship it anyway, as you
+laki ship fix-login -m "Add the test fixtures" --allow-secrets
 laki archive fix-login
 ```
 

@@ -5,7 +5,7 @@ import { chmodSync, existsSync, readdirSync, readFileSync, statSync, writeFileSy
 import { basename, dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { alive, daemonScript, ensureDaemon, inTab, NO_START, rpc } from '../shared/conn.ts'
-import { AGENTS, API, type AgentUsage, type Doctor, doctorRows, doctorText, creatorOf, SECRET_WAIT, ALERT_WAIT, type AiCall, type AiMsg, type AiTotals, browseSays, cellsOf, DEVICE_OPS, eventOk, type Memory, type Plan, placesOf, REMOTE, type Remote, type Schedule, type ScheduleRun, type EventSent, type GateHeld, type Preset, type View, type WidgetLogLine, type WidgetRuns, type WidgetView, type Workspace } from '../shared/types.ts'
+import { AGENTS, API, type AgentUsage, type Doctor, doctorRows, doctorText, creatorOf, SECRET_WAIT, ALERT_WAIT, type AiCall, type AiMsg, type AiTotals, browseSays, cellsOf, DEVICE_OPS, eventOk, type Memory, type Plan, placesOf, REMOTE, type Remote, type Schedule, type ScheduleRun, type EventSent, type GateHeld, type Preset, type SecretFound, type View, type WidgetLogLine, type WidgetRuns, type WidgetView, type Workspace } from '../shared/types.ts'
 import { FLAGS, helpFor, nearest, nearFlag, subsOf, USAGE } from '../shared/usage.ts'
 import { appOf } from '../shared/helper.ts'
 import { VERSION } from '../shared/version.ts'
@@ -30,7 +30,7 @@ const choices: string[] = [] // laki alert's --choice, again and again
 const shipFiles: string[] = [] // laki ship's --files a,b (again and again): only those committed
 const wsRefs: string[] = [] // laki events' --ws, again and again
 const VALUED = new Set(['out', 'wait', 'base', 'preset', 'cmd', 'prompt', 'name', 'lines', 'm', 'message', 'when', 'where', 'model', 'effort', 'perm', 'template', 'action', 'group', 'issue', 'pr', 'link', 'fan', 'race', 'tab', 'image', 'ws', 'off', 'kind', 'dir', 'place', 'size', 'every', 'view', 'hide', 'seen', 'level', 'budget', 'at', 'expect-url', 'timeout', 'only-if', 'notify', 'missed', 'catch-until', 'on', 'branch', 'label', 'by', 'keep-runs'])
-const BOOL = new Set(['simulate', 'bundle', 'keep', 'json', 'local', 'when-idle', 'fresh', 'important', 'full', 'dry', 'mine', 'list', 'no-run', 'no-setup', 'merge', 'force', 'after-limit', 'uncommitted', 'fast', 'sandbox', 'no-sandbox', 'detach', 'keep-empty'])
+const BOOL = new Set(['simulate', 'bundle', 'keep', 'json', 'local', 'when-idle', 'fresh', 'important', 'full', 'dry', 'mine', 'list', 'no-run', 'no-setup', 'merge', 'force', 'after-limit', 'uncommitted', 'fast', 'sandbox', 'no-sandbox', 'detach', 'keep-empty', 'allow-secrets'])
 // A4: an option the command doesn't have (USAGE's lines: usage.ts FLAGS) is refused with the nearest it has, before any
 // daemon call: \`laki new app --promt x\` would start an agent with no prompt. A command whose words are free text takes
 // options before its text only (TEXT_AFTER: the words before it); after "--" everything is text
@@ -703,8 +703,12 @@ async function main() {
     case 'ship': {
       // --force: past the extensions' gates; yours only (the daemon refuses it from an agent's tab)
       const str = (f: string) => (typeof flags[f] === 'string' ? (flags[f] as string) : undefined)
-      const t = await rpc('ship', { ws: rest[0], message: flags.m || flags.message, force: !!flags.force, from: caller(), title: str('title'), body: str('body'), draft: !!flags.draft, base: str('base'), ...(shipFiles.length && { files: shipFiles }) })
+      const t = await rpc('ship', { ws: rest[0], message: flags.m || flags.message, force: !!flags.force, from: caller(), title: str('title'), body: str('body'), draft: !!flags.draft, base: str('base'), ...(shipFiles.length && { files: shipFiles }), ...(flags['allow-secrets'] && { allowSecrets: true }) })
       if (t.held) held('ship', t)
+      if (t.secrets) {
+        out(t, ['Not shipped: possible secrets in what it would commit:', ...t.secrets.map((f: SecretFound) => `  ${f.file}:${f.line}  ${f.kind}  ${f.masked}`), 'Leave the file out (--files), or laki ship --allow-secrets ships it anyway (you, not an agent)'].join('\n'))
+        process.exit(1)
+      }
       return out(t, `shipping in tab ${t.name} (${t.id})`)
     }
     case 'schedule': {

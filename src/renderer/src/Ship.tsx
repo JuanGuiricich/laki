@@ -2,13 +2,13 @@
 // its +/− and its diff a click away), on the right the commit's and the PR's words (shipDraft's to start: no model
 // asked) and the PR's switches; a line on top with what to know first (Done check, Collision radar, behind its base)
 import { useEffect, useState } from 'react'
-import type { WorkspaceView } from '../../shared/types'
+import type { SecretFound, WorkspaceView } from '../../shared/types'
 import { DiffRows, diffByFile, type FileDiff, lineClass, NO_DIFF } from './Diff'
 import { Modal } from './panels'
 
-type Draft = { title: string; message: string; body: string; files: { path: string; status: string; add: number; del: number }[]; ahead: number; base: string; branch: string }
+type Draft = { title: string; message: string; body: string; files: { path: string; status: string; add: number; del: number }[]; ahead: number; base: string; branch: string; secrets?: SecretFound[] }
 export type ShipMode = 'commit' | 'push' | 'pr'
-export type ShipAsk = { message: string; files?: string[]; title?: string; body?: string; draft: boolean; base?: string; reviewers?: string[]; mode: ShipMode; autoLand: boolean; autoFix: boolean }
+export type ShipAsk = { message: string; files?: string[]; title?: string; body?: string; draft: boolean; base?: string; reviewers?: string[]; mode: ShipMode; autoLand: boolean; autoFix: boolean; allowSecrets?: string[] }
 
 export function ShipSheet({ ws, title, busy, land, call, onClose, onShip }: { ws: WorkspaceView; title: string; busy?: string; land: boolean; call: <T>(m: string, p?: object) => Promise<T>; onClose: () => void; onShip: (a: ShipAsk) => Promise<unknown> }) {
   const [d, setD] = useState<Draft | null>(null)
@@ -25,9 +25,13 @@ export function ShipSheet({ ws, title, busy, land, call, onClose, onShip }: { ws
   const [open, setOpen] = useState<string | null>(null)
   const [diffs, setDiffs] = useState<Map<string, FileDiff> | null>(null)
   const [going, setGoing] = useState<ShipMode | null>(null)
+  // the secret check's finds (the draft's, then a ship's that stopped), the ones you said aren't (their hashes), the last try
+  const [found, setFound] = useState<SecretFound[]>([])
+  const [ok, setOk] = useState<Set<string>>(new Set())
+  const [tried, setTried] = useState<ShipMode | null>(null)
   useEffect(() => {
     call<Draft>('shipDraft', { ws: ws.id }).then(
-      x => (setD(x), setMsg(x.message), setPrTitle(x.title), setBody(x.body), setBase(x.base), setOn(new Set(x.files.map(f => f.path)))),
+      x => (setD(x), setMsg(x.message), setPrTitle(x.title), setBody(x.body), setBase(x.base), setOn(new Set(x.files.map(f => f.path))), setFound(x.secrets ?? [])),
       e => setErr(String(e?.message ?? e)),
     )
   }, [ws.id])
@@ -38,17 +42,27 @@ export function ShipSheet({ ws, title, busy, land, call, onClose, onShip }: { ws
   const all = d?.files ?? []
   const picked = all.filter(f => on.has(f.path))
   const nothing = !picked.length && !d?.ahead
-  const go = async (mode: ShipMode) => {
+  const shown = found.filter(f => on.has(f.file) && !ok.has(f.hash)) // an unticked file's aren't committed
+  const go = async (mode: ShipMode, allow = ok) => {
     if (!msg.trim() || going || nothing) return
     setGoing(mode)
+    setTried(mode)
     try {
       // the files as ticked, always: one an agent wrote since the sheet opened isn't in it, so it stays out
-      await onShip({ message: msg.trim(), files: picked.map(f => f.path), title: prTitle.trim() || undefined, body, draft, base: base.trim() && base.trim() !== d?.base ? base.trim() : undefined, reviewers: reviewers.split(/[\s,]+/).filter(Boolean), mode, autoLand, autoFix })
+      const r = await onShip({ message: msg.trim(), files: picked.map(f => f.path), title: prTitle.trim() || undefined, body, draft, base: base.trim() && base.trim() !== d?.base ? base.trim() : undefined, reviewers: reviewers.split(/[\s,]+/).filter(Boolean), mode, autoLand, autoFix, ...(allow.size && { allowSecrets: [...allow] }) })
+      const again = (r as { secrets?: SecretFound[] } | undefined)?.secrets
+      if (again) setFound(again)
     } catch (e) {
       setErr(String((e as Error)?.message ?? e))
     } finally {
       setGoing(null)
     }
+  }
+  // Not a secret: remembered as it ships; the last one of a stopped ship's ships it again at once
+  const notSecret = (f: SecretFound) => {
+    const allow = new Set(ok).add(f.hash)
+    setOk(allow)
+    if (tried && !shown.some(x => !allow.has(x.hash))) void go(tried, allow)
   }
   // what to know first: the Done check, the radar's overlaps, how far its base went on
   const c = ws.check?.status
@@ -63,6 +77,26 @@ export function ShipSheet({ ws, title, busy, land, call, onClose, onShip }: { ws
       <div className="ship" onKeyDown={e => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && (e.preventDefault(), void go('pr'))}>
         <div className={`ship-banner small ${warn ? 'warn' : 'muted'}`}>{notes.join(' · ')}</div>
         {err && <div className="warn small">{err}</div>}
+        {!!shown.length && (
+          <div className="ship-secrets" role="alert">
+            <div className="warn small">{tried ? 'Not shipped: ' : ''}{shown.length === 1 ? 'this looks like a secret' : `${shown.length} of these look like secrets`}. Leave the file out, or say it isn't one.</div>
+            {shown.map(f => (
+              <div key={`${f.file}:${f.line}:${f.hash}`} className="ship-secret small">
+                <span className="ship-name mono" title={`${f.file}:${f.line}`}>
+                  {f.file}:{f.line}
+                </span>
+                <span className="muted">{f.kind}</span>
+                <span className="mono">{f.masked}</span>
+                <button type="button" className="link" onClick={() => setOn(s => (n => (n.delete(f.file), n))(new Set(s)))}>
+                  Untick
+                </button>
+                <button type="button" className="link" disabled={!!going} onClick={() => notSecret(f)}>
+                  Not a secret
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="ship-cols">
           <div className="ship-files">
             {!d && !err && <div className="muted small">Loading…</div>}

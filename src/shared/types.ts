@@ -246,6 +246,7 @@ export type Workspace = {
   autoFix?: boolean // failing CI goes to the agent
   autoReview?: boolean // new PR review comments go to the agent
   autoMerge?: boolean // merge conflicts with the PR's base go to the agent
+  secretOk?: string[] // Ship's secret check: the hashes of what you said is not a secret (findSecrets'), here only; never in the view (wsOut)
   autoLand?: boolean // merge when green: Laki merges the PR (its project's last way) once all checks pass, no conflicts, not a draft, approved if it must be
   fix?: PRFix // what autoFix/autoReview/autoMerge/autoLand did already
   race?: string // one prompt fanned out to several agents: the workspaces of one race share it (Compare)
@@ -1153,6 +1154,9 @@ export const WIDGET_EVENTS = ['turn.done', 'turn.failed', 'turn.long', 'turn.wai
 export const GATES = ['ship', 'merge', 'archive', 'tool'] as const // tool: each tool call claude makes (widgetEvents.ts toolGate), the others steps of core's gated
 export type Gate = (typeof GATES)[number]
 export type GateHeld = { widget: string; name: string; gate: Gate; why: string; fix?: string; icon?: string }
+// Ship's secret check (core.ts shipSecrets): a token-shaped string in a line it would commit: masked, never itself; hash
+// names it for "Not a secret" (ship's allowSecrets, remembered for that workspace)
+export type SecretFound = { file: string; line: number; kind: string; masked: string; hash: string }
 // events of your own (laki widget emit): custom.<name>; "custom.*" in on: answers every one
 export const CUSTOM_EVENT = /^custom\.[a-z0-9][a-z0-9._-]{0,40}$/
 export type WidgetEvent = (typeof WIDGET_EVENTS)[number] | `custom.${string}`

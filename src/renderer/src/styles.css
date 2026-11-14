@@ -3680,6 +3680,9 @@ html.away .app { --accent: color-mix(in srgb, var(--fg) 24%, var(--panel)); --ac
 .ship input[type='checkbox'] { width: auto; flex: none; margin: 0; padding: 0; }
 .ship label:has(> input[type='checkbox']) { display: flex; align-items: center; gap: var(--sp-3); }
 .ship-file .st { flex: none; width: 1.2em; text-align: center; }
+.ship-secrets { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-in); background: color-mix(in srgb, var(--waiting) 10%, transparent); } /* the secret check's finds, over the columns */
+.ship-secret { display: flex; gap: var(--sp-3); align-items: center; }
+.ship-secret .ship-name { flex: 1; }
 
 /* U8: Needs you's Allow all and Deny all, in its head */
 .needs-bulk { display: flex; gap: var(--sp-2); margin-left: auto; flex: none; }

@@ -213,9 +213,16 @@ HEAD, else main or master: the new-workspace page's base unless picked), `wsNew`
   `treeOf`'s changes against HEAD (no renames), the commit's tree HEAD's with only those taken from it, the rest left
   uncommitted; `title`/`body` gh's `--title`/`--body` (glab's `--description`) instead of `--fill`; `draft`; `base`,
   the PR's (said: always passed); `reviewers`, logins or org/team, `--reviewer`; `mode` `commit` or `push` stops the
-  script there), `shipDraft` (the sheet's start: `treeOf`'s files with +/−, `ahead` of the base, a `title` from the
+  script there; `allowSecrets`: below), `shipDraft` (the sheet's start: `treeOf`'s files with +/−, `ahead` of the base, `secrets`: the secret check's finds over every uncommitted file, a `title` from the
   name, else the first prompt's words, a `body` from the first prompt and the agent's last answer, no model asked;
-  agent-refused: it quotes the chat). A repo with a PR template (core.ts `prTemplate`: the first of shared/prTemplate.ts'
+  agent-refused: it quotes the chat). The secret check (core.ts `shipSecrets`, share.ts `findSecrets`: the masking's
+  `SECRETS`, each with its kind) runs on the lines the commit adds, HEAD to the tree it commits (`diff-tree -p -U0`): a
+  deleted file, a lockfile, a binary one or one over 1 MB skipped. A find stops `ship` before the commit with
+  `{ secrets: [{ file, line, kind, masked, hash }] }` (masked: `sk_l••••`, never the match; hash: sha-256 of the
+  workspace's id and the match); `allowSecrets` passes it: `true` (`laki ship --allow-secrets`) once, or the hashes the
+  sheet's *Not a secret* named, kept in `Workspace.secretOk` (200 at most; `wsOut` leaves them out of the view).
+  `agentNo` refuses `allowSecrets` from an agent, as `ship` does itself; a workflow's Ship block fails with the list
+  as its output. A repo with a PR template (core.ts `prTemplate`: the first of shared/prTemplate.ts'
   `PR_TEMPLATES`, GitLab's `MR_TEMPLATES`, a regular file inside the worktree through `inside`, its first 20 KB; on a
   host one that isn't a link) gets `fillTemplate`'s body: its HTML comments gone, the answer and the task under its first
   heading like a description (What, Summary, Description, Changes), else before its first heading, its checklists as

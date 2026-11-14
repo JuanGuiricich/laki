@@ -1561,6 +1561,8 @@ async function act(r: FlowRun, b: Block) {
     if (a === 'ship') {
       const tab = await ship(ws.id, fill(b.text || '{{task}}', varsOf(r)), { by: 'workflow', agent: r.by, ...cause(r) })
       if ('held' in tab) return held(tab.held)
+      // the secret check found some: its list as the output, the error way (only the user ships past it: the Ship sheet, laki ship --allow-secrets)
+      if ('secrets' in tab) return (r.vars[`steps.${b.id}.output`] = tab.secrets.map(f => `${f.file}:${f.line}: ${f.kind} ${f.masked}`).join('\n')), leave(r, b, 'error', `possible secret${tab.secrets.length === 1 ? '' : 's'} in what it would commit: ${tab.secrets.slice(0, 3).map(f => `${f.file}:${f.line}`).join(', ')}${tab.secrets.length > 3 ? '…' : ''}`)
       const s = sessions.get(tab.id)!
       const then = s.onExit
       s.onExit = code => {

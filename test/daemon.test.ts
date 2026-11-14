@@ -431,3 +431,37 @@ test("U5: the Ship sheet: its draft from the chat; only the files picked are com
   assert.equal(execFileSync('git', ['log', '-1', '--format=%s'], { cwd: ws.path, encoding: 'utf8' }).trim(), 'Add b')
   assert.equal(execFileSync('git', ['status', '--porcelain'], { cwd: ws.path, encoding: 'utf8' }), '?? c.txt\n')
 })
+
+test("Ship's secret check: a staged key stops the ship, masked everywhere; Not a secret ships it and is remembered; a lockfile is skipped; an agent can't pass it", async t => {
+  const rig = await fresh(t)
+  await rig.rpc('settingsSet', { devMode: true }) // the workspace's log kept, to look in
+  const p = await rig.rpc('projectAdd', { path: rig.repo })
+  const ws = await rig.rpc('wsNew', { project: p.id, preset: 'claude' })
+  const tab = await rig.tab(ws.id)
+  const KEY = 'sk_live_fakefakefake'
+  writeFileSync(join(ws.path, 'pay.ts'), `const a = 1\nconst key = '${KEY}'\n`)
+  writeFileSync(join(ws.path, 'package-lock.json'), `{ "token": "${KEY}" }\n`) // a lockfile: not looked at
+  execFileSync('git', ['add', '-A'], { cwd: ws.path, env: rig.env }) // staged, as git diff --cached sees it
+  const d = await rig.rpc('shipDraft', { ws: ws.id })
+  assert.deepEqual(d.secrets.map((f: any) => [f.file, f.line, f.kind, f.masked]), [['pay.ts', 2, 'API key', 'sk_l••••']])
+  const r = await rig.rpc('ship', { ws: ws.id, message: 'Add pay' })
+  assert.deepEqual(r.secrets.map((f: any) => [f.file, f.line]), [['pay.ts', 2]])
+  assert.equal((await rig.rpc('state')).tabs.some((x: any) => x.kind === 'ship'), false, 'stopped before the commit: no ship tab')
+  const cli = await rig.cli('ship', ws.id, '-m', 'Add pay')
+  assert.equal(cli.code, 1)
+  assert.match(cli.out, /Not shipped: possible secrets[\s\S]*pay\.ts:2 {2}API key {2}sk_l••••/)
+  // an agent can't pass it, either way
+  await assert.rejects(rig.rpc('ship', { ws: ws.id, message: 'x', allowSecrets: true, from: { tab: tab.id } }), /an agent can't ship past the secret check/)
+  await assert.rejects(rig.rpc('ship', { ws: ws.id, message: 'x', allowSecrets: [r.secrets[0].hash], from: { tab: tab.id } }), /an agent can't ship past the secret check/)
+  // Not a secret: ships, and that match isn't asked about again in this workspace
+  const s = await rig.rpc('ship', { ws: ws.id, message: 'Add pay', mode: 'commit', allowSecrets: [r.secrets[0].hash] })
+  assert.ok(s.id)
+  await until(async () => execFileSync('git', ['log', '-1', '--format=%s'], { cwd: ws.path, encoding: 'utf8' }).trim() === 'Add pay', 'committed')
+  writeFileSync(join(ws.path, 'more.ts'), `export const k = '${KEY}'\n`)
+  assert.deepEqual((await rig.rpc('shipDraft', { ws: ws.id })).secrets, [])
+  // the real value is in no result, log or view
+  const logs = JSON.stringify(await rig.rpc('logs', { key: `ws:${ws.id}` }))
+  assert.match(logs, /ship: stopped, 1 possible secret: pay\.ts:2 \(API key\)/)
+  for (const said of [JSON.stringify([d, r, s]), cli.out, cli.err, logs, rig.out, JSON.stringify(await rig.rpc('state'))]) assert.equal(said.includes(KEY), false)
+  assert.equal(JSON.stringify((await rig.rpc('state')).workspaces).includes('secretOk'), false, "the hashes stay out of the view")
+})

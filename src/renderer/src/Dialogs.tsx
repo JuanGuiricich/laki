@@ -6,7 +6,7 @@ import { type AppCtx, backWord, type Dialog, extKey, extOf, flowsOf, notesOf, sp
 import type { AccountsApi, SkillInfo } from './Settings'
 import { FONT_SIZE } from './settingsBase'
 import { api, bridge, openExternal } from './api'
-import { type ChatHit, type AccountView, type Account, type WorkspaceView, aiOn, prAllows, type ProjectConfig, type Doctor, type Resources, type ScriptRun, type LogLine, type CompactLogLine, type GateHeld, type Project, prIn, type Sep, rowsOf, type TabView, SEP_WHERE, PERMS, MODELS, EFFORTS } from '../../shared/types'
+import { type ChatHit, type AccountView, type Account, type WorkspaceView, aiOn, prAllows, type ProjectConfig, type Doctor, type Resources, type ScriptRun, type LogLine, type CompactLogLine, type GateHeld, type Project, prIn, type SecretFound, type Sep, rowsOf, type TabView, SEP_WHERE, PERMS, MODELS, EFFORTS } from '../../shared/types'
 import { type AgentUsage, UsagePage, type UsageDay } from './Usage'
 import { ask, type MenuItem, Icon } from './ui'
 import { type PanelTab, type Changes, type FileContent, FileFinder, type FileList } from './SidePanel'
@@ -737,8 +737,8 @@ export function Dialogs({ app }: { app: AppCtx }) {
           call={call}
           onClose={() => setDialog(null)}
           onShip={async ({ autoLand, autoFix, ...a }) => {
-            const t = await gated(ws, 'ship', force => call<TabView | { held: GateHeld[] }>('ship', { ws: ws.id, ...a, force }))
-            if (!t || !('id' in t)) return
+            const t = await gated(ws, 'ship', force => call<TabView | { held: GateHeld[] } | { secrets: SecretFound[] }>('ship', { ws: ws.id, ...a, force }))
+            if (!t || !('id' in t)) return t // the secret check's finds: the sheet shows them
             // the PR's switches as the sheet left them (a PR the ship opens takes them)
             if (a.mode === 'pr') for (const [k, v] of [['autoLand', autoLand], ['autoFix', autoFix]] as const) if (!!ws[k] !== v) call('wsSet', { id: ws.id, [k]: v }).catch(() => {})
             setDialog(null)

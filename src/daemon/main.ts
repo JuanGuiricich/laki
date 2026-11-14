@@ -563,7 +563,7 @@ const api: Record<string, Handler> = {
   tunnelStart: async p => (await exposeAsk(p), remoteMod.tunnelStart(p)), // S7: an agent's asks you, unless the project says who
   tunnelStop: p => remoteMod.tunnelStop(p),
   tunnelCheck: p => remoteMod.tunnelCheck(p), // Settings › Tunnels: is the named tunnel ready
-  ship: p => core.ship(p.ws, p.message, { force: p.force === true, from: p.from, ...(Array.isArray(p.files) && { files: p.files.map(String) }), ...(typeof p.title === 'string' && { title: p.title }), ...(typeof p.body === 'string' && { body: p.body }), draft: p.draft === true, ...(typeof p.base === 'string' && { base: p.base }), ...(Array.isArray(p.reviewers) && { reviewers: p.reviewers.map(String) }), ...(typeof p.mode === 'string' && { mode: p.mode }) }),
+  ship: p => core.ship(p.ws, p.message, { force: p.force === true, from: p.from, ...((p.allowSecrets === true || Array.isArray(p.allowSecrets)) && { allowSecrets: p.allowSecrets === true || p.allowSecrets.map(String) }), ...(Array.isArray(p.files) && { files: p.files.map(String) }), ...(typeof p.title === 'string' && { title: p.title }), ...(typeof p.body === 'string' && { body: p.body }), draft: p.draft === true, ...(typeof p.base === 'string' && { base: p.base }), ...(Array.isArray(p.reviewers) && { reviewers: p.reviewers.map(String) }), ...(typeof p.mode === 'string' && { mode: p.mode }) }),
   shipDraft: p => core.shipDraft(p.ws),
   screen: async p => (await crossAsk(p, 'screen'), core.screen(p.target, p.lines, p.by, p.all === true)),
   input: async (p, c) => (text(p.data, 'data'), await crossAsk(p, 'send', p.tab, p.data), typed(p, String(p.tab), p.data), core.input(p.tab, p.data, c)),
@@ -1018,6 +1018,7 @@ function agentNo(method: string, p: any) {
   else if (method === 'tabReopen' && core.agentCaller(p.from) && core.agentCaller(p.from) !== core.findWs(String(p.ws ?? '')).id) throw new Error('an agent can reopen a closed tab in its own workspace only')
   else if (method === 'prThreads' && p.all === true) notAgent(p, "read everyone's PR comments (only trusted reviewers' go to agents)")
   else if ((method === 'wsNew' || method === 'tabNew') && p.sandbox === false) notAgent(p, "start an agent outside its profile's sandbox")
+  else if (method === 'ship' && p.allowSecrets !== undefined && p.allowSecrets !== false) notAgent(p, 'ship past the secret check (the user says what is not a secret)')
   else if (method === 'aiAsk' && String(p.chat ?? '').startsWith('widget:')) notAgent(p, "ask in an extension's page chat (what Laki AI changes there stays on)")
   else if (method === 'tunnelStart' && p.host !== undefined) notAgent(p, 'make a permanent tunnel (a public address that stays, a DNS record of yours)')
   else if (method === 'tabSet' && p.from?.tab !== p.id) notAgent(p, p.alias !== undefined ? "name another agent's tab (laki name names your own)" : "rename, color or mute a tab that isn't its own") // an alias: else it could take a name and its messages; S11: the rest too (a muted tab's asks go unseen)

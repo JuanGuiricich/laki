@@ -13,7 +13,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } 
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { move as moveFile, priorOf, readJson, syncDir, writeAtomic } from '../shared/conn.ts'
-import { endpointOk, MASK, type DigestRow, LABS, CLAUDE_MODES, claudeMode, type NativeSeen, SEP_WHERE, type SepWhere, actionSlug, againOnEnter, checkOk, type CheckRun, type Proof, type Agent, AGENTS, ALIAS, agentVars, ANSWER_WHY, answerOk, API, type Doctor, doctorRows, doctorText, EFFORTS, FAST, FILE_MAX, fillVars, STORAGE_DAYS, type Card, type ClosedTab, flowsOn, type Gate, type GateHeld, IMAGE_DAYS, isAccountAgent, isAgent, type LogLine, type Memory, MEMORY_AUTO_LEN, MEMORY_MAX, neverAsks, permArgs, permInArgs, PERMS, SANDBOX, SANDBOX_NO, sandboxOff, type PR, type PRAllow, prAllows, type Preset, prIn, type Proc, type Project, type ProjectConfig, RAIL_PINS, refsIn, REMOTE, rowsOf, RUN_SCRIPTS, type RunAction, type RunScript, type ScriptRun, type Sep, type Settings, SLEEP_AFTER, specsOn, type State, type Status, type Tab, TAB_COLORS, type TabView, taskTitle, type Template, type View, type TurnChanges, WHEN_DONE_WAIT, type WhenDone, type Workspace, WS_SORTS, type WsSort } from '../shared/types.ts'
+import { endpointOk, MASK, type DigestRow, LABS, CLAUDE_MODES, claudeMode, type NativeSeen, SEP_WHERE, type SepWhere, actionSlug, againOnEnter, checkOk, type CheckRun, type Proof, type Agent, AGENTS, ALIAS, agentVars, ANSWER_WHY, answerOk, API, type Doctor, doctorRows, doctorText, EFFORTS, FAST, FILE_MAX, fillVars, STORAGE_DAYS, type Card, type ClosedTab, flowsOn, type Gate, type GateHeld, IMAGE_DAYS, isAccountAgent, isAgent, type LogLine, type Memory, MEMORY_AUTO_LEN, MEMORY_MAX, neverAsks, permArgs, permInArgs, PERMS, SANDBOX, SANDBOX_NO, sandboxOff, type PR, type PRAllow, prAllows, type Preset, prIn, type Proc, type Project, type ProjectConfig, RAIL_PINS, refsIn, REMOTE, rowsOf, RUN_SCRIPTS, type RunAction, type RunScript, type ScriptRun, type SecretFound, type Sep, type Settings, SLEEP_AFTER, specsOn, type State, type Status, type Tab, TAB_COLORS, type TabView, taskTitle, type Template, type View, type TurnChanges, WHEN_DONE_WAIT, type WhenDone, type Workspace, WS_SORTS, type WsSort } from '../shared/types.ts'
 import { CAPS } from '../shared/caps.ts'
 import { VERSION } from '../shared/version.ts'
 import { emojiOf, isIconName, lookOf, setIconLook } from '../shared/icons.ts'
@@ -23,7 +23,7 @@ import { usual, USUAL_KEEP, USUAL_MIN } from '../shared/nextStep.ts'
 import { FLOW_ENDED, flowView } from '../shared/workflow.ts'
 import { dir, inRig } from './dir.ts'
 import { accountEnv, accountFor, accountIds, accountNamed, accounts, claudeVersion, effortsSaid, homeDir, loginCmd, modelNeedsView, modelRefused } from './accounts.ts'
-import { redact, transcriptOf } from './share.ts'
+import { findSecrets, redact, transcriptOf } from './share.ts'
 import * as cs from './codespace.ts'
 import * as gitlab from './gitlab.ts'
 import { limitReset } from './limits.ts'
@@ -2529,7 +2529,7 @@ export async function tabMode(p: { tab?: unknown; mode?: unknown }) {
 // what's typed in a tab's Reader box and not sent: read (no text), or kept (debounced by the Reader), through restarts,
 // a closed tab (closeTab, tabReopen) and an archive; deleted with its tab. Yours alone: no agent reads or sets it
 export const DRAFT_MAX = 100_000
-export const wsOut = (w: Workspace) => ({ ...w, closed: w.closed?.map(({ draft: _, ...c }) => c) }) // a workspace as anyone is told of it: closed tabs' drafts stay here
+export const wsOut = ({ secretOk: _, ...w }: Workspace) => ({ ...w, closed: w.closed?.map(({ draft: _, ...c }) => c) }) // a workspace as anyone is told of it: closed tabs' drafts and Ship's Not a secret hashes stay here
 export function tabDraft(p: { tab?: unknown; text?: unknown }) {
   const t = findTab(String(p.tab ?? ''))
   if (p.text === undefined) return { text: t.draft ?? '' }
@@ -5028,7 +5028,7 @@ const swapped = async (ws: Workspace, links: string[]) => (links.length ? (await
 // U5: the Ship sheet's, all optional (laki ship's flags; none: as before, every change, gh pr create --fill). files: the
 // changed paths to commit (treeOf's, the others stay uncommitted); mode: stop after the commit or the push; title and
 // body: the PR's (else gh's --fill); base: the PR's base branch; reviewers: GitHub logins or org/team names
-export type ShipOpts = GateOpts & { files?: string[]; title?: string; body?: string; draft?: boolean; base?: string; reviewers?: string[]; mode?: 'commit' | 'push' | 'pr' }
+export type ShipOpts = GateOpts & { files?: string[]; title?: string; body?: string; draft?: boolean; base?: string; reviewers?: string[]; mode?: 'commit' | 'push' | 'pr'; allowSecrets?: true | string[] }
 const NAME_OK = /^[A-Za-z0-9][\w.-]*(\/[A-Za-z0-9][\w.-]*)?$/
 // what treeOf's tree changes against HEAD, each path once (no renames: a rename is its old path gone and its new one)
 async function changedIn(ws: Workspace, tree: string) {
@@ -5101,6 +5101,38 @@ async function shipWords(ws: Workspace) {
   return { title, body, template: !!template }
 }
 
+// Ship's secret check: findSecrets over the lines the commit adds (HEAD to its tree), file by file; not a deleted file,
+// a lockfile (verify.ts' PROOF_FACTS), a binary one or one over 1 MB. ok: the hashes not to count (ws.secretOk's and
+// the ones allowed this time). Its words in the log and the result are masked; nothing found costs two git calls
+const SECRET_FILE_MAX = 1 << 20
+const LOCKFILE = /(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|Gemfile\.lock|Cargo\.lock|poetry\.lock|uv\.lock|Pipfile\.lock|composer\.lock|go\.sum|mix\.lock|Podfile\.lock|flake\.lock)$/
+export async function shipSecrets(ws: Workspace, tree: string, ok: Set<string> = new Set(ws.secretOk)): Promise<SecretFound[]> {
+  const ns = (await git(ws, 'diff-tree', '-r', '-z', '--no-renames', '--name-status', 'HEAD', tree)).split('\0')
+  const paths: string[] = []
+  for (let i = 0; i + 1 < ns.length; i += 2) if (ns[i] && ns[i][0] !== 'D' && !LOCKFILE.test(ns[i + 1])) paths.push(ns[i + 1])
+  if (!paths.length) return []
+  // ponytail: one ls-tree and one diff-tree for every path; an argument list past the OS's limit (thousands) fails, as treePick's
+  const small = (await git(ws, '--literal-pathspecs', 'ls-tree', '-l', '-z', tree, '--', ...paths)).split('\0').flatMap(l => (m => (m && m[1] === 'blob' && Number(m[2]) <= SECRET_FILE_MAX ? [m[3]] : []))(/^\d+ (\w+) \w+ +(\d+|-)\t(.*)$/s.exec(l)))
+  if (!small.length) return []
+  const text = await git(ws, '--literal-pathspecs', '-c', 'core.quotePath=false', 'diff-tree', '-r', '-p', '-U0', '--no-renames', '--no-color', '--no-ext-diff', '--no-textconv', '--src-prefix=a/', '--dst-prefix=b/', 'HEAD', tree, '--', ...small)
+  const found: SecretFound[] = []
+  let file = '', lines: string[] = [], at: number[] = [], next = 0, hunk = false
+  const flush = () => {
+    if (file && lines.length) for (const f of findSecrets(lines.join('\n'), ws.id)) if (!ok.has(f.hash)) found.push({ file, ...f, line: at[f.line - 1] })
+    lines = []
+    at = []
+  }
+  const unq = (p: string) => { try { return p.startsWith('"') ? JSON.parse(p) : p } catch { return p } } // quotePath off: only a tab, a newline, a quote or a backslash quotes it
+  for (const l of text.split('\n')) {
+    if (l.startsWith('diff --git ')) (flush(), (file = ''), (hunk = false))
+    else if (!hunk && l.startsWith('+++ ')) file = (p => (p === '/dev/null' ? '' : p.replace(/^b\//, '')))(unq(l.slice(4)))
+    else if (l.startsWith('@@')) (hunk = true), (next = Number(/\+(\d+)/.exec(l)?.[1] ?? 0))
+    else if (hunk && file && l[0] === '+') (lines.push(l.slice(1)), at.push(next++))
+  }
+  flush()
+  return found
+}
+
 // U5: the Ship sheet's start: what ship would commit (each uncommitted file, +/−), the commits already on the branch,
 // and shipWords' title and body
 export async function shipDraft(ref: string) {
@@ -5110,10 +5142,11 @@ export async function shipDraft(ref: string) {
   const files = await changedIn(ws, tree)
   const ahead = Number((await git(ws, 'rev-list', '--count', `${ws.base}..HEAD`).catch(() => '0')).trim()) || 0
   const { title, body } = await shipWords(ws)
-  return { title, message: title, body, files, ahead, base: ws.base.replace(/^origin\//, ''), branch: ws.branch }
+  const secrets = await shipSecrets(ws, tree).catch(() => [])
+  return { title, message: title, body, files, ahead, base: ws.base.replace(/^origin\//, ''), branch: ws.branch, secrets }
 }
 
-export async function ship(ref: string, message: string, o: ShipOpts = {}): Promise<Tab | { held: GateHeld[] }> {
+export async function ship(ref: string, message: string, o: ShipOpts = {}): Promise<Tab | { held: GateHeld[] } | { secrets: SecretFound[] }> {
   const ws = findWs(ref)
   if (ws.kind !== 'worktree') throw new Error('ship works on worktree workspaces')
   if (!message?.trim()) throw new Error('a commit message is needed')
@@ -5154,6 +5187,17 @@ export async function ship(ref: string, message: string, o: ShipOpts = {}): Prom
   // git add -A here would go into a nested repo (noNested), so what treeOf stages, a host's worktree there
   const all = await treeOf(ws, true)
   const tree = files ? await treePick(ws, all, files) : all
+  // the secret check, before the commit: yours to pass (allowSecrets: true, laki ship --allow-secrets; or the hashes the
+  // sheet's Not a secret named, remembered), never an agent's (main.ts agentNo)
+  if (o.allowSecrets && agentCaller(o.from)) throw new Error("an agent can't ship past the secret check: it's the user's (ask them)")
+  const allowed = o.allowSecrets === true ? undefined : new Set((o.allowSecrets ?? []).map(String))
+  const secrets = allowed ? await shipSecrets(ws, tree, new Set([...(ws.secretOk ?? []), ...allowed])) : []
+  if (secrets.length) {
+    wsLog(ws, `ship: stopped, ${secrets.length} possible secret${secrets.length === 1 ? '' : 's'}: ${secrets.slice(0, 5).map(f => `${f.file}:${f.line} (${f.kind})`).join(', ')}${secrets.length > 5 ? '…' : ''}`)
+    return { secrets }
+  }
+  if (allowed?.size) (ws.secretOk = [...new Set([...(ws.secretOk ?? []), ...allowed])].slice(-200)), save()
+  if (o.allowSecrets === true) wsLog(ws, 'ship: secret check skipped, you said ship anyway')
   const index = await turnIndex(ws, 'ship')
   await exec(ws, 'cp', [await turnIndex(ws), index]) // now: a turn's treeOf rewrites that one
   const links = await gitlinks(ws, 'ls-tree', '-r', '-z', tree)
