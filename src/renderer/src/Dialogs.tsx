@@ -343,7 +343,7 @@ export function Pages({ app }: { app: AppCtx }) {
         o &&
         notesOn && (
           <Lazy title="Notes" onClose={() => setDialog(null)}>
-            <NotesPage id={o.note} api={{ call: (m, p) => api.call(m, p) }} onOpen={note => setDialog({ note })} onClose={() => setDialog(null)} />
+            <NotesPage id={o.note} api={{ call: (m, p) => api.call(m, p), ...(hasCap(view, 'note.restore') && { undo: (text: string, undo: () => void) => done(text, undo) }) }} onOpen={note => setDialog({ note })} onClose={() => setDialog(null)} />
           </Lazy>
         ))(notesOf(dialog))}
       {dialog === 'todos' && todosOn && (

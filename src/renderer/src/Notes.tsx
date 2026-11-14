@@ -14,7 +14,7 @@ const SIDE_INIT = 290
 
 type Item = { id: string; title: string; color?: string; pinned?: boolean; preview: string; created: number; at: number }
 type Note = Item & { blocks: unknown[]; md: string }
-export type NotesApi = { call<T = any>(method: string, params?: object): Promise<T> }
+export type NotesApi = { call<T = any>(method: string, params?: object): Promise<T>; undo?: (text: string, undo: () => void) => void } // undo: App's toast with Undo (a daemon that keeps a trash)
 type Change = { title?: string; blocks?: unknown[]; md?: string; color?: string | null; pinned?: boolean }
 
 const fileData = (f: File) =>
@@ -51,10 +51,17 @@ export default function NotesPage({ id, api, onOpen, onClose }: { id: string; ap
   const saved = (it: Item) => setList(l => l && order(l.map(x => (x.id === it.id ? it : x))))
   const save = (nid: string, c: Change) => api.call<Item>('note.save', { id: nid, ...c }).then(saved)
   const remove = (n: Item) =>
-    void ask(`Delete ${named(n)}?`, { text: 'The note and the files in it go for good.', ok: 'Delete', danger: true }).then(y => {
+    void ask(`Delete ${named(n)}?`, { text: api.undo ? 'The note and the files in it go to the trash: Undo brings them back, and after 30 days they go for good.' : 'The note and the files in it go for good.', ok: 'Delete', danger: true }).then(y => {
       if (!y) return
       const next = shown[shown.findIndex(x => x.id === n.id) + 1] ?? shown[shown.findIndex(x => x.id === n.id) - 1]
-      api.call('note.rm', { id: n.id }).then(() => (setList(l => l && l.filter(x => x.id !== n.id)), n.id === open && onOpen(next?.id ?? '')), e => setErr((e as Error).message)) // out of the list at once: the first open next isn't it
+      api.call('note.rm', { id: n.id }).then(
+        () => {
+          setList(l => l && l.filter(x => x.id !== n.id)) // out of the list at once: the first open next isn't it
+          if (n.id === open) onOpen(next?.id ?? '')
+          api.undo?.(`Deleted ${named(n)}`, () => void api.call('note.restore', { id: n.id }).then(() => (void load(), onOpen(n.id)), e => setErr((e as Error).message)))
+        },
+        e => setErr((e as Error).message),
+      )
     })
   const colorItems = (n: Item, set: (c: string | null) => void): MenuItem[] => [{ colors: TAB_COLORS, value: n.color, pick: c => set(c === 'none' ? null : c) }, ...(n.color ? [{ label: 'No color', icon: 'x', run: () => set(null) } as MenuItem] : [])]
   const rowMenu = (e: React.MouseEvent, n: Item) => (

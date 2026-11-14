@@ -7,7 +7,7 @@
 // items, headings, nested ones, dragged into order), its blocks and Markdown in <data>/todo-list.json; no files (TodoList.tsx).
 import { randomBytes } from 'node:crypto'
 import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { readJson, writeAtomic } from '../shared/conn.ts'
+import { move, readJson, writeAtomic } from '../shared/conn.ts'
 import { basename, extname, join } from 'node:path'
 import { state } from './core.ts'
 import { dir } from './dir.ts'
@@ -96,11 +96,41 @@ export function noteSave(p: { id: string; title?: string; color?: string | null;
   return item(n)
 }
 
+// to the trash, as workflows go (workflow.ts): <data>/trash/notes/<id>-<ms>/ with its <id>.json and its files' <id>/;
+// noteRestore brings the newest back, refused while a note of that id is there; past NOTE_TRASH_DAYS, gone for good
+// (noteTrashTidy: as a note goes, at start and hourly with the workflows' trash)
+const trash = join(dir, 'trash', 'notes')
+const NOTE_TRASH_DAYS = 30
+const TRASHED = /^([a-z0-9]{6,12}-[0-9a-f]{6})-(\d+)$/
 export function noteRm(p: { id: string }) {
   on()
-  rmSync(fileOf(p.id), { force: true })
-  rmSync(join(home, p.id), { recursive: true, force: true })
-  return {}
+  const f = fileOf(p.id)
+  noteTrashTidy()
+  if (!exists(f)) return {}
+  const t = join(trash, `${p.id}-${Date.now()}`)
+  mkdirSync(t, { recursive: true, mode: 0o700 })
+  move(f, join(t, `${p.id}.json`))
+  if (exists(join(home, p.id))) move(join(home, p.id), join(t, p.id))
+  return { trash: basename(t) }
+}
+export function noteRestore(p: { id: string }) {
+  on()
+  const f = fileOf(p.id)
+  if (exists(f)) throw new Error('a note with that id is there now: not restored')
+  const t = (() => { try { return readdirSync(trash) } catch { return [] } })().map(n => [n, TRASHED.exec(n)] as const).filter(([, m]) => m?.[1] === p.id).sort((a, b) => Number(b[1]![2]) - Number(a[1]![2]))[0]?.[0]
+  if (!t) throw new Error('no such note in the trash')
+  mkdirSync(home, { recursive: true })
+  move(join(trash, t, `${p.id}.json`), f)
+  if (exists(join(trash, t, p.id))) move(join(trash, t, p.id), join(home, p.id))
+  rmSync(join(trash, t), { recursive: true, force: true })
+  return item(read(p.id))
+}
+export function noteTrashTidy(now = Date.now()) {
+  let names: string[] = []
+  try {
+    names = readdirSync(trash)
+  } catch {}
+  for (const n of names) if ((m => !m || now - Number(m[2]) > NOTE_TRASH_DAYS * 86400e3)(TRASHED.exec(n))) rmSync(join(trash, n), { recursive: true, force: true })
 }
 
 // a file pasted or dropped into it: <id>/<name> (a name taken: -2, -3…), as files/<name> in its blocks

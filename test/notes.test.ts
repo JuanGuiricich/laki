@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -124,4 +124,35 @@ test('caps against an older daemon: hasCap by its API number; the CLI sends a na
   assert.deepEqual(await rpc('note.list'), ['old'])
   await assert.rejects(rpc('note.nope'), /^Error: unknown method note\.nope$/) // not an alias: refused as it is
   assert.deepEqual(seen, ['note.list', 'noteList', 'noteList', 'note.nope'])
+})
+
+test("a deleted note goes to the trash: restore brings back its text and a pasted file; one past 30 days is swept; an agent can't restore", async t => {
+  const rig = await fresh(t)
+  const n = await rig.rpc('noteNew', { title: 'Keep me' })
+  await rig.rpc('noteSave', { id: n.id, blocks: [{ type: 'paragraph', content: 'the steps' }], md: 'the steps' })
+  const png = Buffer.from('89504e470d0a1a0a', 'hex').toString('base64')
+  await rig.rpc('noteUpload', { id: n.id, name: 'shot.png', data: png })
+  const r = await rig.rpc('note.rm', { id: n.id })
+  assert.match(r.trash, new RegExp(`^${n.id}-\\d+$`))
+  assert.ok(!existsSync(join(rig.data, 'notes', `${n.id}.json`)) && !existsSync(join(rig.data, 'notes', n.id)))
+  assert.ok(existsSync(join(rig.data, 'trash', 'notes', r.trash, n.id, 'shot.png')))
+  // an agent's restore is refused; yours brings it back, files and all
+  const p = await rig.rpc('projectAdd', { path: rig.repo })
+  const ws = await rig.rpc('wsNew', { project: p.id, preset: 'claude' })
+  const tab = await rig.tab(ws.id)
+  await assert.rejects(rig.rpc('noteRestore', { id: n.id, from: { tab: tab.id } }), /an agent can't change the user's notes/)
+  const back = await rig.rpc('note.restore', { id: n.id })
+  assert.equal(back.title, 'Keep me')
+  assert.equal((await rig.rpc('noteGet', { id: n.id })).md, 'the steps')
+  assert.match((await rig.rpc('noteFile', { id: n.id, path: 'files/shot.png' })).image, /^data:image\/png;base64,/)
+  assert.ok(!existsSync(join(rig.data, 'trash', 'notes', r.trash)))
+  await assert.rejects(rig.rpc('noteRestore', { id: n.id }), /a note with that id is there now/)
+  // past 30 days: gone for good (as the next note goes)
+  const old = await rig.rpc('noteRm', { id: n.id })
+  const aged = `${n.id}-${Date.now() - 31 * 86400e3}`
+  renameSync(join(rig.data, 'trash', 'notes', old.trash), join(rig.data, 'trash', 'notes', aged))
+  const other = await rig.rpc('noteNew', { title: 'x' })
+  await rig.rpc('noteRm', { id: other.id })
+  assert.ok(!existsSync(join(rig.data, 'trash', 'notes', aged)))
+  await assert.rejects(rig.rpc('noteRestore', { id: n.id }), /no such note in the trash/)
 })

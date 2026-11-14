@@ -194,7 +194,11 @@ title or `md`) gives `NoteItem`s, pinned first, then `at` (a title or text chang
 `preview` (`plain`: Markdown's marks out). The renderer's `Notes.tsx` (App's `lazy`, dialog `{ note: id ('': the
 first) }`, the rail's Notes and ⌘K; `listOff`): `Page` with the list (`.notes-side`: search, `.notes-dot` color filter,
 `.note-row`s, a right click: pin, color, delete) and `NoteEdit` (title, color, pin, delete; Specs' `SpecEditor`, saved
-600 ms after a change and as it unmounts). Tested in `test/notes.test.ts`.
+600 ms after a change and as it unmounts). `noteRm` moves a note to the trash, as workflows go: `<data>/trash/notes/<id>-<ms>/`
+(its `<id>.json` and its files' `<id>/`); `noteRestore` (`note.restore`; AGENT_NO, ANSWER_NO, as `noteSave`) moves the
+newest of it back, refused while a note of that id is there; `noteTrashTidy` removes one past 30 days as a note goes, at
+start and hourly with `flowTrashTidy`. The page's Delete gives App's toast with Undo (`NotesApi.undo`, the `note.restore`
+cap). Tested in `test/notes.test.ts`.
 
 ## Your endpoint
 

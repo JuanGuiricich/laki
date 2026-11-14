@@ -2046,7 +2046,8 @@ and the tile follows; *Take it off My Desk* in a tile's ⋯ removes it.
 The rail's Notes (⌘K too; Settings › General › *Pages* turns it off) opens your notes: one list for every
 project, kept in Laki's data folder (`notes/`). The list on the left has a search box (every word, in a note's title or
 text), a dot per color in use (a click shows only those), and each note's color, title, the start of its text and when
-it changed, pinned ones first, then the newest edit. A right click on one pins it, colors it or deletes it. The note
+it changed, pinned ones first, then the newest edit. A right click on one pins it, colors it or deletes it (to the
+trash: *Undo* in the toast brings it back with its files; after 30 days it's gone for good). The note
 on the right is written like a Notion page, the same editor as specs: type `/` for headings, lists, checklists,
 tables, code, quotes, images (paste or drop them in) and diagrams. It saves as you type. *New note* starts one (in
 the color you're showing only).
