@@ -550,10 +550,10 @@ drives it (Electron); `pageChanges` and `browseSays` are tested in `test/units-m
   or with a coarse pointer. The small windows (NewWindow.tsx) have no App root, so none there.
 - **The change map** (Diff.tsx `ChangeMap`, Changes' `sp-body` and the full review's `.fr-diff`): a `--cmap-w` strip at
   the scroller's right edge (a sibling, absolutely placed by the scroller's offsets; the scroller gets `cmap-on`, its
-  padding for it). Each `.dl-add`, `.dl-del`, `.fr-inline` (a comment not sent yet: `--waiting`) and `.fr-thread` (a
-  review thread: `--hunk`) measured as the scroller resizes or its DOM changes (a ResizeObserver, a MutationObserver,
-  one frame each), then text.ts `marksOf`: scaled to the strip, at least 2px, a lane's marks closer than 2px one (an
-  added and a taken-out line together: `cmap-both`, two halves). A frame shows what's in view; a click or a drag
+  padding for it). Each hunk (`hunkSpans`: a `.dl-hunk` head to its last row before the next, adding, taking out or
+  both), `.fr-inline` (a comment not sent yet: `--waiting`) and `.fr-thread` (a review thread: `--hunk`) measured as the scroller resizes or its DOM changes (a ResizeObserver, a MutationObserver,
+  one frame each; never on a scroll), then text.ts `marksOf`: scaled to the strip, at least 2px, a lane's marks closer
+  than 2px one (a hunk with both: `cmap-both`, two halves). A frame shows what's in view; a click or a drag
   scrolls there (pointer capture). None while it all fits, in a window under 600px or with a coarse pointer (a phone);
   `aria-hidden` (the keys and ⌘F do the same).
 - **Errors** (ui.tsx `Boundary`): main.tsx wraps every window's root and App's `Lazy` each lazy page (`Waiting` its

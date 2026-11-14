@@ -991,16 +991,16 @@ export function snap(px: number, total: number, points: number[], threshold = 8)
   return best
 }
 
-// the change map beside a diff (Diff.tsx ChangeMap): what's in the scroller (each changed line, comment and thread: its
-// top and height there, of total px), drawn in a strip height px tall. A mark is at least 2px; marks of one lane closer
-// than 2px are one (an added and a taken-out line together: both, drawn as two halves). Comments and threads are lanes
-// of their own, beside the lines'
+// the change map beside a diff (Diff.tsx ChangeMap): what's in the scroller (each hunk, with what it adds, takes out or
+// both; each comment and thread: its top and height there, of total px), drawn in a strip height px tall. A mark is at
+// least 2px; marks of one lane closer than 2px are one (an adding and a taking-out hunk together: both, drawn as two
+// halves). Comments and threads are lanes of their own, beside the hunks'
 export type MapKind = 'add' | 'del' | 'note' | 'thread'
 export type MapMark = { y: number; h: number; kind: MapKind | 'both' }
-export function marksOf(spans: { top: number; h: number; kind: MapKind }[], total: number, height: number): MapMark[] {
+export function marksOf(spans: { top: number; h: number; kind: MapKind | 'both' }[], total: number, height: number): MapMark[] {
   if (total <= 0 || height <= 0) return []
   const k = height / total
-  const lane = (m: MapKind | 'both') => (m === 'note' || m === 'thread' ? m : 'line')
+  const lane = (m: MapKind | 'both') => (m === 'note' || m === 'thread' ? m : 'hunk')
   const out: MapMark[] = []
   const last = new Map<string, MapMark>()
   for (const s of [...spans].sort((a, b) => a.top - b.top)) {
@@ -1009,7 +1009,7 @@ export function marksOf(spans: { top: number; h: number; kind: MapKind }[], tota
     const at = last.get(lane(s.kind))
     if (at && y - (at.y + at.h) < 2) {
       at.h = Math.max(at.y + at.h, y + h) - at.y
-      if (at.kind !== s.kind && lane(s.kind) === 'line') at.kind = 'both'
+      if (at.kind !== s.kind && lane(s.kind) === 'hunk') at.kind = 'both'
       continue
     }
     const m = { y, h, kind: s.kind }

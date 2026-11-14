@@ -553,14 +553,16 @@ test('wordDiff: identical lines, one word changed, an inserted word, a different
   assert.deepEqual(wordDiff('', ''), { old: [], new: [] })
 })
 
-test('marksOf: the change map scales lines, merges what is closer than 2px, keeps comments and threads apart', async () => {
+test('marksOf: the change map scales hunks, merges what is closer than 2px, keeps comments and threads apart; an empty diff, none', async () => {
   const { marksOf } = await import('../src/renderer/src/text.ts')
   assert.deepEqual(marksOf([], 1000, 100), [])
   assert.deepEqual(marksOf([{ top: 10, h: 10, kind: 'add' }], 0, 100), [])
   // 1000px of content in 100px: a 20px line is 2px, a tiny one still 2px
   assert.deepEqual(marksOf([{ top: 500, h: 20, kind: 'add' }], 1000, 100), [{ y: 50, h: 2, kind: 'add' }])
   assert.deepEqual(marksOf([{ top: 500, h: 1, kind: 'del' }], 1000, 100), [{ y: 50, h: 2, kind: 'del' }])
-  // a deleted line right above an added one: one mark, both
+  // a hunk with both: as it comes
+  assert.deepEqual(marksOf([{ top: 300, h: 100, kind: 'both' }], 1000, 100), [{ y: 30, h: 10, kind: 'both' }])
+  // a taking-out hunk right above an adding one: one mark, both
   assert.deepEqual(marksOf([{ top: 100, h: 20, kind: 'del' }, { top: 120, h: 20, kind: 'add' }], 1000, 100), [{ y: 10, h: 4, kind: 'both' }])
   // far apart: two
   assert.equal(marksOf([{ top: 100, h: 20, kind: 'add' }, { top: 600, h: 20, kind: 'add' }], 1000, 100).length, 2)

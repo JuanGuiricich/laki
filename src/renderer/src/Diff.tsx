@@ -143,11 +143,30 @@ export const lineClass = (l: DiffLine, picked = false) => `dl ${l.text.startsWit
 // them; a context line is both). row: a line's own props (its clicks); head: a hunk header's contents; after: what goes
 // under a line (its comment box, a review's threads); gutter: before a line's text (the full review's blame), side: the
 // column it's in (both: one column)
-// the change map (Changes, the Review tab): a strip at the scroller's right edge, each changed line's place in all of it
+// the change map (Changes, the Review tab): a strip at the scroller's right edge, each hunk's place in all of it
 // (--add, --del, both as two halves), your comments not sent yet (--waiting) and the review's threads (--hunk), a frame
 // where you are; a click or a drag goes there. Measured from the DOM (a ResizeObserver, changes under it, each in one
 // frame); none while it all fits, in a window under 600px or on a phone (a coarse pointer)
-const MAP_PICK: [string, MapKind][] = [['.dl-add', 'add'], ['.dl-del', 'del'], ['.fr-inline', 'note'], ['.fr-thread', 'thread']]
+const MAP_PICK: [string, MapKind][] = [['.fr-inline', 'note'], ['.fr-thread', 'thread']]
+// a hunk's place: from its head (.dl-hunk) to its last row before the next head, and what's in it
+function hunkSpans(el: HTMLElement, top: (n: Element) => { top: number; h: number }) {
+  const out: { top: number; h: number; kind: MapKind | 'both' }[] = []
+  for (const head of el.querySelectorAll('.dl-hunk')) {
+    let add = false
+    let del = false
+    let last: Element = head
+    for (let n = head.nextElementSibling; n && !n.classList.contains('dl-hunk'); n = n.nextElementSibling) {
+      add ||= n.classList.contains('dl-add')
+      del ||= n.classList.contains('dl-del')
+      last = n
+    }
+    if (!add && !del) continue
+    const a = top(head)
+    const b = top(last)
+    out.push({ top: a.top, h: b.top + b.h - a.top, kind: add && del ? 'both' : add ? 'add' : 'del' })
+  }
+  return out
+}
 export function ChangeMap({ at }: { at: RefObject<HTMLElement | null> }) {
   const [m, setM] = useState<{ marks: MapMark[]; left: number; top: number; h: number; frame: [number, number] } | null>(null)
   const drag = useRef(false)
@@ -161,9 +180,8 @@ export function ChangeMap({ at }: { at: RefObject<HTMLElement | null> }) {
       if (total <= h + 1 || innerWidth < 600 || matchMedia('(pointer: coarse)').matches) return setM(null), el.classList.remove('cmap-on')
       el.classList.add('cmap-on')
       const box = el.getBoundingClientRect()
-      const spans = MAP_PICK.flatMap(([q, kind]) =>
-        [...el.querySelectorAll<HTMLElement>(q)].map(n => (r => ({ top: r.top - box.top + el.scrollTop, h: r.height, kind }))(n.getBoundingClientRect())),
-      )
+      const at = (n: Element) => (r => ({ top: r.top - box.top + el.scrollTop, h: r.height }))(n.getBoundingClientRect())
+      const spans = [...hunkSpans(el, at), ...MAP_PICK.flatMap(([q, kind]) => [...el.querySelectorAll(q)].map(n => ({ ...at(n), kind })))]
       setM({ marks: marksOf(spans, total, h), left: el.offsetLeft + el.clientLeft + el.clientWidth, top: el.offsetTop + el.clientTop, h, frame: [(el.scrollTop / total) * h, (h / total) * h] })
     }
     const soon = () => void (raf ||= requestAnimationFrame(measure))
