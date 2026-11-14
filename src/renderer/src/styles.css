@@ -43,7 +43,7 @@
   --lift-2: 0 8px 24px rgba(0, 0, 0, 0.35);
   --lift-3: 0 20px 60px rgba(0, 0, 0, 0.5);
   --h-s: 22px; --h-m: 28px; --h-l: 34px;
-  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); /* Glass › Grain: a tile of grey noise */
+  --glass-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); /* Glass › Grain: a tile of grey noise */
   --grain-a: 0.04; /* and how much of it shows (a light theme's: 0.03) */
   --sel-a: 30%; /* the selection's strength (themes.ts SEL_A; a light theme's 24%, less where its text wouldn't read: selAlpha) */
   --cmap-w: 10px; /* the change map's strip (Diff.tsx ChangeMap) */
@@ -91,7 +91,7 @@ html.side-clear .narrow .sidebar { background: var(--panel); } /* a drawer over 
 html.grain:not(.opaque) .app:not(.narrow) :is(.sidebar, .rail) { position: relative; }
 html.grain:not(.opaque) :is(.modal, .finder) { position: relative; }
 html.grain:not(.opaque) :is(.modal, .finder, .toast, .menu) { isolation: isolate; }
-:is(html.grain:not(.opaque) :is(.modal, .finder, .toast, .splash), html.grain:not(.opaque):not([data-look='topo']) .menu, html.grain:not(.opaque):not([data-look='darkroom']) .app:not(.narrow) .sidebar, html.grain:not(.opaque) .app:not(.narrow) .rail)::after { content: ''; position: absolute; inset: 0; width: auto; height: auto; pointer-events: none; border-radius: inherit; background: var(--grain); opacity: var(--grain-a); mix-blend-mode: overlay; }
+:is(html.grain:not(.opaque) :is(.modal, .finder, .toast, .splash), html.grain:not(.opaque):not([data-look='topo']) .menu, html.grain:not(.opaque):not([data-look='darkroom']) .app:not(.narrow) .sidebar, html.grain:not(.opaque) .app:not(.narrow) .rail)::after { content: ''; position: absolute; inset: 0; width: auto; height: auto; pointer-events: none; border-radius: inherit; background: var(--glass-grain); opacity: var(--grain-a); mix-blend-mode: overlay; }
 :is(html.grain:not(.opaque) :is(.modal, .finder, .toast, .splash), html.grain:not(.opaque):not([data-look='topo']) .menu)::after { z-index: -1; }
 html.light { --grain-a: 0.03; }
 html.light.grain :is(.modal, .finder, .toast, .splash, .menu, .sidebar, .rail)::after { mix-blend-mode: soft-light; }

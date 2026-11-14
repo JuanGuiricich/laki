@@ -897,7 +897,7 @@ function Editor({ item, all = [], onOpenFlow, projects, presets, actions, exts, 
       // {{prev}} in its defaults: what the block before gives (an agent's or AI call's answer, a command's output), else the task
       const give = from?.kind === 'agent' || from?.kind === 'llm' ? 'answer' : from?.kind === 'run' || from?.kind === 'webhook' || from?.kind === 'wait' ? 'output' : ''
       const prev = give ? `{{steps.${from!.id}.${give}}}` : '{{task}}'
-      for (const k of ['text', 'title'] as const) if (b[k]) b[k] = b[k]!.split('{{prev}}').join(prev)
+      for (const k of ['text', 'title', 'items'] as const) if (b[k]) b[k] = b[k]!.split('{{prev}}').join(prev)
       // between the picked block and where its first good exit went (one with options or routes: you link it)
       if (from && !optioned(from.kind) && !routesOf(from) && from.kind !== 'end') {
         const e = EXITS[from.kind].find(x => !BAD_EXITS.includes(x)) ?? EXITS[from.kind][0]
@@ -928,7 +928,9 @@ function Editor({ item, all = [], onOpenFlow, projects, presets, actions, exts, 
                 const [bx, by] = pos.get(id)!
                 let ax = bx + W + 40 // beside it, past any block there
                 while ([...pos.values()].some(([px, py]) => Math.abs(px - ax) < W && Math.abs(py - by) < H)) ax += W + 40
-                w.blocks.push({ ...x, id: freeId(w, id.replace(/\d+$/, '') || x.kind), name: x.name && `${x.name} (copy)`, at: [ax, by] })
+                const b: Block = { ...x, id: freeId(w, id.replace(/\d+$/, '') || x.kind), name: x.name && `${x.name} (copy)`, at: [ax, by] }
+                ;(b.children ?? []).forEach((c, i, kids) => (c.id = freeId({ ...w, blocks: [...w.blocks, { ...b, children: kids.slice(0, i) }] }, c.id.replace(/\d+$/, '') || c.kind))) // a parallel's or a for-each's blocks: ids of their own (a file's are unique)
+                w.blocks.push(b)
                 setPick(w.blocks.at(-1)!.id)
               }),
           }
@@ -1563,7 +1565,7 @@ function Inspector({ wf, flows = [], onCall, id, presets, actions, exts, edit, o
               </div>
             ))}
             {(b.children?.length ?? 0) < EACH_BODY && (
-              <button type="button" className="ghost" onClick={() => edit(w => void (w.blocks.find(x => x.id === b.id)!.children ??= []).push({ id: freeId(w, 'step'), kind: 'run', cmd: 'echo "$item"' }))}>
+              <button type="button" className="ghost" onClick={() => edit(w => void (w.blocks.find(x => x.id === b.id)!.children ??= []).push({ id: freeId(w, 'step'), kind: 'run', cmd: `echo "{{${b.as || 'item'}}}"` }))}>
                 Add one
               </button>
             )}

@@ -587,7 +587,7 @@ drives it (Electron); `pageChanges` and `browseSays` are tested in `test/units-m
   Appearance's Vertical text, `--vt` on <html> (`sideways-lr` up, `vertical-rl` down), which every sideways label's
   `writing-mode: var(--vt, <its own>)` takes (`.fr-vert`, the Board's empty columns, plans.css' `.sd-lane .sd-label`); `paintOf` picks them from the settings, `paintKey` is what terminals watch). Glass sets
   see-through `--app-bg` (with the glow's radial gradients), `--side` and `--rail-bg` (`glassSide`) and `--term-bg` (`#rrggbbaa`: xterm reads only
-  that), and `glassGrain` (on unless false) `html.grain`: styles.css' `::after` of `--grain` (a 120px SVG noise tile)
+  that), and `glassGrain` (on unless false) `html.grain`: styles.css' `::after` of `--glass-grain` (a 120px SVG noise tile; not `--grain`, which the Noir, Workshop and E-Ink looks set as their own texture)
   at `--grain-a` (0.04, `html.light` 0.03), `overlay` (`soft-light` on a light theme), under the text of the floating
   surfaces (`.menu`, `.modal`, `.finder`, `.toast`: isolated, `z-index: -1`) and the splash, over the sidebar's and the
   rail's (their pop-ups must stay over the main area); none with `.opaque`, `.narrow`, Reduce transparency or a coarse
