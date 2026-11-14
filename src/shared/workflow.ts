@@ -1195,17 +1195,74 @@ export type FlowRun = {
   ended?: number
   shown?: Shown[] // what its Show you blocks showed, the last 20
   par?: Record<string, Record<string, string>> // a parallel block's children done this visit: their exits (a restart skips them)
+  spans?: Span[] // its time: a span per block entered (barsOf, the run page's Time tab)
   each?: Record<string, { items: string[]; at: number; failed: number }> // a for-each block's this visit: its items (cut to its max), the one its body is on, how many failed (continue: yes); a restart goes on at it
   inner?: Block[] // its call blocks' workflows' blocks, as <call>/<id> (nested: <call>/<call>/<id>): copied in as it started
   calls?: Record<string, { id: string; name: string; vars?: Record<string, string>; inputs?: FlowInput[]; task?: string; given?: Record<string, string> }> // by call block: what it runs, its own variables and inputs; task and given (with's, filled) once entered
 }
 export type Shown = { at: number; block: string; title: string; body: string }
+// a run's time (daemon/workflow.ts spanOpen…; the run page's Time tab): a span per block entered (a try again, a Try
+// again: another), from its start to its end, the parts it waited on you (an ask, a confirm, a model's or an agent's
+// question) or on a PR's checks (a wait block); a parallel's children and a for-each's or a called workflow's blocks
+// with their block (parent); what it cost. Saved with the run: a restart's resume goes on in the span it cut
+export type SpanWait = { kind: 'you' | 'ci'; start: number; end?: number }
+export type Span = { block: string; parent?: string; start: number; end?: number; waits?: SpanWait[]; cost?: number; c0?: number } // c0: the run's cost as it began (its own: what it grew by)
+export const SPANS_MAX = 500
+// the Time tab's rows: one per block in the order each first started, a block's children under it (depth), each
+// span a segment from its start to its end (a running one's: now), its waits split out of it; from and to are
+// fractions of the run's whole time, so the rows share one axis. you, ci: what of it waited on you, on CI (ms)
+export type BarSeg = { from: number; to: number; kind: 'work' | 'you' | 'ci'; start: number; end: number }
+export type BarRow = { block: string; depth: number; segs: BarSeg[]; start: number; end: number; ms: number; you: number; ci: number; cost?: number; tries: number; running: boolean }
+export function barsOf(r: Pick<FlowRun, 'spans' | 'started' | 'ended' | 'cost'>, now: number) {
+  const spans = r.spans ?? []
+  const t0 = Math.min(r.started, ...spans.map(x => x.start))
+  const t1 = Math.max(t0 + 1, r.ended ?? now, ...spans.map(x => x.end ?? 0))
+  const f = (t: number) => Math.min(1, Math.max(0, (t - t0) / (t1 - t0)))
+  const rows = new Map<string, BarRow & { parent?: string }>()
+  let you = 0
+  let ci = 0
+  for (const sp of spans) {
+    const end = sp.end ?? r.ended ?? now
+    const row = rows.get(sp.block) ?? (rows.set(sp.block, { block: sp.block, parent: sp.parent, depth: 0, segs: [], start: sp.start, end, ms: 0, you: 0, ci: 0, tries: 0, running: false }).get(sp.block)!)
+    row.tries++
+    row.end = Math.max(row.end, end)
+    row.ms += end - sp.start
+    row.running ||= sp.end === undefined && r.ended === undefined
+    if (sp.cost) row.cost = (row.cost ?? 0) + sp.cost
+    // its work, its waits cut out of it (each inside the span, in order)
+    let at = sp.start
+    const work = (to: number) => to > at && row.segs.push({ from: f(at), to: f(to), kind: 'work', start: at, end: to })
+    for (const w of [...(sp.waits ?? [])].sort((a, b) => a.start - b.start)) {
+      const a = Math.max(at, w.start)
+      const b = Math.min(end, w.end ?? end)
+      if (b <= a) continue
+      work(a)
+      row.segs.push({ from: f(a), to: f(b), kind: w.kind, start: a, end: b })
+      row[w.kind] += b - a
+      w.kind === 'you' ? (you += b - a) : (ci += b - a)
+      at = b
+    }
+    work(end)
+  }
+  // a block's children right under it, each level by first start
+  const all = [...rows.values()]
+  const out: BarRow[] = []
+  const put = (parent: string | undefined, depth: number) => {
+    for (const x of all.filter(y => (y.parent && rows.has(y.parent) ? y.parent : undefined) === parent).sort((a, b) => a.start - b.start)) {
+      const { parent: _, ...row } = x
+      out.push({ ...row, depth })
+      put(x.block, depth + 1)
+    }
+  }
+  put(undefined, 0)
+  return { rows: out, t0, t1, total: t1 - t0, you, ci, ...(r.cost && { cost: r.cost }) }
+}
 // W7: a simulation's: the answers given (a block's exit, or one per visit, the last for the rest), the run it replays,
 // each block's visits so far, what each would have been sent (the newest SIM_SENT), its steps (SIM_STEPS at most)
 export type FlowSim = { from?: string; answers?: Record<string, string | string[]>; n: Record<string, number>; sent: { block: string; n: number; what: string }[]; steps?: number }
 export const SHOWN_MAX = 512 << 10 // a Show you's body
-export type FlowView = Omit<FlowRun, 'flow' | 'log' | 'decisions' | 'vars' | 'tabs' | 'resume' | 'shown' | 'inner' | 'calls' | 'par'> & { name: string; block?: string; decisions: number; last?: Decision; steps?: number } // the view's: the details come from flowGet; steps: its blocks (U15: the Dock's progress)
-export const flowView = ({ flow, log, decisions, vars, tabs, resume, shown, inner, calls: _c, par: _p, ...r }: FlowRun): FlowView => {
+export type FlowView = Omit<FlowRun, 'flow' | 'log' | 'decisions' | 'vars' | 'tabs' | 'resume' | 'shown' | 'inner' | 'calls' | 'par' | 'spans'> & { name: string; block?: string; decisions: number; last?: Decision; steps?: number } // the view's: the details come from flowGet; steps: its blocks (U15: the Dock's progress)
+export const flowView = ({ flow, log, decisions, vars, tabs, resume, shown, inner, calls: _c, par: _p, spans: _s, ...r }: FlowRun): FlowView => {
   const b = flow.blocks.find(x => x.id === r.cur) ?? inner?.find(x => x.id === r.cur) ?? [...flow.blocks, ...(inner ?? [])].flatMap(x => (x.kind === 'each' ? (x.children ?? []) : [])).find(x => x.id === r.cur)
   const wait = r.wait && 'show' in r.wait ? { ...r.wait, show: undefined } : r.wait // an agent's whole answer: flowGet has it
   return { ...r, wait, name: flow.name, steps: flow.blocks.length, block: b && blockName(b), decisions: decisions.length, last: decisions.at(-1), ...(r.sim && { sim: { ...r.sim, sent: [] } }) } // a simulation's sent: flowGet's

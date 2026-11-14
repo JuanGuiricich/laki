@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { tabAgent } from '../shared/install.ts'
 import { agentVars, eventOk, findAction, flowsOn, isAgent, type GateHeld, mergeActions, type RunAction, taskTitle, type Project, type Tab, type Workspace } from '../shared/types.ts'
 import { stamp } from '../shared/when.ts'
-import { queueOrder, EACH_CAP, EACH_MAX, itemsOf, itemVars, ACTIONS, AGENT_TIMEOUT, leftWords, apiQuestions, budgetOf, budgetText, CALL_DEPTH, type Calls, filesFinder, dollars, minutes, type Budget, bypassIn, permOf, permWords, jsonFill, varsFill, fillData, outsideVar, BAD_EXITS, NUM_TESTS, SHOWN_MAX, blockName, branchLabel, branchOf, check, DECIDE_MODELS, exitsOf, fill, FLOW_ENDED, holds, ID, inputVals, jsonAsk, lastJson, OUTWARD, outAsk, outsOf, parse, RETRY_KINDS, SURE, runOf, QUEUE_MAX, PAUSE_AFTER, STATS_RECENT, statsView, RUNS_AT_ONCE, shellFill, TURNS, type Block, type FlowHeard, type FlowRun, type FlowStatus, type FlowWait, type Workflow, type WorkflowItem, type WorkflowSource } from '../shared/workflow.ts'
+import { queueOrder, type Span, SPANS_MAX, EACH_CAP, EACH_MAX, itemsOf, itemVars, ACTIONS, AGENT_TIMEOUT, leftWords, apiQuestions, budgetOf, budgetText, CALL_DEPTH, type Calls, filesFinder, dollars, minutes, type Budget, bypassIn, permOf, permWords, jsonFill, varsFill, fillData, outsideVar, BAD_EXITS, NUM_TESTS, SHOWN_MAX, blockName, branchLabel, branchOf, check, DECIDE_MODELS, exitsOf, fill, FLOW_ENDED, holds, ID, inputVals, jsonAsk, lastJson, OUTWARD, outAsk, outsOf, parse, RETRY_KINDS, SURE, runOf, QUEUE_MAX, PAUSE_AFTER, STATS_RECENT, statsView, RUNS_AT_ONCE, shellFill, TURNS, type Block, type FlowHeard, type FlowRun, type FlowStatus, type FlowWait, type Workflow, type WorkflowItem, type WorkflowSource } from '../shared/workflow.ts'
 import { addTab, rtOf, answer as coreAnswer, broadcast, changed, findProject, input as coreInput, findWs, modelCheck, modelKnown, plainEnv, presets, prOf, projectConfig, runDev, save, send as coreSend, sessions, settingUp, shell, ship, state, storageOf, tabStatus, turnEnds, turnWaits, within, unsavedWhy, wsArchive, wsNew, proofIn } from './core.ts'
 import { dir } from './dir.ts'
 import { flowFiles, flowHooks, scheduleFlowEnded } from './schedule.ts'
@@ -408,7 +408,7 @@ function decide(r: FlowRun, b: Block, exit: string, why: string, you = false) {
   r.decisions.push({ at: Date.now(), block: b.id, exit, why, ms: Date.now() - (r.at ?? Date.now()), ...(you && { you }), ...(BAD_EXITS.includes(exit) && { bad: true }) })
   if (r.decisions.length > 300) r.decisions.splice(0, r.decisions.length - 300)
 }
-const touch = () => (save(), changed())
+const touch = () => (runs().forEach(trackWait), save(), changed())
 // an agent block's profile, and its agent: its preset's (claude, codex, a command…), else the name as it is
 const profileOf = (preset?: string) => presets().find(p => p.name === (preset || 'claude'))
 const agentOf = (preset?: string) => profileOf(preset)?.agent ?? (preset || 'claude')
@@ -749,6 +749,7 @@ function enter(r: FlowRun, b: Block, again = false, cut = false): void {
   }
   if (spend(r)) return budgetAsk(r, b) // its visit counted: Give it more enters it again without one
   Object.assign(r, { cur: b.id, at: Date.now(), wait: undefined, status: 'running' })
+  spanOpen(r, b, cut)
   touch()
   work(r, b).catch(e => stuck(r, b, `${blockName(b)}: ${(e as Error).message}`))
 }
@@ -756,6 +757,7 @@ function enter(r: FlowRun, b: Block, again = false, cut = false): void {
 function leave(r: FlowRun, b: Block, exit: string, why: string, you = false): void {
   if (r.meter?.block === b.id) counted(r) // its agent's turn, ended (or given up on): its cost, even when the run moved on
   if (!live(r) || r.cur !== b.id || r.wait?.kind === 'hold') return // a late event: the run moved on, ended, or is parked
+  spanClose(r, b.id)
   if (!you && BAD_EXITS.includes(exit) && retry(r, b, why)) return
   decide(r, b, exit, why, you)
   say(r, `${blockName(b)} → ${exit}: ${why}`)
@@ -766,6 +768,39 @@ function leave(r: FlowRun, b: Block, exit: string, why: string, you = false): vo
   if (!e?.to && scopeOf(b.id)) return back(r, b, 'ok', `${blockName(b)}'s ${exit} leads nowhere: the end`)
   if (!e?.to) return r.hold ? park(r, undefined, false, `${blockName(b)}'s ${exit} leads nowhere: the end`) : finish(r, 'done', `${blockName(b)}'s ${exit} leads nowhere: the end`) // parked: no archive before Resume
   enter(r, blockOf(r, e.to)!)
+}
+
+// the run's time (shared barsOf): a span as a block is entered (a try again, a Try again: a new one; a restart's resume,
+// cut: the one it cut goes on), ended as it leaves (finish: every open one), its waits as r.wait moves (touch)
+const parentOf = (r: FlowRun, id: string) => hostOf(r, id)?.id ?? scopeOf(id)
+function spanOpen(r: FlowRun, b: Block, cut: boolean) {
+  const open = r.spans?.findLast(x => x.block === b.id && x.end === undefined)
+  if (open && cut) return
+  if (open) spanEnd(r, open, Date.now())
+  const spans = (r.spans ??= [])
+  const parent = parentOf(r, b.id)
+  spans.push({ block: b.id, ...(parent && { parent }), start: Date.now(), c0: costNow(r) })
+  if (spans.length > SPANS_MAX) spans.splice(0, spans.length - SPANS_MAX)
+}
+function spanEnd(r: FlowRun, sp: Span, at: number, cost = costNow(r) - (sp.c0 ?? costNow(r))) {
+  sp.end = at
+  for (const w of sp.waits ?? []) w.end ??= at
+  if (cost > 0) sp.cost = +cost.toFixed(6)
+  delete sp.c0
+}
+const spanClose = (r: FlowRun, id: string) => (sp => sp && spanEnd(r, sp, Date.now()))(r.spans?.findLast(x => x.block === id && x.end === undefined))
+// on you: an ask, a confirm, a stuck one's, a simulation's, a model's or an agent's question; on CI: a wait block's
+const WAITS_YOU = ['ask', 'confirm', 'stuck', 'sim', 'decide', 'agent-ask']
+function trackWait(r: FlowRun) {
+  if (!live(r)) return
+  const sp = r.spans?.findLast(x => x.block === r.cur && x.end === undefined)
+  if (!sp) return
+  const k = r.wait && WAITS_YOU.includes(r.wait.kind) ? 'you' : r.wait?.kind === 'wait' ? 'ci' : undefined
+  const open = (w => (w && w.end === undefined ? w : undefined))(sp.waits?.at(-1))
+  if (open?.kind === k) return
+  const now = Date.now()
+  if (open) open.end = now
+  if (k) (sp.waits ??= []).push({ kind: k, start: now })
 }
 
 // Pause after this block (flowHold): parked before b (cur, not entered: no visit counted, nothing of it runs), or
@@ -1252,6 +1287,8 @@ async function parallel(r: FlowRun, b: Block, vars: Record<string, string>) {
   if (!left.length) return void all()
   for (const c of left)
     void (async () => {
+      const sp: Span = { block: c.id, parent: b.id, start: Date.now() } // its own time, beside the others'
+      ;(r.spans ??= []).push(sp)
       const min = c.timeout ?? (c.kind === 'run' ? RUN_TIMEOUT : CALL_TIMEOUT)
       const signal = AbortSignal.any([ctl.signal, AbortSignal.timeout(min * 60000)])
       const log = (line: string, detail?: string) => mine() && say(r, `  ${line}`, detail)
@@ -1264,6 +1301,7 @@ async function parallel(r: FlowRun, b: Block, vars: Record<string, string>) {
         got = { exit: c.kind === 'run' ? 'fail' : 'error', why: why(e, min), vars: {} }
       }
       if (got.cost) r.cost = (r.cost ?? 0) + got.cost // spent, even when it was stopped meanwhile
+      spanEnd(r, sp, Date.now(), got.cost ?? 0)
       if (!mine()) return
       for (const [k, v] of Object.entries(got.vars)) r.vars[k] = scrub(r, v)
       if (c.out?.length && got.text !== undefined) outs(r, c, scrub(r, got.text))
@@ -1378,6 +1416,7 @@ function callIn(r: FlowRun, b: Block, vars: Record<string, string>) {
 // a called workflow's end (or a way of it that leads nowhere): back at its call block, ok or fail; what its blocks
 // named with out: as the call's steps.<id>.<name>, the end's words its output
 function back(r: FlowRun, b: Block, exit: 'ok' | 'fail', words: string) {
+  spanClose(r, b.id) // a called end's (it doesn't leave)
   const p = scopeOf(b.id)!
   const call = blockOf(r, p)
   if (!call) return stuck(r, b, `${blockName(b)}: its call block is gone`)
@@ -1851,6 +1890,7 @@ function finish(r: FlowRun, status: FlowStatus, why: string, notify?: boolean, p
   if (r.meter) counted(r) // an agent's turn under way: what it cost so far
   delete r.hold // a pause asked for: nothing left to pause
   Object.assign(r, { status, ended: Date.now(), wait: undefined })
+  for (const sp of r.spans ?? []) if (sp.end === undefined) spanEnd(r, sp, r.ended!)
   say(r, `${status}: ${why}`)
   // ended ones past FLOWS_KEPT go, the oldest first; simulations (W7) counted apart: they never push a real run out
   const same = (x: FlowRun) => !x.sim === !r.sim

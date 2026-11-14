@@ -9,7 +9,7 @@ import { type ChangeEvent, Fragment, type PointerEvent as PE, useEffect, useLayo
 import { type Agent, FAST, findAction, mergeActions, neverAsks, PERMS, WIDGET_EVENTS, type Preset, type Project, type RunAction, type WorkspaceView } from '../../shared/types'
 import { ago } from '../../shared/widget'
 import { Grouped } from './Schedules'
-import { queueOrder, EACH_BODY, EACH_CAP, EACH_KINDS, EACH_MAX, ACTIONS, AGENT_TIMEOUT, askMinutes, askWait, leftWords, DONES, TURNS, budgetOf, budgetText, type Budget, dollars, minutes, apiQuestions, bypassIn, flowVars, permOf, permWords, VAR_NAME, QTYPE_INFO, renameBlock, routesOf, workflowAsk, BAD_EXITS, BLOCK_NAMES, DECIDE_MODELS, type DecideQ, fromApi, NUM_TESTS, QTYPES, SURE, blockName, branchLabel, branchOf, type Block, type BlockKind, check, type Calls, hints, PAR_KINDS, PAR_MAX, PAR_MIN, EXITS, exitsOf, FLOW_ENDED, type FlowRun, type FlowView, flowView, MAX_BLOCKS, optioned, parse, RESULTS, runOf, SESSIONS, TESTS, toFile, WAITS, WHERES, METHODS, OUT_KINDS, OUT_NAME, OUT_TAKEN, RETRY_KINDS, RETRY_MAX, RUNS_AT_ONCE, inputsOf, inputText, type Shown, type Workflow, type WorkflowItem, type WorkflowSource, whenProblem } from '../../shared/workflow'
+import { queueOrder, barsOf, EACH_BODY, EACH_CAP, EACH_KINDS, EACH_MAX, ACTIONS, AGENT_TIMEOUT, askMinutes, askWait, leftWords, DONES, TURNS, budgetOf, budgetText, type Budget, dollars, minutes, apiQuestions, bypassIn, flowVars, permOf, permWords, VAR_NAME, QTYPE_INFO, renameBlock, routesOf, workflowAsk, BAD_EXITS, BLOCK_NAMES, DECIDE_MODELS, type DecideQ, fromApi, NUM_TESTS, QTYPES, SURE, blockName, branchLabel, branchOf, type Block, type BlockKind, check, type Calls, hints, PAR_KINDS, PAR_MAX, PAR_MIN, EXITS, exitsOf, FLOW_ENDED, type FlowRun, type FlowView, flowView, MAX_BLOCKS, optioned, parse, RESULTS, runOf, SESSIONS, TESTS, toFile, WAITS, WHERES, METHODS, OUT_KINDS, OUT_NAME, OUT_TAKEN, RETRY_KINDS, RETRY_MAX, RUNS_AT_ONCE, inputsOf, inputText, type Shown, type Workflow, type WorkflowItem, type WorkflowSource, whenProblem } from '../../shared/workflow'
 import { tabAgent } from '../../shared/install'
 import { pageNow } from './api'
 import { highlightWorkflow } from './highlight'
@@ -2535,7 +2535,7 @@ function RunView({ id, entry, ahead, api, pname, ws, tabs, onGone, onDelete, onA
   const [r, setR] = useState<FlowRun | null>(null)
   const [menu, openMenu] = useMenu()
   const [tab, setTab] = useState<'decisions' | 'state' | 'sent'>('decisions')
-  const [mode, setMode] = useState<'blocks' | 'log'>('blocks')
+  const [mode, setMode] = useState<'blocks' | 'log' | 'time'>('blocks')
   const [typed, setTyped] = useState('')
   const [pick, setPick] = useState<string | null>(null)
   const [win, setWin] = useState<Shown | null>(null) // what a Show you showed, again
@@ -2595,6 +2595,7 @@ function RunView({ id, entry, ahead, api, pname, ws, tabs, onGone, onDelete, onA
         <div className="seg">
           <button className={mode === 'blocks' ? 'on' : ''} onClick={() => setMode('blocks')}>Blocks</button>
           <button className={mode === 'log' ? 'on' : ''} onClick={() => setMode('log')}>Log {r.log.length}</button>
+          <button className={mode === 'time' ? 'on' : ''} onClick={() => setMode('time')}>Time</button>
         </div>
         {r.status === 'queued' && (
           <button className="btn" onClick={first} disabled={!ahead} data-tip={ahead ? 'It takes the next free slot, ahead of the others waiting; the queue and its at once stay as they are' : 'Next in line already'}>
@@ -2672,6 +2673,8 @@ function RunView({ id, entry, ahead, api, pname, ws, tabs, onGone, onDelete, onA
       {r.status === 'paused' && r.wait?.kind === 'limit' && <div className="wf-note">Paused at a usage limit: it goes on when the limit resets{r.wait.until ? `, at ${new Date(r.wait.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}.</div>}
       {mode === 'log' ? (
         <RunLog log={r.log} />
+      ) : mode === 'time' ? (
+        <RunTime r={r} onPick={id => (setMode('blocks'), setPick(id))} />
       ) : (
       <div className="wf-split">
         <Canvas wf={r.flow} sel={pick} onPick={setPick} lit={lit} onMenu={over && !r.sim ? (e, b) => openMenu(e, [{ label: 'Run from here', sub: 'A new run in its workspace, its state kept: the blocks before it don’t run again', icon: 'run', run: () => onAgain(r.id, b) }]) : undefined} />
@@ -2761,6 +2764,52 @@ function RunView({ id, entry, ahead, api, pname, ws, tabs, onGone, onDelete, onA
 // output) folded under it; a filter keeps the entries with every word typed
 // a run's block, a called one's too (its <call>/<id>)
 const blockIn = (r: FlowRun, id?: string) => r.flow.blocks.find(b => b.id === id) ?? r.inner?.find(b => b.id === id)
+// a parallel's or a for-each's child too
+const blockAny = (r: FlowRun, id: string) => blockIn(r, id) ?? [...r.flow.blocks, ...(r.inner ?? [])].flatMap(b => b.children ?? []).find(b => b.id === id)
+// the run's time (shared/workflow.ts barsOf): a row per block in the order it ran, a parallel's, a for-each's and a
+// called workflow's blocks under theirs, each try a bar on one axis, what waited on you or on CI in the waiting color, a
+// running one growing (a tick a second); a row's click picks its block in Blocks, as the list does
+function RunTime({ r, onPick }: { r: FlowRun; onPick: (id: string) => void }) {
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    if (ended(r)) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [r.id, r.status])
+  const t = barsOf(r, ended(r) ? (r.ended ?? now) : now)
+  if (!t.rows.length) return <div className="wf-empty">No block has run yet.</div>
+  const name = (id: string) => (b => (b ? blockName(b) : id))(blockAny(r, id))
+  const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+  const KIND = { work: 'working', you: 'waiting on you', ci: 'waiting on CI' } as const
+  return (
+    <div className="wf-time">
+      <div className="wf-time-sum">
+        {dur(t.total)} in all · {dur(t.you)} waiting on you · {dur(t.ci)} on CI{t.cost ? ` · ${dollars(t.cost)}` : ''}
+      </div>
+      {t.rows.map(row => (
+        <button
+          key={row.block}
+          type="button"
+          className={`wf-time-row ${row.running ? 'running' : ''}`}
+          style={{ ['--depth' as string]: row.depth }}
+          aria-label={`${name(row.block)}: ${dur(row.ms)}${row.running ? ', running' : ''}${row.tries > 1 ? `, ${row.tries} tries` : ''}${row.you ? `, ${dur(row.you)} waiting on you` : ''}${row.ci ? `, ${dur(row.ci)} on CI` : ''}${row.cost ? `, ${dollars(row.cost)}` : ''}, from ${clock(row.start)}`}
+          onClick={() => onPick(row.block)}
+        >
+          <span className="wf-time-name">{name(row.block)}</span>
+          <span className="wf-time-track" aria-hidden>
+            {row.segs.map((s, i) => (
+              <i key={i} data-kind={s.kind} data-tip={`${KIND[s.kind]}: ${clock(s.start)} – ${row.running && s.to >= 1 ? 'now' : clock(s.end)} (${dur(s.end - s.start)})`} style={{ left: `${s.from * 100}%`, width: `${(s.to - s.from) * 100}%` }} />
+            ))}
+          </span>
+          <span className="wf-time-end">
+            {dur(row.ms)}
+            {row.cost ? ` · ${dollars(row.cost)}` : ''}
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}
 function RunLog({ log }: { log: string[] }) {
   const [find, setFind] = useState('')
   const [open, setOpen] = useState(false)

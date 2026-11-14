@@ -1222,3 +1222,31 @@ test('workflow call: the file reads back; check follows its calls: one missing, 
   // what's wrong with it
   assert.deepEqual(check(flow('a', 'e'), { find: () => ({ workflow: files.e, problems: ['c has no way out'] }) }), ["e: E can't run: c has no way out"])
 })
+
+test('barsOf: the Time tab: sequential blocks abut, parallel children overlap under their block, a wait is split out, a running block ends at now', async () => {
+  const { barsOf } = await import('../src/shared/workflow.ts')
+  // sequential: a 0–100, b 100–200 of a run 0–200
+  let t = barsOf({ started: 0, ended: 200, spans: [{ block: 'a', start: 0, end: 100 }, { block: 'b', start: 100, end: 200 }] }, 999)
+  assert.deepEqual(t.rows.map(r => [r.block, r.depth, r.segs.map(s => [s.from, s.to, s.kind])]), [['a', 0, [[0, 0.5, 'work']]], ['b', 0, [[0.5, 1, 'work']]]])
+  assert.equal(t.rows[0].segs[0].to, t.rows[1].segs[0].from, 'they abut')
+  assert.equal(t.total, 200)
+  // a parallel's children at once, each under it; their starts the same, their ends their own
+  t = barsOf({ started: 0, ended: 400, spans: [{ block: 'p', start: 0, end: 300 }, { block: 'x', parent: 'p', start: 0, end: 200 }, { block: 'y', parent: 'p', start: 0, end: 300 }, { block: 'z', start: 300, end: 400 }] }, 999)
+  assert.deepEqual(t.rows.map(r => [r.block, r.depth]), [['p', 0], ['x', 1], ['y', 1], ['z', 0]])
+  const [x, y] = [t.rows[1].segs[0], t.rows[2].segs[0]]
+  assert.ok(x.from < y.to && y.from < x.to, 'they overlap')
+  // a wait on you split out of its block, then on CI; the totals
+  t = barsOf({ started: 0, ended: 100, cost: 0.5, spans: [{ block: 'ask', start: 0, end: 100, cost: 0.5, waits: [{ kind: 'you', start: 20, end: 60 }, { kind: 'ci', start: 70, end: 80 }] }] }, 999)
+  assert.deepEqual(t.rows[0].segs.map(s => [s.from, s.to, s.kind]), [[0, 0.2, 'work'], [0.2, 0.6, 'you'], [0.6, 0.7, 'work'], [0.7, 0.8, 'ci'], [0.8, 1, 'work']])
+  assert.deepEqual([t.you, t.ci, t.rows[0].you, t.rows[0].ci, t.rows[0].ms, t.cost, t.rows[0].cost], [40, 10, 40, 10, 100, 0.5, 0.5])
+  // still running: its bar ends at now, the axis too; an open wait to now
+  t = barsOf({ started: 0, spans: [{ block: 'a', start: 0, end: 100 }, { block: 'b', start: 100, waits: [{ kind: 'you', start: 150 }] }] }, 200)
+  assert.deepEqual([t.t1, t.rows[1].running, t.rows[1].end, t.rows[1].segs.at(-1)!.to, t.rows[1].segs.at(-1)!.kind, t.rows[0].running], [200, true, 200, 1, 'you', false])
+  // a try again: another segment on the same row
+  t = barsOf({ started: 0, ended: 100, spans: [{ block: 'r', start: 0, end: 30 }, { block: 'r', start: 50, end: 100 }] }, 999)
+  assert.deepEqual([t.rows.length, t.rows[0].tries, t.rows[0].segs.length, t.rows[0].ms], [1, 2, 2, 80])
+  // a child whose block isn't there (cut by SPANS_MAX): on its own
+  t = barsOf({ started: 0, ended: 10, spans: [{ block: 'k', parent: 'gone', start: 0, end: 10 }] }, 999)
+  assert.deepEqual(t.rows.map(r => [r.block, r.depth]), [['k', 0]])
+  assert.deepEqual(barsOf({ started: 5, spans: [] }, 5).rows, [])
+})

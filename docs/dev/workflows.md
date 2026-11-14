@@ -179,6 +179,17 @@ blocks' `out:` names as `steps.<call>.<name>`, the end's words as `steps.<call>.
 lights the call block while it's inside (`top`), names called blocks by `blockIn`; the canvas's call node links to the
 workflow (`CallLink`, the inspector's Open). ponytail: no agent, ask or nested parallel inside a parallel yet; a call's
 workflow is read as the run starts, so editing it moves no run.
+A run's time (`r.spans`, shared `Span`, `SPANS_MAX` 500, saved; `flowView` leaves them out): `enter`'s `spanOpen` starts
+one per block entered (a try again, a Try again: a new one, so retries are segments of their own; a restart's resume,
+`cut`, goes on in the span it cut), `leave`'s `spanClose` ends it (a called end's in `back`, every open one in `finish`),
+with its cost (`costNow` then, less `c0` as it began); `parentOf` (a for-each's `hostOf`, a call's `scopeOf`) and a
+parallel's children (each its own span in `parallel`, ended as it ends, with its call's cost) give its block. `touch`'s
+`trackWait` splits the waits out as `r.wait` moves: on you (`WAITS_YOU`: an ask, a confirm, a stuck one's, a
+simulation's, a model's or an agent's question), on CI (a wait block). Shared `barsOf(run, now)`: a row per block by its
+first start, a block's children under it (`depth`), each span a segment from start to end (a running one's: now), its
+waits cut out, `from` and `to` fractions of the run's whole time; the totals: all, on you, on CI, the run's cost. The run
+page's *Time* tab (Workflows.tsx `RunTime`, a tick a second while it runs): a `<button>` row each (its words in
+`aria-label`), the waits in `--waiting`, a segment's `data-tip` its exact times, a click picking its block in Blocks.
 Pause after this block (`flowHold` `on: true`, the run page's button, `laki flow pause <run>`): `r.hold` (saved at
 once) and nothing else; the block it's on goes on. The next `enter` (a next block, a retry's `again`, Try again, Give it
 more) or `leave` with nowhere to go `park`s instead: `sample` first, then `status: 'paused'`, `wait` `{ kind: 'hold' }`

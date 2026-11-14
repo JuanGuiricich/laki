@@ -285,3 +285,16 @@
 .wf-call-open { font-size: var(--fs-1); }
 .wf-kid-edit { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3) 0; border-bottom: 1px solid var(--line); }
 .wf-kid-row { display: grid; grid-template-columns: 1fr auto auto; gap: var(--sp-3); align-items: center; }
+
+/* the run's Time tab (Workflows.tsx RunTime): a row per block, its bars on the run's one axis */
+.wf-time { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-4) var(--sp-5); overflow: auto; min-height: 0; flex: 1; }
+.wf-time-sum { color: var(--muted); font-size: var(--fs-2); margin-bottom: var(--sp-3); }
+.wf-time-row { display: grid; grid-template-columns: minmax(120px, 22%) 1fr auto; align-items: center; gap: var(--sp-4); padding: var(--sp-1) var(--sp-2) var(--sp-1) calc(var(--sp-2) + var(--sp-5) * var(--depth, 0)); border: 0; border-radius: var(--r-s); background: transparent; color: var(--fg); font: inherit; font-size: var(--fs-2); text-align: left; cursor: pointer; }
+.wf-time-row:hover, .wf-time-row:focus-visible { background: var(--hover); }
+.wf-time-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wf-time-track { position: relative; height: var(--sp-5); border-radius: var(--r-xs); background: color-mix(in srgb, var(--line) 40%, transparent); }
+.wf-time-track i { position: absolute; top: 0; bottom: 0; min-width: 2px; border-radius: var(--r-xs); background: var(--accent); }
+.wf-time-track i[data-kind='you'], .wf-time-track i[data-kind='ci'] { background: var(--waiting); }
+.wf-time-track i[data-kind='ci'] { opacity: 0.7; }
+.wf-time-row.running .wf-time-track i:last-child { background-image: linear-gradient(90deg, transparent, color-mix(in srgb, var(--fg) 25%, transparent)); }
+.wf-time-end { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }

@@ -5,6 +5,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
+- A workflow run's page has a *Time* tab: each block's bar on one time line, what waited on you or on CI in its own color, tries and costs, with a line for the whole run.
 - Workflows have a *For each* block: its blocks run once per item of a list (an earlier step's JSON list, or a line each), the item as `{{item}}`, up to 50 items; a failing item stops it unless *continue: yes*.
 - *Hide bubbles and cards from screen recording* (Settings › Extras, on for new installs): screen sharing, recordings and screenshots leave out the bubbles, Laki's cards on screen and the quick bar. Recording mode does it too.
 - Long-press Laki's icon on an Android Home Screen for *New task*, *Needs you* and *Last workspace*.

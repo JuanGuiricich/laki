@@ -6,7 +6,7 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { QUEUE_MAX, check, FLOW_ENDED, flowVars, itemsOf, itemVars, lastJson, parse, toFile } from '../src/shared/workflow.ts'
+import { QUEUE_MAX, barsOf, check, FLOW_ENDED, flowVars, itemsOf, itemVars, lastJson, parse, toFile } from '../src/shared/workflow.ts'
 import { fresh, sleep, until } from './helpers.ts'
 import { AGENT, FLOW } from './flows.ts'
 
@@ -724,6 +724,10 @@ test('workflow each: three items run three times with the right variable, in ord
   assert.deepEqual([r.vars['steps.files.count'], r.vars['steps.files.failed'], r.vars['steps.files.items[0].output'], r.vars['steps.files.items[2].output']], ['3', '0', 'seen a', 'seen d'])
   assert.equal(r.vars.name, undefined, 'the item goes with the block')
   assert.ok(r.log.some((l: string) => /files: item 2 of 3/.test(l)))
+  // its time: the body's block under it, a span (a segment) per item
+  const time = barsOf(r, Date.now())
+  assert.deepEqual(time.rows.map(x => [x.block, x.depth]), [['start', 0], ['list', 0], ['files', 0], ['one', 1], ['done', 0]])
+  assert.equal(time.rows.find(x => x.block === 'one')!.tries, 3)
   // max: 2 of 12
   writeFileSync(seen, '')
   await rig.rpc('flowSave', { id: 'long', text: EACH('seq 1 12', kid('one', `run: echo "{{name}}" >> "${seen}"`), '\nmax: 2') })
