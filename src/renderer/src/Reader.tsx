@@ -29,7 +29,7 @@ type BgTask = { id: string; kind: 'agent' | 'shell'; name: string; out?: string 
 type BgOut = { text: string; size: number; cut?: boolean }
 // an MCP App (the daemon's mcpApps.ts): a tool call's app, under the said line it's in (at); src: its page on the daemon
 type App = { id: string; at: number; server: string; tool: string; src: string; input: unknown; result?: unknown; error?: boolean }
-export type ReaderApi = { dismiss: (tab: string) => Promise<unknown>; setMode: (tab: string, mode: string) => Promise<unknown>; draft: (tab: string, text?: string) => Promise<{ text?: string }>; keys?: (tab: string, data: string) => void; read: (tab: string, v?: number) => Promise<{ none?: boolean; v?: number; said?: Said[]; bg?: BgTask[]; apps?: App[] }>; bgOutput?: (tab: string, id: string) => Promise<BgOut>; appCall?: (tab: string, id: string, name: string, args: unknown) => Promise<unknown>; send: (tab: string, text: string) => Promise<unknown>; answer: (tab: string, n: number, label: string) => void; alwaysAllow?: (tab: TabView) => void; review: (tab: TabView) => void; undo: (tab: TabView) => void; mentions?: (tab: TabView) => Mention[]; run?: (tab: TabView, text: string, same?: boolean) => unknown; proof?: (tab: TabView) => Proof | undefined; openProof?: (tab: TabView, path: string) => void } // review, undo: its last turn's changes (the card); mentions: @'s workspaces and projects; run: F6, a shell block's command typed into the workspace's terminal
+export type ReaderApi = { dismiss: (tab: string) => Promise<unknown>; setMode: (tab: string, mode: string) => Promise<unknown>; draft: (tab: string, text?: string) => Promise<{ text?: string }>; keys?: (tab: string, data: string) => void; read: (tab: string, v?: number) => Promise<{ none?: boolean; v?: number; said?: Said[]; bg?: BgTask[]; apps?: App[]; kept?: boolean }>; bgOutput?: (tab: string, id: string) => Promise<BgOut>; appCall?: (tab: string, id: string, name: string, args: unknown) => Promise<unknown>; send: (tab: string, text: string) => Promise<unknown>; answer: (tab: string, n: number, label: string) => void; alwaysAllow?: (tab: TabView) => void; review: (tab: TabView) => void; undo: (tab: TabView) => void; mentions?: (tab: TabView) => Mention[]; run?: (tab: TabView, text: string, same?: boolean) => unknown; proof?: (tab: TabView) => Proof | undefined; openProof?: (tab: TabView, path: string) => void } // review, undo: its last turn's changes (the card); mentions: @'s workspaces and projects; run: F6, a shell block's command typed into the workspace's terminal
 
 // the agents whose chats Laki reads (meters.ts' tailOf)
 export const readable = (t?: TabView) => !!t && t.kind === 'agent' && (t.preset === 'claude' || t.preset === 'codex' || t.preset === 'acp') // acp: an ACP agent's (Labs), the Reader only
@@ -86,6 +86,7 @@ export function Reader({ tab, api, active, look = {} }: { tab: TabView; api: Rea
   const [bg, setBg] = useState<BgTask[]>([])
   const [apps, setApps] = useState<App[]>([])
   const [none, setNone] = useState(false)
+  const [keptBy, setKeptBy] = useState(false) // its chat (or an earlier one) read from Laki's copy: the agent deleted its own
   const [text, setText] = useState(() => drafts.get(tab.id) ?? '') // what's typed and not sent: kept (keepDraft)
   const kept = useRef(text)
   useEffect(() => {
@@ -117,7 +118,7 @@ export function Reader({ tab, api, active, look = {} }: { tab: TabView; api: Rea
     setOpened(new Set())
     const go = () =>
       api.read(tab.id, v.current).then(
-        r => alive && (setNone(!!r.none), r.said && ((v.current = r.v), setSaid(r.said), setBg(r.bg ?? []), setApps(r.apps ?? []))),
+        r => alive && (setNone(!!r.none), r.said && ((v.current = r.v), setSaid(r.said), setBg(r.bg ?? []), setApps(r.apps ?? []), setKeptBy(!!r.kept))),
         () => {},
       )
     go()
@@ -296,6 +297,7 @@ export function Reader({ tab, api, active, look = {} }: { tab: TabView; api: Rea
             if (img) openFrom(img, () => setBig({ src: img.currentSrc || img.src, alt: img.alt }))
           }}
         >
+          {keptBy && <div className="reader-kept small muted" title="The agent deleted its own file of this chat: Laki kept a copy as the workspace was archived. Its session can't be resumed: a new one goes on below the New session line.">Kept by Laki</div>}
           {none && !said?.length && (
             <div className="reader-empty muted">
               {tab.name}'s chat shows here once it has said something.

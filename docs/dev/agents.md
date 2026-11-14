@@ -202,6 +202,18 @@ again 300 ms later (`spawnTab`'s `onOutput`), and a view goes out when it isn't 
   resume; the tab bar dims it, ✓), unless the daemon ended it: closing, archiving and shutdown drop the session from `sessions`
   first, restarting replaces it.
 
+Kept chats (core.ts `keepChats`, at `wsArchive`): each claude or codex tab's transcript (share.ts `transcriptOf`) as
+`<storage>/chats/<tab id>.jsonl`, a hard link where the volume allows (`linkSync`), else a copy; past 50 MB its newest
+part from a line's start; a transcript whose real path isn't inside the agent's folder (its own or the account's,
+`realpathSync`) isn't copied; `tab.kept` is the chat's id. `chatFile(tab)`: the agent's own file, else that copy (a
+plain file, `lstat`: not a link the agent's shell put there), `kept: true`; meters.ts `tailOf` (the Reader, the meters,
+shares: a file gone is looked for again at once) and `chatSearch` read through it, and a restored tab's old chat too
+(`keptOnly`). `chatRead`'s `kept`: the Reader's *Kept by Laki*. `wsRestore` starts a tab whose chat is only in the copy
+as a new session (`resumeId` dropped: resume needs the agent's own file); the Reader shows the copy above its New
+session line (`fresh(was)`, `Reader.old`). The copies are in the storage folder: removed with it (`rmStorage`) or in the
+trash with it (`trashSaved`); `storageFull` and `storageTidy` leave `chats/` out (Laki's own record); `storageInfo`'s du
+counts them. Tested in `test/reader.test.ts`.
+
 ### Sleep
 
 `resources.ts` `sleepTick`: an idle claude or codex tab (`sleepy`: `cantSleep` says nothing, no attached client, idle

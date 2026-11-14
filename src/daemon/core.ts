@@ -6,7 +6,7 @@
 import { type ChildProcess, execFile, execFileSync, spawn } from 'node:child_process'
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { chmod, copyFile, lstat, readdir, readFile, readlink, rm, symlink } from 'node:fs/promises'
-import { accessSync, appendFileSync, chmodSync, closeSync, constants as fsConstants, copyFileSync, existsSync, fchmodSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, readlinkSync, readSync, realpathSync, renameSync, rmSync, statfsSync, statSync, writeFileSync } from 'node:fs'
+import { accessSync, appendFileSync, chmodSync, closeSync, constants as fsConstants, copyFileSync, linkSync, existsSync, fchmodSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, readlinkSync, readSync, realpathSync, renameSync, rmSync, statfsSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, release, userInfo } from 'node:os'
 import { type AllowRule, allowRuleOf, type Perm, permOf, rulePattern } from '../shared/ask.ts'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
@@ -1307,6 +1307,7 @@ export function storageTidy(now = Date.now()) {
     }
     for (const f of names) {
       if (top && f === LINKS) continue // its kept links: a list, not a file of yours to age out
+      if (top && f === 'chats') continue // its agents' chats Laki kept (keepChats): they go with the archive
       const p = join(d, f)
       const st = statSafe(p)
       if (!st) continue
@@ -1333,6 +1334,67 @@ const readdirSafe = (d: string) => {
     return ['?'] // unreadable: kept
   }
 }
+// an archived workspace's agent chats (keepChats, as it's archived): each claude or codex tab's transcript at
+// <storage>/chats/<tab id>.jsonl, a hard link where the volume allows, else a copy, its newest CHAT_KEEP (a line's start)
+// past that; tab.kept names the chat it is. Against the agent deleting its own old sessions: chatFile reads it when the
+// agent's file is gone, the Reader says "kept by Laki". Never a transcript that's a link out of the agent's folder, never
+// a write into that folder; gone with the storage folder (the archive's delete, or its trash). A copy must be a plain
+// file to be read (the agent's shell writes in its storage folder too). ponytail: the agent can still write one there
+const CHAT_KEEP = 50 << 20
+export const keptChat = (ws: Workspace | undefined, tab: string) => (ws?.storage && /^[\w.-]+$/.test(tab) ? join(ws.storage, 'chats', `${tab}.jsonl`) : undefined)
+const agentHome = (t: { preset?: string; account?: string }) => accountNamed(t.account ?? '')?.dir ?? homeDir(t.preset as 'claude' | 'codex')
+const plainFile = (f?: string) => (f && lstatSync(f, { throwIfNoEntry: false })?.isFile() ? f : undefined)
+function keepChats(ws: Workspace) {
+  if (ws.host) return
+  for (const t of tabsOf(ws.id)) {
+    if ((t.preset !== 'claude' && t.preset !== 'codex') || !t.resumeId) continue
+    try {
+      const own = transcriptOf(t.preset, agentHome(t), t.resumeId)
+      if (!own) continue
+      const real = realpathSync(own)
+      if (!real.startsWith(realpathSync(agentHome(t)) + sep)) {
+        wsLog(ws, `archive: ${t.name}'s chat not kept (its file is a link out of ${t.preset}'s folder)`)
+        continue
+      }
+      storageOf(ws)
+      const to = keptChat(ws, t.id)
+      if (!to) continue
+      mkdirSync(dirname(to), { recursive: true, mode: 0o700 })
+      rmSync(to, { force: true })
+      const size = statSync(real).size
+      if (size <= CHAT_KEEP)
+        try {
+          linkSync(real, to)
+        } catch {
+          copyFileSync(real, to)
+        }
+      else {
+        const buf = Buffer.alloc(CHAT_KEEP)
+        const fd = openSync(real, 'r')
+        try {
+          readSync(fd, buf, 0, CHAT_KEEP, size - CHAT_KEEP)
+        } finally {
+          closeSync(fd)
+        }
+        writeFileSync(to, buf.subarray(buf.indexOf(10) + 1), { mode: 0o600 }) // from a line's start
+      }
+      t.kept = t.resumeId
+    } catch (e) {
+      wsLog(ws, `archive: ${t.name}'s chat not kept (${firstLine(e)})`)
+    }
+  }
+}
+// a claude or codex tab's transcript: the agent's own, else the copy Laki kept of that chat (kept: true)
+export function chatFile(t: Pick<Tab, 'id' | 'workspace' | 'preset' | 'account' | 'resumeId' | 'kept'>): { file: string; kept?: true } | undefined {
+  if ((t.preset !== 'claude' && t.preset !== 'codex') || !t.resumeId) return
+  const own = transcriptOf(t.preset, agentHome(t), t.resumeId)
+  if (own) return { file: own }
+  const k = t.kept === t.resumeId ? plainFile(keptChat(state.workspaces.find(w => w.id === t.workspace), t.id)) : undefined
+  return k ? { file: k, kept: true } : undefined
+}
+// a restored tab whose chat the agent deleted meanwhile: Laki's copy of it (the Reader shows it above a New session line)
+export const keptOnly = (t: Tab) => (t.kept && t.kept !== t.resumeId ? plainFile(keptChat(state.workspaces.find(w => w.id === t.workspace), t.id)) : undefined)
+
 // a workspace's storage folder ($LAKI_STORAGE_FOLDER): <storageDir>/<name>-<id>, named and made at its first tab and kept
 // (a rename doesn't move it); none for Terminals and Browsers. ponytail: on this Mac only, a host's workspaces get none
 export function storageOf(ws: Workspace) {
@@ -3308,7 +3370,7 @@ export const soonSay: { fn?: (ws: Workspace) => void } = {} // main.ts': the not
 const DAY = 86400e3
 const TRASH_DAYS = 30 // Linux's trash folder (Laki's own): what's in it this long goes, as workflows' trash
 const trashRoot = () => (process.platform === 'darwin' ? join(homedir(), '.Trash') : join(dir, 'trash'))
-const storageFull = (ws: Workspace) => !!ws.storage && !state.settings?.keepStorage && basename(ws.storage).includes(ws.id) && (() => { try { return readdirSync(ws.storage!).some(f => f !== 'proof') } catch { return false } })() // the Proof card's folder: Laki's own record, not yours
+const storageFull = (ws: Workspace) => !!ws.storage && !state.settings?.keepStorage && basename(ws.storage).includes(ws.id) && (() => { try { return readdirSync(ws.storage!).some(f => f !== 'proof' && f !== 'chats') } catch { return false } })() // the Proof card's folder and the chats kept (keepChats): Laki's own record, not yours; they go with the rest
 const repoOf = (ws: Workspace) => (ws.host ? '' : (state.projects.find(p => p.id === ws.project)?.path ?? ''))
 // what deleting it would lose for good, in words: none, nothing of its own
 export async function hasSaved(ws: Workspace) {
@@ -3408,6 +3470,7 @@ export async function wsArchive(ref: string, o: { ifClean?: boolean } & GateOpts
   // default), its uncommitted and unpushed work with it: the app's archive ask says so (text.ts rmVerdict's cs), it isn't held
   if (ws.codespace) await cs.stop(ws.codespace).then(() => (ws.csState = 'Shutdown'))
   await archiveKeep(ws) // R2: its uncommitted files, for Restore
+  keepChats(ws) // its agents' chats, in case an agent deletes its own old ones
   await teardown(ws)
   ws.archived = true
   ws.archivedAt = Date.now()
@@ -3442,6 +3505,9 @@ export async function wsRestore(ref: string) {
   save()
   forward(ws)
   if (ws.codespace) void hostUp(ws.host!).catch(() => {}) // started again (connect's csUp), its tabs or none
+  // a chat the agent deleted meanwhile can't be resumed: a new one, Laki's copy of the old shown above it (keptOnly)
+  for (const t of tabsOf(ws.id)) if (t.kept && t.kept === t.resumeId && chatFile(t)?.kept) (delete t.resumeId), wsLog(ws, `restore: ${t.name}'s chat is gone from ${t.preset}'s folder: a new session, the old one shown from Laki's copy`)
+  save()
   for (const t of tabsOf(ws.id)) spawnTab(t, { resume: true })
   changed()
   widgetEvent('workspace.restored', {}, ws.id)

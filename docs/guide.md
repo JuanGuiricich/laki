@@ -348,6 +348,9 @@ selected workspace's PR is in the status bar.
 - Archiving asks first, saying what goes (the worktree) and what stays (the branch, its artifacts, and uncommitted
   changes: saved with the archive, back with *Restore*, gone once the archive is deleted; a project over SSH or in
   the cloud loses them); *Undo* is in the message that follows. Several at once (picked rows, the Board's *Archive all*) ask once.
+  Its agents' chats are kept too (a copy in its storage folder, 50 MB each at most): when Claude Code or Codex deletes
+  its own old sessions, the Reader and Search chats still read them, marked *Kept by Laki*. Restored then, the agent
+  can't resume that session: it starts a new one, the old chat shown above its *New session* line.
 - Click a project's arrow to fold its workspaces away (its busiest status and their count stay), again to unfold;
   *Collapse all projects* and *Expand all projects* are in ⌘K. (Terminals and Browsers fold on a click anywhere.)
 - Click a project's name for its page (also ⋯ › *Open project page*), in tabs: *Notes* (yours, in Markdown; *Edit*,

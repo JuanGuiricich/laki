@@ -440,6 +440,7 @@ export type Tab = {
   profile?: string // the preset (Settings) it started from: its args and env
   cmd?: string // custom command
   resumeId?: string // the agent's chat: claude session_id, codex thread-id, gemini/opencode session, grok's (Laki picks it)
+  kept?: string // the chat (a resumeId) Laki kept a copy of as its workspace was archived (core's keepChats): <storage>/chats/<id>.jsonl
   forkOf?: string // claude session to fork on first start
   queue?: string[] // follow-ups for when the agent is idle
   queueHeld?: boolean // U8: Stop all agents stopped its turn: its queue waits for Resume queue (queueResume)

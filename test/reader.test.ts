@@ -1,7 +1,7 @@
 // Reader view: a claude tab's chat from its transcript (meters.ts chatRead), read on as it grows; the same v: nothing new;
 // no transcript: none; an agent's call refused.
 import assert from 'node:assert/strict'
-import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fresh, until } from './helpers.ts'
@@ -318,4 +318,47 @@ test('chatSearch: a phrase in what the agent said, newest first; tool output onl
   assert.equal((await rig.rpc('chatSearch', { q: 'needle' })).hits.length, 0)
   await rig.rpc('settingsSet', { recording: false })
   assert.equal((await rig.rpc('chatSearch', { q: 'needle' })).hits.length, 12)
+})
+
+test("an archived workspace's chats are kept: the agent's file deleted, chatRead and chatSearch read Laki's copy; a restore starts anew below it; a link out of the agent's folder isn't copied; the copy goes with the archive", async t => {
+  const rig = await fresh(t)
+  const p = await rig.rpc('projectAdd', { path: rig.repo })
+  const ws = await rig.rpc('wsNew', { project: p.id, preset: 'claude' })
+  const tab = await until(async () => (x => x?.resumeId && x)(await rig.tab(ws.id)), 'its chat')
+  const dir = join(rig.home, '.claude/projects/-tmp-repo')
+  mkdirSync(dir, { recursive: true })
+  const file = join(dir, 'chat-k.jsonl')
+  writeFileSync(file, line({ type: 'user', message: { content: 'Fix the pelican total' } }) + line({ type: 'assistant', message: { content: [{ type: 'text', text: 'Fixed the pelican rounding.' }] } }))
+  await rig.rpc('hook', { tab: tab.id, state: 'start', payload: { session_id: 'chat-k' } })
+  await until(async () => (await rig.rpc('chatRead', { tab: tab.id })).said?.length === 2, 'its chat read')
+  // a second tab whose transcript is a link to a file outside claude's folder
+  const other = await rig.rpc('tabNew', { ws: ws.id, preset: 'claude' })
+  await until(async () => (await rig.rpc('state')).tabs.find((x: any) => x.id === other.id)?.resumeId, 'its chat')
+  const outside = join(rig.home, 'outside.jsonl')
+  writeFileSync(outside, line({ type: 'user', message: { content: 'not to be copied' } }))
+  symlinkSync(outside, join(dir, 'chat-l.jsonl'))
+  await rig.rpc('hook', { tab: other.id, state: 'start', payload: { session_id: 'chat-l' } })
+  await rig.rpc('wsArchive', { id: ws.id })
+  const storage = (await rig.rpc('state')).workspaces.find((w: any) => w.id === ws.id).storage
+  const kept = join(storage, 'chats', `${tab.id}.jsonl`)
+  assert.equal(readFileSync(kept, 'utf8'), readFileSync(file, 'utf8'))
+  assert.equal(existsSync(join(storage, 'chats', `${other.id}.jsonl`)), false, 'a link out of the agent folder: not copied')
+  // the agent deletes its old chat: Laki's copy is read
+  rmSync(file)
+  const r = await until(async () => (r => r.said?.length && r)(await rig.rpc('chatRead', { tab: tab.id })), 'the kept chat read')
+  assert.deepEqual(r.said.map((s: any) => s.text), ['Fix the pelican total', 'Fixed the pelican rounding.'])
+  assert.equal(r.kept, true)
+  const hits = (await rig.rpc('chatSearch', { q: 'pelican rounding' })).hits
+  assert.deepEqual(hits.map((h: any) => [h.ws, h.tab, h.who]), [[ws.id, tab.id, 'agent']])
+  // restored: a new session, the old chat above its New session line
+  await rig.rpc('wsRestore', { id: ws.id })
+  const back = (await rig.rpc('state')).tabs.find((x: any) => x.id === tab.id)
+  assert.notEqual(back.resumeId, 'chat-k')
+  const after = await until(async () => (r => r.said?.length && r)(await rig.rpc('chatRead', { tab: tab.id })), 'the restored tab read')
+  assert.deepEqual(after.said.map((s: any) => s.who), ['you', 'agent', 'new'])
+  assert.equal(after.kept, true)
+  // the archive deleted: its copy with it
+  await rig.rpc('wsArchive', { id: ws.id })
+  await rig.rpc('wsRm', { id: ws.id })
+  await until(() => !existsSync(kept), 'the copy removed')
 })

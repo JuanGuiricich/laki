@@ -5,6 +5,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
+- An archived workspace keeps its agents' chats: when Claude Code or Codex deletes its old sessions, the Reader and Search chats still read them (*Kept by Laki*), and a restore starts a new session under the old chat.
 - A deleted note goes to the trash for 30 days: *Undo* in the toast brings it back with its pictures and files.
 - Laki AI's keys (OpenRouter's and your endpoint's) live in the macOS Keychain now, out of Laki's data folder; the old file moves in by itself once the Keychain has it. Copy diagnostics says where they are.
 - Confirm risky actions with Touch ID (Settings › General, off until you turn it on): starting remote access, pairing a device, Bypass permissions, a webhook's secret and Reset the interface ask for your finger first, and only Laki's window can do them then. [Try it](laki://settings/general?spot=Confirm%20risky%20actions%20with%20Touch%20ID)

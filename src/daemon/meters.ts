@@ -8,7 +8,7 @@ import { readJson, writeAtomic } from '../shared/conn.ts'
 import { planDone } from '../shared/todos.ts'
 import { type ChatHit, HOME_ACCOUNT, type Tab, type TabView, type Today, type UsageWindow, type Workspace } from '../shared/types.ts'
 import { accountNamed, homeDir } from './accounts.ts'
-import { changed, presetOf, state } from './core.ts'
+import { changed, chatFile, keptChat, keptOnly, presetOf, state } from './core.ts'
 import { dir } from './dir.ts'
 import { type BgRead, bgOf, type BgTask, type ByModel, chatOf, dayOf, type McpCall, type Meter, meterNew, meterOf, num, type Said, transcriptOf } from './share.ts'
 export type { McpCall }
@@ -17,12 +17,12 @@ import { acpChat } from './acp.ts'
 
 // ---------- transcripts: a claude or codex tab's (share.ts' transcriptOf), read as it grows, by shared tabs and the meters
 
-export type Tail = { file?: string; looked?: number; for?: string; since?: number; pos?: number } // for: the chat it looked for, since when
+export type Tail = { file?: string; looked?: number; for?: string; since?: number; pos?: number; kept?: true } // kept: file is Laki's copy (core's chatFile) // for: the chat it looked for, since when
 const SHARE_READ = 32 << 20 // a transcript's most read at once: a longer one starts there (ponytail: its start is left out)
 // what was written to the tab's transcript since t's last read, whole lines only (the last may be half written); ''
 // nothing new; undefined none (another agent, a host's, not found yet, empty); fresh: it's read from its start again
 // (this chat's file found, or written anew)
-export function tailOf(tab: Tab, t: Tail, fresh: () => void): string | undefined {
+export function tailOf(tab: Tab, t: Tail, fresh: (was?: true) => void): string | undefined { // was: the file before was Laki's copy
   const agent = tab.preset
   if ((agent !== 'claude' && agent !== 'codex') || !tab.resumeId || state.workspaces.find(w => w.id === tab.workspace)?.host) return
   // a chat's looked for again every 10 s at most (codex's: a walk of every session, here on the daemon's thread), every 2
@@ -30,15 +30,25 @@ export function tailOf(tab: Tab, t: Tail, fresh: () => void): string | undefined
   // turn, whose end looks again at once (meterRead's look)
   const now = Date.now()
   if (t.for !== tab.resumeId) (t.for = tab.resumeId), (t.since = now), (t.looked = 0)
-  if (!t.file?.endsWith(`${tab.resumeId}.jsonl`) && now - (t.looked ?? 0) > (now - t.since! < 60000 ? 10000 : 120000)) (t.looked = now), (t.file = transcriptOf(agent, accountNamed(tab.account)?.dir ?? homeDir(agent), tab.resumeId)), (t.pos = 0), fresh()
-  if (!t.file?.endsWith(`${tab.resumeId}.jsonl`)) return void (t.file = undefined) // another chat's: none until this one's is found
-  const size = statSync(t.file, { throwIfNoEntry: false })?.size ?? 0
+  const ours = (f?: string): f is string => !!f && (f.endsWith(`${tab.resumeId}.jsonl`) || (tab.kept === tab.resumeId && f === keptChat(state.workspaces.find(w => w.id === tab.workspace), tab.id))) // its own, or Laki's copy of it
+  if (t.file && !existsSync(t.file)) (t.file = undefined), (t.looked = 0) // gone (an agent deleted its old chat): looked for at once, Laki's copy if it kept one
+  if ((!ours(t.file) || t.kept) && now - (t.looked ?? 0) > (now - t.since! < 60000 ? 10000 : 120000)) {
+    t.looked = now
+    const c = chatFile(tab) // reading a copy: the agent's own may come back (a restore's)
+    if (c?.file !== t.file || !ours(t.file)) {
+      const was = t.kept
+      ;(t.file = c?.file), (t.kept = c?.kept), (t.pos = 0), fresh(was)
+    }
+  }
+  const file = t.file
+  if (!ours(file)) return void (t.file = undefined) // another chat's: none until this one's is found
+  const size = statSync(file, { throwIfNoEntry: false })?.size ?? 0
   if (!size) return
   if (size < t.pos!) (t.pos = 0), fresh() // written anew
   if (size - t.pos! > SHARE_READ) t.pos = size - SHARE_READ // the line it lands in is cut off: JSON.parse skips it
   if (size === t.pos) return ''
   const buf = Buffer.alloc(size - t.pos!)
-  const fd = openSync(t.file, 'r')
+  const fd = openSync(file, 'r')
   try {
     readSync(fd, buf, 0, buf.length, t.pos!)
   } finally {
@@ -54,19 +64,19 @@ export function tailOf(tab: Tab, t: Tail, fresh: () => void): string | undefined
 // host's, not written yet). ponytail: the newest 400 sent whole at each change
 // bg: what a claude chat runs in the background now (share.ts bgOf: the chips over the Reader's box). past: the tab's
 // earlier chats (a /clear, codex's /new: its session changed), each ending in a New session line; chat: the one read now
-type Reader = Tail & { said: Said[]; v: number; bg: BgRead; calls: Map<string, McpCall>; ids: Map<string, number>; past?: Said[]; chat?: string }
+type Reader = Tail & { said: Said[]; v: number; bg: BgRead; calls: Map<string, McpCall>; ids: Map<string, number>; past?: Said[]; chat?: string; old?: true } // old: past is Laki's copy of a chat the agent deleted (keptOnly)
 const readers = new Map<string, Reader>()
 const bgNew = (): BgRead => ({ bg: new Map(), wait: new Map() })
 const bgDone = (): BgRead => ({ ...bgNew(), done: { n: 0, last: [] } })
-export function chatRead(p: { tab: string; v?: number }): { none?: boolean; v?: number; said?: Said[]; bg?: BgTask[]; from?: number } {
+export function chatRead(p: { tab: string; v?: number }): { none?: boolean; v?: number; said?: Said[]; bg?: BgTask[]; from?: number; kept?: true } {
   const tab = state.tabs.find(t => t.id === p.tab)
   if (!tab) throw new Error('no such tab')
   for (const id of readers.keys()) if (!state.tabs.some(t => t.id === id)) readers.delete(id) // closed tabs'
   const acp = acpChat(tab.id) // an ACP tab's: what acp.ts kept as it came
   if (acp) return p.v === acp.v ? { v: acp.v } : { v: acp.v, said: acp.said.slice(-400) }
-  const r = readers.get(tab.id) ?? (readers.set(tab.id, { said: [], v: 0, bg: bgNew(), calls: new Map(), ids: new Map() }), readers.get(tab.id)!)
-  const text = tailOf(tab, r, () => {
-    if (r.chat && r.chat !== tab.resumeId && r.said.length) r.past = [...(r.past ?? []), ...r.said, { who: 'new', text: '' } as Said].slice(-400)
+  const r = readers.get(tab.id) ?? (readers.set(tab.id, { said: [], v: 0, bg: bgNew(), calls: new Map(), ids: new Map(), ...(k => k && { past: [...keptSaid(tab.preset!, k), { who: 'new', text: '' } as Said], old: true })(keptOnly(tab)) }), readers.get(tab.id)!)
+  const text = tailOf(tab, r, was => {
+    if (r.chat && r.chat !== tab.resumeId && r.said.length) (r.past = [...(r.past ?? []), ...r.said, { who: 'new', text: '' } as Said].slice(-400)), was && (r.old = true) // the chat read from Laki's copy, now above a new one
     r.chat = tab.resumeId
     ;(r.said = []), (r.bg = bgNew()), (r.calls = new Map()), (r.ids = new Map()), r.v++
   })
@@ -78,7 +88,26 @@ export function chatRead(p: { tab: string; v?: number }): { none?: boolean; v?: 
   const all = r.past ? [...r.past, ...r.said] : r.said
   const cut = Math.max(0, all.length - 400)
   const from = cut - (r.past?.length ?? 0) // said[k] is what's sent's [k - from]: MCP Apps' at (mcpApps.ts)
-  return { v: r.v, said: all.slice(cut), ...(from !== 0 && { from }), ...(r.bg.bg.size > 0 && { bg: [...r.bg.bg.values()] }) }
+  return { v: r.v, said: all.slice(cut), ...(from !== 0 && { from }), ...(r.bg.bg.size > 0 && { bg: [...r.bg.bg.values()] }), ...((r.kept || r.old) && { kept: true }) }
+}
+// a kept copy's chat, whole (its newest SHARE_READ): what a restored tab's agent deleted, above its New session line
+function keptSaid(agent: string, file: string): Said[] {
+  try {
+    const size = statSync(file).size
+    const n = Math.min(size, SHARE_READ)
+    const buf = Buffer.alloc(n)
+    const fd = openSync(file, 'r')
+    try {
+      readSync(fd, buf, 0, n, size - n)
+    } finally {
+      closeSync(fd)
+    }
+    const said: Said[] = []
+    chatOf(agent, buf.toString('utf8'), said)
+    return said.slice(-400)
+  } catch {
+    return []
+  }
 }
 
 // what a claude tab's chat left running in the background as its process ended (its transcript read now, its last
@@ -370,13 +399,20 @@ export async function chatSearch(p: { q?: unknown; limit?: unknown; tools?: unkn
   const files = new Map<string, Omit<ChatHit, 'at' | 'who' | 'text' | 'id'> & { mtime: number }>()
   const add = (ws: Workspace, agent: string | undefined, id: string | undefined, account: string | undefined, name: string, tab?: string) => {
     if ((agent !== 'claude' && agent !== 'codex') || !id) return
-    const file = transcriptOf(agent, accountNamed(account)?.dir ?? homeDir(agent), id)
+    const live = tab ? state.tabs.find(t => t.id === tab) : undefined
+    const file = live ? chatFile(live)?.file : transcriptOf(agent, accountNamed(account)?.dir ?? homeDir(agent), id) // a tab's: Laki's copy when its own is gone
     const st = file && !files.has(file) ? statSync(file, { throwIfNoEntry: false }) : undefined
     if (st) files.set(file!, { ws: ws.id, ...(tab && { tab }), name, agent, mtime: st.mtimeMs })
   }
   for (const w of state.workspaces) {
     if (w.host || (veil && (w.private || hid.has(w.project)))) continue
-    for (const t of state.tabs) if (t.workspace === w.id && t.kind === 'agent') add(w, t.preset, t.resumeId, t.account, t.name, t.id)
+    for (const t of state.tabs)
+      if (t.workspace === w.id && t.kind === 'agent') {
+        add(w, t.preset, t.resumeId, t.account, t.name, t.id)
+        const k = keptOnly(t) // a restored tab's old chat, Laki's copy
+        const st = k && !files.has(k) ? statSync(k, { throwIfNoEntry: false }) : undefined
+        if (st && (t.preset === 'claude' || t.preset === 'codex')) files.set(k!, { ws: w.id, tab: t.id, name: t.name, agent: t.preset, mtime: st.mtimeMs })
+      }
     for (const c of w.closed ?? []) add(w, c.preset, c.resumeId, c.account, c.name)
   }
   // a word of q as the JSON line has it (no quote, backslash or other escape): lines without it aren't parsed
