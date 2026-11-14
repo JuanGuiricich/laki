@@ -5,6 +5,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
+- Long-press Laki's icon on an Android Home Screen for *New workspace*, *Needs you* and *Last workspace*.
 - Laki on your phone's Home Screen shows a count on its icon: the agents that wait for you, kept up to date by each push even with the page closed.
 - The text cursor and selected text take your accent color everywhere, a bit lighter where the text over it wouldn't read, and grey while Laki isn't the app in use.
 - Glass has *Grain*: a fine noise over the sidebar and panels, as frosted glass has (Settings › Appearance › Window, off by default).

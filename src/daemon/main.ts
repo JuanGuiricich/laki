@@ -16,6 +16,7 @@ import { planChat } from '../shared/plans.ts'
 import { readCapped, rotateLog } from '../shared/conn.ts'
 import { HostPty, ptyGone, ptyOn } from './ptyHost.ts'
 import { aiTotals, API, HIDDEN, isAgent, MASK, masked, maskSettings, neverAsks, recorded, type Settings, type Tab, unmasked } from '../shared/types.ts'
+import { manifestOf } from '../shared/pwa.ts'
 import { CAPS, oldName } from '../shared/caps.ts'
 import { VERSION } from '../shared/version.ts'
 import { meme } from './fun.ts'
@@ -180,7 +181,7 @@ function page(path: string, res: ServerResponse) {
 // theme's colors
 const PWA_ICONS = new Set(['/icon-192.png', '/icon-512.png', '/apple-touch-icon.png'])
 export const PWA = new Set([...PWA_ICONS, '/manifest.webmanifest', '/sw.js'])
-const MANIFEST = JSON.stringify({ name: 'Laki', short_name: 'Laki', description: 'Your coding agents, from your phone', id: '/', start_url: '/', scope: '/', display: 'standalone', background_color: '#171412', theme_color: '#171412', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }] })
+const MANIFEST = JSON.stringify(manifestOf()) // shared/pwa.ts: with its shortcuts (#new, #needs, #last)
 // the service worker: the static shell only (/assets/, the icons: network first, the cache when it fails), never the
 // API, the socket, /pin, /push, /tap or the page itself (no-store: it goes through the sign-in); a navigation with no
 // network (or a tunnel's 5xx: the Mac unreachable) gets the offline page. A push sets the icon's badge (its badge: nextStep.ts badgeOf) as it shows; a notification's action posts its tap to /tap; a click elsewhere opens the app.

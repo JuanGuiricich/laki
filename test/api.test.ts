@@ -1621,3 +1621,16 @@ test("Touch ID: with it on, remoteStart takes a fresh ticket of its own, once; a
   await rig.rpc('settingsSet', { touchId: false, touchTicket: await ticket('touchIdOff') })
   await start() // off: no ticket needed
 })
+
+test("10b: the remote page's manifest has three shortcuts, each a fragment in its scope with an icon", async () => {
+  const { manifestOf } = await import('../src/shared/pwa.ts')
+  const m = manifestOf()
+  assert.deepEqual(m.shortcuts.map(s => s.url), ['/#new', '/#needs', '/#last'])
+  for (const s of m.shortcuts) {
+    assert.ok(s.url.startsWith(m.scope), `${s.url} is in the scope`)
+    assert.ok(s.name && s.short_name.length <= 12, `${s.name}: a short name`)
+    assert.equal(s.icons[0].src, '/icon-192.png')
+  }
+  assert.deepEqual([m.id, m.start_url, m.display], ['/', '/', 'standalone'])
+  assert.doesNotThrow(() => JSON.parse(JSON.stringify(m)))
+})
