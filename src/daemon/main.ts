@@ -1289,18 +1289,21 @@ function agentLine(method: string, params: unknown, e?: unknown) {
 
 // known: the agent's tab a call's token is of (S12, /rpc only); app: the call came with the app's token (S1)
 // a blocked event loop (a hung daemon: main pings it, the window says so): a tick more than 2 s late is one line in the
-// log, with how late and the API methods running or begun since the last look (the one that blocked is among them: a
-// sync stretch ends before the look), at most once a minute
+// log, with how late and the API methods running or begun in the last two looks (the one that blocked is among them: a
+// sync stretch ends before the look, and the look can run before the histogram's own timer has the late tick, which it
+// then sees one look later), at most once a minute
 const running: string[] = []
-const begun = new Set<string>()
+let begun = new Set<string>()
+let begunBefore = new Set<string>()
 const loopDelay = monitorEventLoopDelay({ resolution: 20 })
 loopDelay.enable()
 let lateSaid = 0
 setInterval(() => {
   const ms = loopDelay.max / 1e6
   loopDelay.reset()
-  const who = [...new Set([...running, ...begun])].slice(0, 6)
-  begun.clear()
+  const who = [...new Set([...running, ...begun, ...begunBefore])].slice(0, 6)
+  begunBefore = begun
+  begun = new Set()
   if (ms <= 2000 || Date.now() - lateSaid < 60_000) return
   lateSaid = Date.now()
   log(`the event loop was blocked for ${(ms / 1000).toFixed(1)} s (API methods running then: ${who.join(', ') || 'none'})`)

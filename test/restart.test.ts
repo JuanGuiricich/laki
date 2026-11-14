@@ -22,7 +22,9 @@ test('single instance: a second daemon exits', async t => {
 test('a blocked event loop: one line in the log with how long and the API method that held it', async t => {
   const rig = await fresh(t, { env: { LAKI_TEST_BUSY: 'cliState' } })
   await rig.rpc('cliState') // 3 s of a busy loop inside the call
-  await until(() => /the event loop was blocked for [2-9]\.\d s \(API methods running then: [^)]*cliState/.test(rig.out), `the blocked loop's line (${rig.out.slice(-400)})`)
+  await until(() => /the event loop was blocked for [2-9]\.\d s \(API methods running then: [^)]*cliState/.test(rig.out), "the blocked loop's line").catch(e => {
+    throw new Error(`${e.message}; the log then: ${rig.out.slice(-600)}`) // as it was at the timeout, not as the wait began
+  })
   await rig.rpc('cliState')
   await sleep(2500)
   assert.equal(rig.out.match(/the event loop was blocked/g)?.length, 1, 'once a minute at most')
