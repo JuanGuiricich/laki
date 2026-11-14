@@ -613,8 +613,9 @@ tab (the last place you clicked), ⌘F finds words in the diff's lines instead: 
   `TOKEN=` value) in the lines it adds, lockfiles, binary files and files over 1 MB aside: each found shows its file,
   line and itself masked, and stops the ship; *Untick* leaves the file out, *Not a secret* ships it and remembers that
   one for the workspace (`laki ship` exits 1 unless `--allow-secrets`; an agent can't pass it);
-  *Add what Laki checked* (on when a Done check ran) ends the PR's description with that check's scripts and how each
-  ended, under *Checked by Laki*; changed since, it says only that (`laki ship --no-proof` leaves it out);
+  *Add what Laki checked* (on when the last Done check saw what ships) puts *Checked by Laki* at the description's end,
+  there to edit: each script, pass or fail and how long, the second opinion's verdict and what the turn touched; changed
+  since, it says only that it was checked before (`laki ship` adds it when current, `--proof` also when not, `--no-proof` never);
 - search: the command palette (⌘K);
 - ⋯: the next step first (One next step, below), then split right/down, fork, archive, delete;
 - ▷ Run ▾: the project's run script in a *dev* tab, ■ Stop while it runs (^C). ▾ restarts it, shows its tab,

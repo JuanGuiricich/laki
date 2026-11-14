@@ -965,16 +965,24 @@ test('test:report: medians over the last 20 runs, the flaky rule, the 5,000-line
   assert.deepEqual(runEnd([run('test/b.test.ts', 10, false)], [run('test/b.test.ts', 1, true, 'other')]), ['slowest file: test/b.test.ts (0.0 s)'])
 })
 
-test('proofMd: the last Done check in a PR body, masked; stale says only that; no script, nothing', async () => {
+test('proofMd: the last Done check in a PR body: pass, fail, the verdict, what it touched, masked; stale says only that', async () => {
   const { proofMd } = await import('../src/shared/proof.ts')
-  const p = { turn: Date.UTC(2026, 10, 14, 9, 30), tab: 't1', shots: {}, facts: { files: 3, tests: true as const, lockfiles: true as const }, checks: [{ name: 'test', ok: true, code: 0, ms: 1200, summary: 'passed in 1.2 s' }, { name: 'lint', ok: false, code: 2, ms: 300, summary: 'exited with 2 in 300 ms token=fake-secret' }] }
-  const md = proofMd(p, { mask: s => s.replace(/fake-secret/g, '••••') })
-  assert.match(md, /^## Checked by Laki\n\n- ✅ `test` passed in 1\.2 s\n- ❌ `lint` exited with 2 in 300 ms token=••••\n- 3 files changed in the checked turn, touching tests, lockfiles\n\n<sub>Run by Laki on this machine as the agent's turn ended \(2026-11-14 09:30 UTC\)\.<\/sub>$/)
-  assert.ok(!md.includes('fake-secret'))
-  assert.match(proofMd(p, { stale: true }), /^## Checked by Laki\n\n_Laki's last check was of an earlier state/)
-  assert.ok(!proofMd(p, { stale: true }).includes('lint'))
+  const p = { turn: 1, tab: 't1', shots: {}, facts: { files: 3, tests: true as const, lockfiles: true as const }, checks: [{ name: 'test', ok: true, code: 0, ms: 1200, summary: 'passed in 1.2 s' }, { name: 'lint', ok: false, code: 2, ms: 300, summary: 'exited with 2 in 300 ms' }] }
+  const review = { agent: 'codex', state: 'note' as const, note: 'one\n\ntwo' }
+  assert.equal(proofMd(p, { review }), '## Checked by Laki\n\n- ✅ `test` passed, 1.2 s\n- ❌ `lint` failed (exit 2), 300 ms\n- Second opinion (`codex`): 2 notes\n- touches: tests, lockfiles')
+  assert.ok(!proofMd(p, { review }).includes('one'), "the review's words never")
+  assert.match(proofMd(p, { review: { agent: 'claude', state: 'pass' } }), /Second opinion \(`claude`\): no notes/)
+  assert.doesNotMatch(proofMd(p, { review: { agent: 'claude', state: 'wait' } }), /Second opinion/, 'not done yet: not said')
+  assert.match(proofMd({ ...p, checks: [{ ...p.checks[0], ok: false, code: -1, summary: 'took over 10 minutes' }] }), /`test` timed out, 1\.2 s/)
+  // a secret in a script's name: masked as shared tabs mask
+  const named = proofMd({ ...p, checks: [{ ...p.checks[0], name: 'lint TOKEN=fake-secret-value' }] }, { mask: s => s.replace(/fake-secret-value/g, '••••') })
+  assert.match(named, /`lint TOKEN=••••` passed/)
+  assert.ok(!named.includes('fake-secret-value'))
+  assert.equal(proofMd(p, { stale: true, review }), '## Checked by Laki\n\nChecked before the latest changes.')
   assert.equal(proofMd({ ...p, checks: [] }), '')
   assert.equal(proofMd(undefined), '')
+  assert.match(proofMd({ ...p, checks: [] }, { review }), /^## Checked by Laki\n\n- Second opinion/)
+  assert.doesNotMatch(proofMd({ ...p, facts: { files: 1 } }), /touches/)
   assert.match(proofMd({ ...p, checks: [{ ...p.checks[0], name: 'a`b' }] }), /`a'b`/) // a backtick can't end the code span
 })
 

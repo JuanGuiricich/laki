@@ -243,11 +243,14 @@ HEAD, else main or master: the new-workspace page's base unless picked), `wsNew`
   workspace's id and the match); `allowSecrets` passes it: `true` (`laki ship --allow-secrets`) once, or the hashes the
   sheet's *Not a secret* named, kept in `Workspace.secretOk` (200 at most; `wsOut` leaves them out of the view).
   `agentNo` refuses `allowSecrets` from an agent, as `ship` does itself; a workflow's Ship block fails with the list
-  as its output. A PR's body ends with the last Done check's facts (shared/proof.ts `proofMd`: `## Checked by Laki`,
-  each script's name and `summary`, git's facts; masked by share.ts `redact`), after the body given or the template's
-  (none and no template: shipWords' body, the sheet's, so not `--fill`); the proof's `tree` not the one shipped (a
-  change since, a file left out): only a note that it's stale. `proof: false` (`laki ship --no-proof`, the sheet's *Add
-  what Laki checked* off) leaves it out; `shipDraft`'s `proof` is `yes` or `stale` when there is one. A repo with a PR template (core.ts `prTemplate`: the first of shared/prTemplate.ts'
+  as its output. A PR's body ends with the last Done check's section (shared/proof.ts `proofMd`: `## Checked by Laki`,
+  a line per script with pass or fail and its time, the second opinion's verdict, `touches:` for what the turn touched;
+  no output, paths or words; masked by share.ts `redact`; core.ts `proofOf`), after the body given or the template's
+  (none and no template: shipWords' body, the sheet's, so not `--fill`), when the proof's `tree` is the one shipped;
+  `proof: true` (`laki ship --proof`) adds it also when stale, as *Checked before the latest changes*; `proof: false`
+  (`--no-proof`) never; a body with the heading already gets none. `shipDraft` gives `proof` (`yes` or `stale`) and
+  `checked`, the section, which the sheet puts at the body's end to edit (*Add what Laki checked*, on when `yes`) and
+  ships with `proof: false`. A repo with a PR template (core.ts `prTemplate`: the first of shared/prTemplate.ts'
   `PR_TEMPLATES`, GitLab's `MR_TEMPLATES`, a regular file inside the worktree through `inside`, its first 20 KB; on a
   host one that isn't a link) gets `fillTemplate`'s body: its HTML comments gone, the answer and the task under its first
   heading like a description (What, Summary, Description, Changes), else before its first heading, its checklists as

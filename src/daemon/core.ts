@@ -15,7 +15,7 @@ import { promisify } from 'node:util'
 import { move as moveFile, priorOf, readJson, syncDir, writeAtomic } from '../shared/conn.ts'
 import { endpointOk, MASK, type DigestRow, LABS, CLAUDE_MODES, claudeMode, type NativeSeen, SEP_WHERE, type SepWhere, actionSlug, againOnEnter, checkOk, type CheckRun, type Proof, type Agent, AGENTS, ALIAS, agentVars, ANSWER_WHY, answerOk, API, type Doctor, doctorRows, doctorText, EFFORTS, FAST, FILE_MAX, fillVars, STORAGE_DAYS, type Card, type ClosedTab, flowsOn, type Gate, type GateHeld, IMAGE_DAYS, isAccountAgent, isAgent, type LogLine, type Memory, MEMORY_AUTO_LEN, MEMORY_MAX, neverAsks, permArgs, permInArgs, PERMS, SANDBOX, SANDBOX_NO, sandboxOff, type PR, type PRAllow, prAllows, type Preset, prIn, type Proc, type Project, type ProjectConfig, RAIL_PINS, refsIn, REMOTE, rowsOf, RUN_SCRIPTS, type RunAction, type RunScript, type ScriptRun, type SecretFound, type Sep, type Settings, SLEEP_AFTER, specsOn, type State, type Status, type Tab, TAB_COLORS, type TabView, taskTitle, type Template, type View, type TurnChanges, WHEN_DONE_WAIT, type WhenDone, type Workspace, WS_SORTS, type WsSort } from '../shared/types.ts'
 import { CAPS } from '../shared/caps.ts'
-import { proofMd } from '../shared/proof.ts'
+import { PROOF_HEAD, proofMd } from '../shared/proof.ts'
 import { VERSION } from '../shared/version.ts'
 import { emojiOf, isIconName, lookOf, setIconLook } from '../shared/icons.ts'
 import { type Edge, groupsOf, type Layout, move, tabsOf as paneTabs } from '../shared/layout.ts'
@@ -5112,7 +5112,7 @@ const swapped = async (ws: Workspace, links: string[]) => (links.length ? (await
 // U5: the Ship sheet's, all optional (laki ship's flags; none: as before, every change, gh pr create --fill). files: the
 // changed paths to commit (treeOf's, the others stay uncommitted); mode: stop after the commit or the push; title and
 // body: the PR's (else gh's --fill); base: the PR's base branch; reviewers: GitHub logins or org/team names
-export type ShipOpts = GateOpts & { files?: string[]; title?: string; body?: string; draft?: boolean; base?: string; reviewers?: string[]; mode?: 'commit' | 'push' | 'pr'; allowSecrets?: true | string[]; proof?: boolean } // proof: false, the last Done check's facts not added to the PR's body
+export type ShipOpts = GateOpts & { files?: string[]; title?: string; body?: string; draft?: boolean; base?: string; reviewers?: string[]; mode?: 'commit' | 'push' | 'pr'; allowSecrets?: true | string[]; proof?: boolean } // proof: the last Done check's facts in the PR's body (proofOf): unset when current, true a stale one's note too, false none
 const NAME_OK = /^[A-Za-z0-9][\w.-]*(\/[A-Za-z0-9][\w.-]*)?$/
 // what treeOf's tree changes against HEAD, each path once (no renames: a rename is its old path gone and its new one)
 async function changedIn(ws: Workspace, tree: string) {
@@ -5217,6 +5217,16 @@ export async function shipSecrets(ws: Workspace, tree: string, ok: Set<string> =
   return found
 }
 
+// the last Done check as a PR's section (shared/proof.ts proofMd), masked, with its second opinion's verdict when that
+// check was the proof's; stale (it checked another tree than this one): its note only when stale is asked for, else none
+const staleProof = (ws: Workspace, tree: string) => (p => !!p?.tree && p.tree !== tree)(proofs.get(ws.id))
+function proofOf(ws: Workspace, tree: string, stale: boolean) {
+  const p = proofs.get(ws.id)
+  const c = checks.get(ws.id)
+  if (!p || (staleProof(ws, tree) && !stale)) return ''
+  return proofMd(p, { stale: staleProof(ws, tree), mask: redact, review: c?.at === p.turn ? c.review : undefined })
+}
+
 // U5: the Ship sheet's start: what ship would commit (each uncommitted file, +/−), the commits already on the branch,
 // and shipWords' title and body
 export async function shipDraft(ref: string) {
@@ -5227,9 +5237,9 @@ export async function shipDraft(ref: string) {
   const ahead = Number((await git(ws, 'rev-list', '--count', `${ws.base}..HEAD`).catch(() => '0')).trim()) || 0
   const { title, body } = await shipWords(ws)
   const secrets = await shipSecrets(ws, tree).catch(() => [])
-  const pf = proofs.get(ws.id)
-  const proof = pf?.checks.length ? (pf.tree && pf.tree !== tree ? 'stale' : 'yes') : undefined // the sheet's Add what Laki checked
-  return { title, message: title, body, files, ahead, base: ws.base.replace(/^origin\//, ''), branch: ws.branch, secrets, ...(proof && { proof }) }
+  const checked = proofOf(ws, tree, true) // the sheet's Add what Laki checked: on when it's current
+  const proof = checked ? (staleProof(ws, tree) ? 'stale' : 'yes') : undefined
+  return { title, message: title, body, files, ahead, base: ws.base.replace(/^origin\//, ''), branch: ws.branch, secrets, ...(proof && { proof, checked }) }
 }
 
 export async function ship(ref: string, message: string, o: ShipOpts = {}): Promise<Tab | { held: GateHeld[] } | { secrets: SecretFound[] }> {
@@ -5283,10 +5293,10 @@ export async function ship(ref: string, message: string, o: ShipOpts = {}): Prom
   if (allowed?.size) (ws.secretOk = [...new Set([...(ws.secretOk ?? []), ...allowed])].slice(-200)), save()
   if (o.allowSecrets === true) wsLog(ws, 'ship: secret check skipped, you said ship anyway')
   // the last Done check's facts after the body (the template's too; none given and no template: shipWords' body, as the
-  // sheet shows it, so --fill's words go), unless proof: false; masked; stale when it checked another tree than this one
-  const pf = mode === 'pr' && o.proof !== false ? proofs.get(ws.id) : undefined
-  const checked = proofMd(pf, { stale: !!pf?.tree && pf.tree !== tree, mask: redact })
+  // sheet shows it, so --fill's words go): unset, when it checked this tree; true, a stale one's note too; false, none.
+  // A body that has the section already (the sheet's, edited there) gets none
   const given = o.body ?? filled
+  const checked = mode === 'pr' && o.proof !== false && !given?.includes(PROOF_HEAD) ? proofOf(ws, tree, o.proof === true) : ''
   const body = checked ? [(given ?? (await shipWords(ws)).body).trim(), checked].filter(Boolean).join('\n\n') : given
   const prTitle = o.title?.trim() || (body?.trim() ? message.trim() : '') // a body without a title: the commit's message as it (--fill has no room for a body)
   const index = await turnIndex(ws, 'ship')

@@ -11,7 +11,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 - The text cursor and selected text take your accent color everywhere, a bit lighter where the text over it wouldn't read, and grey while Laki isn't the app in use.
 - Glass has *Grain*: a fine noise over the sidebar and panels, as frosted glass has (Settings › Appearance › Window, off by default).
 - The window's edges glow softly while an agent in another workspace waits for you. Settings › General › *Glow while an agent waits* turns it off. [Try it](laki://settings/general?spot=Glow%20while%20an%20agent%20waits)
-- A PR opened with Ship ends with *Checked by Laki*: each script the last Done check ran and how it ended, and the files it saw; if the branch changed since, it says so instead. Untick *Add what Laki checked*, or `laki ship --no-proof`.
+- A PR opened with Ship ends with *Checked by Laki*: each script the last Done check ran, pass or fail and how long, the second opinion's verdict and what the change touches, there to edit in the Ship sheet. Untick *Add what Laki checked*, or `laki ship --no-proof`.
 - A change map beside the diff in Changes and the Review tab: where each change, comment and review thread is in the whole of it, and where you are. A click or a drag goes there.
 - Settings › Resources › Disk shows what each workspace takes on disk (its worktree and dependencies, kept turns, storage, archives) and the free space, with three ways to make room. `laki doctor --disk` prints it. [Try it](laki://settings/resources?spot=Disk)
 - An archived workspace keeps its agents' chats: when Claude Code or Codex deletes its old sessions, the Reader and Search chats still read them (*Kept by Laki*), and a restore starts a new session under the old chat.
