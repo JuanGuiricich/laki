@@ -19,7 +19,7 @@ import { TRAY_PX, TRAY_STATES, trayBitmap, type TrayInfo, type TrayState, trayTi
 import { type BrowseDid, pageChanges, urlIs, veiled, type View } from '../shared/types.ts'
 import { hotkeyAnswer } from '../shared/ask.ts'
 import { CONFIRM, type ConfirmWhat } from '../shared/confirm.ts'
-import { AGENT_BROWSER, APP_ORIGIN, APP_SCHEME, appFile, appPage as isAppPage, BROWSER, confirmAsk, externalOf, handoffUrl, fromApp as senderOk, fromTokenPage, local, menuModelOk, type NativeItem, pageIs, PREVIEW, web, webviewOk } from './guards.ts'
+import { AGENT_BROWSER, APP_ORIGIN, APP_SCHEME, appFile, appPage as isAppPage, BROWSER, confirmAsk, externalOf, handoffUrl, fromApp as senderOk, fromTokenPage, local, menuModelOk, type NativeItem, pageIs, PREVIEW, protectedKind, web, webviewOk } from './guards.ts'
 import { updater } from './update.ts'
 
 // the app's binary doesn't run as node (its runAsNode fuse is off: docs/dev/helper.md), so a start that asks for it
@@ -1031,6 +1031,7 @@ function addCard(c: Card) {
   cards = [c, ...cards.filter(x => x.key !== c.key)].slice(0, 20) // ponytail: the oldest past 20 go
   if (!cardWin || cardWin.isDestroyed()) {
     const w = (cardWin = new BrowserWindow(floatOpts(CARD_W, 120)))
+    guardFloat('ask', w)
     w.setAlwaysOnTop(true, 'screen-saver') // over other apps' floating windows too
     w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
     w.webContents.on('will-navigate', e => e.preventDefault())
@@ -1076,6 +1077,7 @@ function inboxOpen() {
   if (inboxWin && !inboxWin.isDestroyed()) return sendInbox()
   const solid = nativeTheme.prefersReducedTransparency
   const w = (inboxWin = new BrowserWindow({ ...floatOpts(INBOX_W, 160), hasShadow: true, roundedCorners: true, ...(solid ? { transparent: false, backgroundColor: nativeTheme.shouldUseDarkColors ? '#1f2128' : '#f4f5f7' } : { vibrancy: 'popover', visualEffectState: 'active' }) }))
+  guardFloat('inbox', w)
   w.setAlwaysOnTop(true, 'pop-up-menu')
   w.on('blur', () => (inboxHide(), (inboxHid = Date.now())))
   w.webContents.on('will-navigate', e => e.preventDefault())
@@ -1389,6 +1391,7 @@ ipcMain.on('badge', (e, n: number, items: { tab: string; label: string }[] = [],
   else if (!barInbox) inboxHide()
   recording = rec === true
   handoffNow() // Recording mode on: offered nowhere
+  protectFloats()
   const count = Number.isInteger(n) && n > 0 ? String(n) : ''
   app.dock?.setBadge(count)
   // U15: a Ship at work or a workflow run going (shared/tray.ts dockProgress): -1 none, 2 unknown, else 0 to 1
@@ -1421,7 +1424,7 @@ ipcMain.on('badge', (e, n: number, items: { tab: string; label: string }[] = [],
 // page sends how far the pointer went, so its cursors work; macOS's drag regions take them away), it snaps to the
 // edge nearest where it's let go (left, right, top or bottom: a row there, its windows below or above it), and stays there
 type Float = { tab: string; status?: string; at?: number; ask?: { options: { n: number; label: string }[]; tool?: string; what?: string; question?: string; steps?: boolean }; held?: boolean; unseen?: boolean } // held: a waiting one's secret or plan (the talk key never answers those) // unseen: done, not looked at (a stale one shows as idle)
-type FloatOpts = { noAnswers?: boolean /* Settings › Voice: the talk key never answers asks */; speech?: string /* the talk key's on-device engine's locale (Settings › Voice: On this Mac) */; style: string; cards: boolean; add: boolean; menu: 'stack' | 'card'; voiceTo: 'pick' | 'new'; doneAlert: boolean; ai: boolean; at: 'edge' | 'notch'; talk?: Float[]; talkAi?: boolean; aiShow?: boolean; route?: RouteCfg } // talk: the talk pill's agents, the bubbles' list even with the bubbles off (Q2); talkAi: the talk key goes to Laki AI (Q10, Settings › Voice); route: Q5's Route by first words, on (its projects, Laki AI's word, the word fixes)
+type FloatOpts = { hide?: boolean /* 10c: Settings' Hide bubbles and cards from screen recording */; noAnswers?: boolean /* Settings › Voice: the talk key never answers asks */; speech?: string /* the talk key's on-device engine's locale (Settings › Voice: On this Mac) */; style: string; cards: boolean; add: boolean; menu: 'stack' | 'card'; voiceTo: 'pick' | 'new'; doneAlert: boolean; ai: boolean; at: 'edge' | 'notch'; talk?: Float[]; talkAi?: boolean; aiShow?: boolean; route?: RouteCfg } // talk: the talk pill's agents, the bubbles' list even with the bubbles off (Q2); talkAi: the talk key goes to Laki AI (Q10, Settings › Voice); route: Q5's Route by first words, on (its projects, Laki AI's word, the word fixes)
 type RouteCfg = { projects: { id: string; name: string }[]; aiWord?: string; fixes?: string }
 const BAR = 44 // the drop's window width; floater.html's too
 const VOICE = { width: 320, height: 186 } // the voice prompt's window; floater.html's #voice too
@@ -1455,6 +1458,12 @@ const beside = (w: number, h: number, along: number) => {
   const d = screen.getDisplayNearestPoint(barAt!).workArea
   if (across()) return { x: clamp(barAt!.x + along, d.x, d.x + d.width - w), y: side === 'bottom' ? barAt!.y - 6 - h : barAt!.y + BAR + 6 }
   return { x: side === 'right' ? barAt!.x - 6 - w : barAt!.x + BAR + 6, y: clamp(barAt!.y + along, d.y, d.y + d.height - h) }
+}
+// 10c: each floating window kept out of screen recording and screenshots (guards.ts protectedKind), as each is made and
+// as the setting or Recording mode changes
+const guardFloat = (kind: string, w: BrowserWindow | null) => w && !w.isDestroyed() && w.setContentProtection(protectedKind(kind, floats, recording))
+function protectFloats() {
+  for (const [k, w] of [['bar', floater], ['card', card], ['menu', menu], ['voice', voice], ['ask', cardWin], ['inbox', inboxWin], ['talk', talkW]] as const) guardFloat(k, w)
 }
 const floatOpts = (width: number, height: number, focusable = true): BrowserWindowConstructorOptions => ({
   ...barAt,
@@ -1495,6 +1504,7 @@ function sendVoice(w: BrowserWindow) {
 function barWin() {
   const f = new BrowserWindow(floatOpts(BAR, 60))
   pin(f)
+  guardFloat('bar', f)
   const kind = (url: string) => (url.split('#')[0] === f.webContents.getURL().split('#')[0] ? /#(card|voice|menu)$/.exec(url)?.[1] : undefined)
   f.webContents.setWindowOpenHandler(({ url }) => {
     const k = kind(url)
@@ -1504,6 +1514,7 @@ function barWin() {
   })
   f.webContents.on('did-create-window', (w, { url }) => {
     pin(w, url)
+    guardFloat(kind(url) ?? 'voice', w)
     w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
     if (kind(url) === 'card') {
       card = w
@@ -1607,6 +1618,7 @@ ipcMain.on('floats', (e, items: unknown, colors: unknown, opts: unknown) => {
     ...(o.talkAi === true && { talkAi: true }),
     ...(typeof o.speech === 'string' && /^[\w-]{2,20}$/.test(o.speech) && { speech: o.speech }),
     ...(o.noAnswers === true && { noAnswers: true }),
+    ...(o.hide === true && { hide: true }),
     ...(o.aiShow === true && { aiShow: true }),
     ...(o.route && typeof o.route === 'object' && Array.isArray(o.route.projects) && { route: { projects: o.route.projects.slice(0, 200), aiWord: typeof o.route.aiWord === 'string' ? o.route.aiWord.slice(0, 40) : undefined, fixes: typeof o.route.fixes === 'string' ? o.route.fixes.slice(0, 20000) : undefined } }),
   }
@@ -1616,6 +1628,7 @@ ipcMain.on('floats', (e, items: unknown, colors: unknown, opts: unknown) => {
   if (floats.at !== was) (fold(), (pinned = { tab: '' }), card?.hide(), card?.setIgnoreMouseEvents(floats.at !== 'notch'), floats.at === 'edge' && floater && snap()) // to the edge again: where it was
   placeFloater()
   islandFloats()
+  protectFloats()
   if (pinned.tab) pinGo({ kind: 'list', waiting: floats.items.filter(x => x.status === 'waiting' || (dropFor?.tab === x.tab)).map(x => x.tab) }), pinned.tab && pinCard() // Q4: answered elsewhere: unpinned; else its new text (Q9: a drop's card stays while its bubble does)
 })
 // Stop (Settings › Resources): the bubbles' windows closed, until an agent's state changes
@@ -2185,6 +2198,7 @@ function talk() {
   const w = (talkW = new BrowserWindow({ ...floatOpts(TALK.width, TALK.height), x: clamp(p.x + 14, d.x, d.x + d.width - TALK.width), y: clamp(p.y + 18, d.y, d.y + d.height - TALK.height) }))
   const url = pageURL('floater.html', '#talk')
   pin(w, url)
+  guardFloat('talk', w)
   w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   w.on('closed', () => talkW === w && ((talkW = null), (talkUndo = null), listen?.kill(), (listen = null)))
   w.webContents.on('did-finish-load', () => {

@@ -698,6 +698,7 @@ export type Settings = {
   floaterVoiceTo?: 'pick' | 'new' // the voice prompt goes to: an agent you pick each time, or always a new session (unset: pick)
   floaterMax?: number // the bubbles at most (unset: 12)
   floaterCards?: boolean // a bubble's card on hover (unset: on)
+  hideFloats?: boolean // 10c: the bubbles, their cards, the cards on screen and the Inbox kept out of screen recording and screenshots (off unless true; Recording mode does it too)
   floaterDone?: boolean // a finished agent you haven't seen: a green, pulsing bubble until a click or a look (unset: on)
   floaterAt?: 'edge' | 'notch' // where the bubbles go: the screen's edge (unset), or an island at the top, in the notch or under the menu bar, that opens into a card when an agent asks or finishes
   floaterNew?: boolean // the bubbles' +: New task, Say it, Screenshot area, Whole screen (unset: on)

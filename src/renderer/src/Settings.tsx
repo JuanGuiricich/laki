@@ -229,6 +229,7 @@ export type AppSettings = Paint & {
   floaterVoiceTo?: 'pick' | 'new' // the voice prompt: an agent picked each time, or always a new session (unset: pick)
   floaterMax?: number // the bubbles at most (unset: 12)
   floaterCards?: boolean // a bubble's card on hover (unset: on)
+  hideFloats?: boolean // 10c: kept out of screen recording (off unless true)
   floaterDone?: boolean // a finished agent you haven't seen: a green, pulsing bubble until a click or a look (unset: on)
   floaterNew?: boolean // the bubbles' + (unset: on)
   floaterMenu?: 'stack' | 'card' // its actions: stacked in the drop, or a menu beside it (unset: stack)
@@ -2279,6 +2280,9 @@ export function SettingsPage(p: {
                     </Switch>
                     <Switch className="switch-row" on={s.floaterCards !== false} onChange={v => set({ floaterCards: v })}>
                       <Says title="Card on hover" hint="Its name, project and what it asked or last said, beside the drop" />
+                    </Switch>
+                    <Switch className="switch-row" on={s.hideFloats === true} onChange={v => set({ hideFloats: v })}>
+                      <Says title="Hide bubbles and cards from screen recording" hint="Screen sharing, recordings and screenshots leave out the bubbles, their cards, the cards on screen and the Inbox. Recording mode does it too." />
                     </Switch>
                     <Switch className="switch-row" on={s.floaterNew !== false} onChange={v => set({ floaterNew: v })}>
                       <Says title="+ button" hint="A + under the bubbles: New task, Say it, a screenshot" />

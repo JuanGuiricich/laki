@@ -5,6 +5,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
+- *Hide bubbles and cards from screen recording* (Settings › Extras): screen sharing, recordings and screenshots leave out the bubbles and Laki's cards on screen. Recording mode does it too.
 - Long-press Laki's icon on an Android Home Screen for *New workspace*, *Needs you* and *Last workspace*.
 - Laki on your phone's Home Screen shows a count on its icon: the agents that wait for you, kept up to date by each push even with the page closed.
 - The text cursor and selected text take your accent color everywhere, a bit lighter where the text over it wouldn't read, and grey while Laki isn't the app in use.

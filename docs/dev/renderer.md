@@ -393,6 +393,9 @@ drives it (Electron); `pageChanges` and `browseSays` are tested in `test/units-m
   lines for the card), the theme's colors and the options (`style`:
   `floaterStyle`, `cards`: `floaterCards`, `add`: `floaterNew`, `menu`: `floaterMenu`, `voiceTo`: `floaterVoiceTo`) go to
   main (`bridge.floats`);
+  10c: every floating window (the bar, its card, + menu and voice window, ask.html's cards, the Inbox, the talk pill)
+  is `setContentProtection`'d by guards.ts `protectedKind` as it's made and as `floats`' `hide` (settings.hideFloats)
+  or the badge's Recording mode changes (main's `guardFloat`, `protectFloats`); the app's window never.
   main's `placeFloater` shows the bar while Laki isn't in front (`front`: one of its own windows has the focus, not the
   drop, its card or the voice window: a press on the drop makes Laki the active app, and the drop would hide under the
   pointer), and with + on even with no circles; `type: 'panel'` windows over every Space and

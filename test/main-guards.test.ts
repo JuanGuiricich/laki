@@ -132,3 +132,14 @@ test("Touch ID's confirm IPC: the app window's own page, for one of CONFIRM's ac
   assert.equal(confirmAsk({ ...win, url: 'https://evil.example/' }, true, 'remoteStart'), false, 'a site')
   for (const w of ['wsRm', 'constructor', '', undefined, 42, { what: 'remoteStart' }]) assert.equal(confirmAsk(win, true, w), false, String(w))
 })
+
+test('10c: protectedKind keeps the floating windows out of screen recording with the setting or in Recording mode, never the app', async () => {
+  const { FLOAT_KINDS, protectedKind } = await import('../src/main/guards.ts')
+  for (const k of FLOAT_KINDS) {
+    assert.equal(protectedKind(k, {}, false), false, `${k}: off by default`)
+    assert.equal(protectedKind(k, { hide: true }, false), true, `${k}: the setting`)
+    assert.equal(protectedKind(k, {}, true), true, `${k}: Recording mode`)
+  }
+  for (const k of ['app', 'new', 'annotate', '']) assert.equal(protectedKind(k, { hide: true }, true), false, `${k || '(none)'}: never`)
+  assert.equal(protectedKind('bar', { hide: 'yes' } as never, false), false, 'only true')
+})
