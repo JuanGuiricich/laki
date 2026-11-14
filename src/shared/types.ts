@@ -579,7 +579,7 @@ export type Settings = {
   glassSide?: number
   glassTerm?: number
   glassGlow?: boolean // the theme's colors behind the glass (unset: on)
-  glassGrain?: boolean // a fine noise over the glass surfaces (off unless true)
+  glassGrain?: boolean // with glass, a fine noise over its floating surfaces, the sidebar and the splash (on unless false)
   sideClear?: number // without glass: how see-through the sidebar and the rail are, the rest solid: % (unset or 0: the translucent sidebar's own tint; off macOS: 0)
   translucent?: boolean // V5: macOS: the sidebar and the rail over the window's sidebar material, the main area a card on it (unset: on)
   uiFont?: string // the interface's font

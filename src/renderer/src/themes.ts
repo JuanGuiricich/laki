@@ -1313,6 +1313,7 @@ export function applyTheme(p: string | Paint = '', solid = false) {
   root.dataset.look = o.design === 'frosted' ? 'frosted' : t.look ?? '' // Design's Frosted: its shapes over any theme's, the theme's colors kept
   root.dataset.motion = o.motion ?? 'low'
   root.classList.toggle('opaque', OPAQUE_LOOKS.has(root.dataset.look)) // V8: its floats solid
+  root.classList.toggle('light', !!t.light) // a light theme (Grain's soft-light)
   if (o.vertText) st.setProperty('--vt', o.vertText === 'up' ? 'sideways-lr' : 'vertical-rl') // Vertical text: each sideways label's writing-mode (unset: its own, styles.css' var(--vt, …) fallbacks)
   gateRules({ look: root.dataset.look, motion: root.dataset.motion })
   const icons = lookOf(o)
@@ -1321,7 +1322,7 @@ export function applyTheme(p: string | Paint = '', solid = false) {
   // the rail: the sidebar's color a shade darker (a light theme's less: 18% black is a muddy grey there), at pct
   const rail = (side: string, pct = 100) => `color-mix(in srgb, color-mix(in srgb, ${side} ${t.light ? 94 : 82}%, #000) ${pct}%, transparent)`
   root.classList.toggle('glass', !!o.glass)
-  root.classList.toggle('grain', !!o.glass && o.glassGrain === true) // Glass › Grain: styles.css' noise over its surfaces
+  root.classList.toggle('grain', !!o.glass && o.glassGrain !== false) // Glass › Grain (on unless false): styles.css' noise over its surfaces
   // Settings' Sidebar see-through, without glass; only in the app (window.laki): a browser has no blur behind the page
   const app = !!(globalThis as { laki?: unknown }).laki
   const mat = material(o)

@@ -9,7 +9,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 - Long-press Laki's icon on an Android Home Screen for *New workspace*, *Needs you* and *Last workspace*.
 - Laki on your phone's Home Screen shows a count on its icon: the agents that wait for you, kept up to date by each push even with the page closed.
 - The text cursor and selected text take your accent color everywhere, a bit lighter where the text over it wouldn't read, and grey while Laki isn't the app in use.
-- Glass has *Grain*: a fine noise over the sidebar and panels, as frosted glass has (Settings › Appearance › Window, off by default).
+- Glass has a fine grain over menus, dialogs and the sidebar, as frosted glass has; Settings › Appearance › Window › *Grain* turns it off.
 - The window's edge glows softly while an agent in another tab waits for you (on for new installs). Settings › General › *Glow the window's edge when an agent waits*. [Try it](laki://settings/general?spot=Glow%20the%20window's%20edge%20when%20an%20agent%20waits)
 - A PR opened with Ship ends with *Checked by Laki*: each script the last Done check ran, pass or fail and how long, the second opinion's verdict and what the change touches, there to edit in the Ship sheet. Untick *Add what Laki checked*, or `laki ship --no-proof`.
 - A change map beside the diff in Changes and the Review tab: where each change, comment and review thread is in the whole of it, and where you are. A click or a drag goes there.
