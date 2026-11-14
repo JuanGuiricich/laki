@@ -67,7 +67,7 @@ export const USAGE = `laki: coding agents in parallel git worktrees
   laki screen shot [app] | windows            a screenshot of the iOS Simulator, or of an app's window (its PNG's path)
   laki screen tap <x> <y> | swipe <x1> <y1> <x2> <y2> | type <text> | describe
                                               the simulator's hands, in points (needs idb); describe: its elements
-  laki diff <ws> [--uncommitted] | run <ws> [test|lint|format|deploy|setup] | ship <ws> -m <message> [--title <t>] [--body <b>] [--draft] [--base <branch>] [--files a,b] [--force] [--allow-secrets]
+  laki diff <ws> [--uncommitted] | run <ws> [test|lint|format|deploy|setup] | ship <ws> -m <message> [--title <t>] [--body <b>] [--draft] [--base <branch>] [--files a,b] [--force] [--allow-secrets] [--no-proof]
                                               diff: against its base (--uncommitted: only what isn't committed);
                                               run: the run script (a dev server), or that script in a tab of its own
   laki browser [<ws>] open [url|/path] | screenshot | click <css> | fill <css> <text> | text [--expect-url <url|/path>]
@@ -365,7 +365,7 @@ or one under it); on any other page it's refused and nothing is done, so a page 
 
   laki run a1b2
   laki run a1b2 test`,
-  ship: `Commits the workspace's changes with the message, pushes the branch and opens a PR (gh). Nothing uncommitted and no commit its base doesn't have: refused, nothing to ship. A fork with no gh repo set-default: the PR opens on origin's repo. An extension's gate may hold it: the reasons are printed and it exits 1; --force does it anyway (the user only: refused in an agent's tab). --title and --body: the PR's (else gh's --fill, from the commits); --draft: a draft PR; --base: the PR's base branch; --files: only those changed files are committed (paths in the worktree, comma-separated), the rest stay uncommitted. Before the commit it looks for token-shaped strings (API keys, private keys, passwords in URLs) in the lines it adds: found, it prints each file, line and the match masked, and exits 1; leave the file out (--files), or --allow-secrets ships it anyway (the user only: refused in an agent's tab).
+  ship: `Commits the workspace's changes with the message, pushes the branch and opens a PR (gh). Nothing uncommitted and no commit its base doesn't have: refused, nothing to ship. A fork with no gh repo set-default: the PR opens on origin's repo. An extension's gate may hold it: the reasons are printed and it exits 1; --force does it anyway (the user only: refused in an agent's tab). --title and --body: the PR's (else gh's --fill, from the commits); --draft: a draft PR; --base: the PR's base branch; --files: only those changed files are committed (paths in the worktree, comma-separated), the rest stay uncommitted. Before the commit it looks for token-shaped strings (API keys, private keys, passwords in URLs) in the lines it adds: found, it prints each file, line and the match masked, and exits 1; leave the file out (--files), or --allow-secrets ships it anyway (the user only: refused in an agent's tab). The PR's body ends with what the last Done check ran (## Checked by Laki: each script and its end, the files it saw; a note instead when the branch changed since); --no-proof leaves it out.
 
   laki ship a1b2 -m "Add CSV export"
   laki ship a1b2 -m "Add CSV export" --title "CSV export" --body "Adds Export ▾ › CSV" --draft

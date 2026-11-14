@@ -990,3 +990,38 @@ test('merge queue: goes on after a daemon restart, from the PR it waited on', as
   assert.deepEqual(merged(), [1, 2, 3])
 })
 
+
+test("ship: the PR's body ends with what the last Done check ran; changed since, a note instead; proof: false, none", async t => {
+  const rig = await fresh(t, { env: { FAKE_TURN_MS: '300' } })
+  const remote = join(rig.home, 'remote.git')
+  execFileSync('git', ['init', '-q', '--bare', remote], { env: rig.env })
+  execFileSync('git', ['remote', 'add', 'origin', remote], { cwd: rig.repo, env: rig.env })
+  const p = await rig.rpc('projectAdd', { path: rig.repo })
+  await rig.rpc('projectSet', { id: p.id, config: { lint: 'echo API_TOKEN=fake-secret-value', check: { steps: ['lint'] } } })
+  const ws = await rig.rpc('wsNew', { project: p.id, preset: 'claude', prompt: 'run echo hi > a.txt' })
+  const view = async () => (await rig.rpc('state')).workspaces.find((w: { id: string }) => w.id === ws.id)
+  await until(async () => (await view()).check?.status === 'passed' && (await view()).proof?.checks.length, 'the check passes')
+  mkdirSync(rig.env.FAKE_GH, { recursive: true })
+  writeFileSync(join(rig.env.FAKE_GH, `pr-${ws.branch.replace(/\//g, '_')}.json`), 'no pull requests found')
+  assert.equal((await rig.rpc('shipDraft', { ws: ws.id })).proof, 'yes')
+  const creates = () => readFileSync(rig.env.FAKE_LOG, 'utf8').split('\ngh ').filter(l => l.startsWith('pr create'))
+  const shipped = async (o: object) => {
+    const tab = await rig.rpc('ship', { ws: ws.id, ...o })
+    await until(async () => (await rig.rpc('state')).tabs.find((x: { id: string }) => x.id === tab.id)?.status === 'exited', 'ship done', 15000)
+    return creates().at(-1)!
+  }
+  const first = await shipped({ message: 'Add a', body: 'my words' })
+  assert.match(first, /--body my words\n\n## Checked by Laki\n\n- ✅ `lint` passed in /)
+  assert.match(first, /- 1 file changed in the checked turn/)
+  assert.ok(!first.includes('fake-secret-value'), 'nothing of the output, never a secret')
+  // a file since the check: the PR says Laki's check was of an earlier state, nothing more
+  writeFileSync(join(ws.path, 'b.txt'), 'later\n')
+  assert.equal((await rig.rpc('shipDraft', { ws: ws.id })).proof, 'stale')
+  writeFileSync(join(rig.env.FAKE_GH, `pr-${ws.branch.replace(/\//g, '_')}.json`), 'no pull requests found')
+  const second = await shipped({ message: 'Add b', body: 'more' })
+  assert.match(second, /--body more\n\n## Checked by Laki\n\n_Laki's last check was of an earlier state/)
+  assert.doesNotMatch(second, /`lint`/)
+  writeFileSync(join(ws.path, 'c.txt'), 'later\n')
+  const third = await shipped({ message: 'Add c', body: 'none', proof: false })
+  assert.doesNotMatch(third, /Checked by Laki/)
+})

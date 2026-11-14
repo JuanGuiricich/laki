@@ -60,7 +60,8 @@
   (turn: the check's `at`; `writeAtomic`, 0600); git's facts: the paths between the tree the last check saw (or the
   base) and now (`factsBetween`, `git diff --name-only -z`), `PROOF_FACTS`' patterns for tests, CI config, migrations
   and lockfiles (`factsOf`). `proof.json` beside them, `PROOF_KEEP` turns' folders kept. Core's `proofs`, the view's
-  workspace `proof` (the last checked turn's; gone as that tab's next turn starts: `turnStarts`). The `proof` event:
+  workspace `proof` (the last checked turn's; gone as that tab's next turn starts: `turnStarts`), with the worktree's
+  `tree` it checked (Ship's `proofMd`: stale when another ships). The `proof` event:
   SidePanel's Preview, when it's open on a local page that loaded, captures (main's `capture`) and calls `proofShot`
   (the app only: FROM, AGENT_NO, REMOTE_NO): `after.png`, the newest earlier turn's copied as `before.png`. Proof.tsx
   `ProofList`: a line each under the Reader's last turn and on Needs you's finish card (`proof.tab` that tab's), a click

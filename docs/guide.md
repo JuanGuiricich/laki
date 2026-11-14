@@ -613,6 +613,8 @@ tab (the last place you clicked), ⌘F finds words in the diff's lines instead: 
   `TOKEN=` value) in the lines it adds, lockfiles, binary files and files over 1 MB aside: each found shows its file,
   line and itself masked, and stops the ship; *Untick* leaves the file out, *Not a secret* ships it and remembers that
   one for the workspace (`laki ship` exits 1 unless `--allow-secrets`; an agent can't pass it);
+  *Add what Laki checked* (on when a Done check ran) ends the PR's description with that check's scripts and how each
+  ended, under *Checked by Laki*; changed since, it says only that (`laki ship --no-proof` leaves it out);
 - search: the command palette (⌘K);
 - ⋯: the next step first (One next step, below), then split right/down, fork, archive, delete;
 - ▷ Run ▾: the project's run script in a *dev* tab, ■ Stop while it runs (^C). ▾ restarts it, shows its tab,
@@ -2920,6 +2922,8 @@ laki ship fix-login -m "Fix the login redirect"
 laki ship fix-login -m "Fix the redirect" --files src/login.ts,test/login.test.ts --title "Fix the login redirect" --draft
 # a token-shaped string in what it would commit stops it (file, line, masked); ship it anyway, as you
 laki ship fix-login -m "Add the test fixtures" --allow-secrets
+# without the "Checked by Laki" part in the PR's description
+laki ship fix-login -m "Fix the redirect" --no-proof
 laki archive fix-login
 ```
 

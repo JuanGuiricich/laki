@@ -964,3 +964,16 @@ test('test:report: medians over the last 20 runs, the flaky rule, the 5,000-line
   assert.deepEqual(runEnd([run('test/a.test.ts', 2000), run('test/b.test.ts', 9000, false)], [run('test/b.test.ts', 1, true)]), ['slowest file: test/b.test.ts (9.0 s)', 'likely flaky: re-run with npm run test:one -- test/b.test.ts'])
   assert.deepEqual(runEnd([run('test/b.test.ts', 10, false)], [run('test/b.test.ts', 1, true, 'other')]), ['slowest file: test/b.test.ts (0.0 s)'])
 })
+
+test('proofMd: the last Done check in a PR body, masked; stale says only that; no script, nothing', async () => {
+  const { proofMd } = await import('../src/shared/proof.ts')
+  const p = { turn: Date.UTC(2026, 10, 14, 9, 30), tab: 't1', shots: {}, facts: { files: 3, tests: true as const, lockfiles: true as const }, checks: [{ name: 'test', ok: true, code: 0, ms: 1200, summary: 'passed in 1.2 s' }, { name: 'lint', ok: false, code: 2, ms: 300, summary: 'exited with 2 in 300 ms token=fake-secret' }] }
+  const md = proofMd(p, { mask: s => s.replace(/fake-secret/g, '••••') })
+  assert.match(md, /^## Checked by Laki\n\n- ✅ `test` passed in 1\.2 s\n- ❌ `lint` exited with 2 in 300 ms token=••••\n- 3 files changed in the checked turn, touching tests, lockfiles\n\n<sub>Run by Laki on this machine as the agent's turn ended \(2026-11-14 09:30 UTC\)\.<\/sub>$/)
+  assert.ok(!md.includes('fake-secret'))
+  assert.match(proofMd(p, { stale: true }), /^## Checked by Laki\n\n_Laki's last check was of an earlier state/)
+  assert.ok(!proofMd(p, { stale: true }).includes('lint'))
+  assert.equal(proofMd({ ...p, checks: [] }), '')
+  assert.equal(proofMd(undefined), '')
+  assert.match(proofMd({ ...p, checks: [{ ...p.checks[0], name: 'a`b' }] }), /`a'b`/) // a backtick can't end the code span
+})

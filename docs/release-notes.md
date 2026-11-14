@@ -5,6 +5,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
+- A PR opened with Ship ends with *Checked by Laki*: each script the last Done check ran and how it ended, and the files it saw; if the branch changed since, it says so instead. Untick *Add what Laki checked*, or `laki ship --no-proof`.
 - A change map beside the diff in Changes and the Review tab: where each change, comment and review thread is in the whole of it, and where you are. A click or a drag goes there.
 - Settings › Resources › Disk shows what each workspace takes on disk (its worktree and dependencies, kept turns, storage, archives) and the free space, with three ways to make room. `laki doctor --disk` prints it. [Try it](laki://settings/resources?spot=Disk)
 - An archived workspace keeps its agents' chats: when Claude Code or Codex deletes its old sessions, the Reader and Search chats still read them (*Kept by Laki*), and a restore starts a new session under the old chat.

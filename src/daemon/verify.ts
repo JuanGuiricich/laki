@@ -145,7 +145,7 @@ export async function check(tab: Tab, o: { force?: boolean } = {}) {
   const cfg = projectConfig(ws)
   const run: CheckRun = { tab: tab.id, status: 'checking', steps: (c.steps ?? []).map(name => ({ name, state: 'wait' })), tries: o.force ? 0 : (was?.tries ?? 0), at: Date.now(), ...(c.review && { review: { agent: c.review, state: 'wait' } }) }
   checks.set(ws.id, run)
-  const proof: Proof = { turn: run.at, tab: tab.id, checks: [], shots: {}, facts: await factsBetween(ws, prev, tree) }
+  const proof: Proof = { turn: run.at, tab: tab.id, checks: [], shots: {}, facts: await factsBetween(ws, prev, tree), ...(tree && { tree }) }
   const folder = storageOf(ws) && join(storageOf(ws)!, 'proof', String(run.at))
   changed()
   try {

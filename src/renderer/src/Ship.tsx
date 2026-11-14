@@ -6,9 +6,9 @@ import type { SecretFound, WorkspaceView } from '../../shared/types'
 import { DiffRows, diffByFile, type FileDiff, lineClass, NO_DIFF } from './Diff'
 import { Modal } from './panels'
 
-type Draft = { title: string; message: string; body: string; files: { path: string; status: string; add: number; del: number }[]; ahead: number; base: string; branch: string; secrets?: SecretFound[] }
+type Draft = { title: string; message: string; body: string; files: { path: string; status: string; add: number; del: number }[]; ahead: number; base: string; branch: string; secrets?: SecretFound[]; proof?: 'yes' | 'stale' }
 export type ShipMode = 'commit' | 'push' | 'pr'
-export type ShipAsk = { message: string; files?: string[]; title?: string; body?: string; draft: boolean; base?: string; reviewers?: string[]; mode: ShipMode; autoLand: boolean; autoFix: boolean; allowSecrets?: string[] }
+export type ShipAsk = { message: string; files?: string[]; title?: string; body?: string; draft: boolean; base?: string; reviewers?: string[]; mode: ShipMode; autoLand: boolean; autoFix: boolean; allowSecrets?: string[]; proof?: false }
 
 export function ShipSheet({ ws, title, busy, land, call, onClose, onShip }: { ws: WorkspaceView; title: string; busy?: string; land: boolean; call: <T>(m: string, p?: object) => Promise<T>; onClose: () => void; onShip: (a: ShipAsk) => Promise<unknown> }) {
   const [d, setD] = useState<Draft | null>(null)
@@ -19,6 +19,7 @@ export function ShipSheet({ ws, title, busy, land, call, onClose, onShip }: { ws
   const [base, setBase] = useState('')
   const [reviewers, setReviewers] = useState('')
   const [draft, setDraft] = useState(false)
+  const [proofOn, setProofOn] = useState(true) // Add what Laki checked: the last Done check's facts in the PR's body
   const [autoLand, setAutoLand] = useState(!!ws.autoLand)
   const [autoFix, setAutoFix] = useState(!!ws.autoFix)
   const [on, setOn] = useState<Set<string>>(new Set())
@@ -49,7 +50,7 @@ export function ShipSheet({ ws, title, busy, land, call, onClose, onShip }: { ws
     setTried(mode)
     try {
       // the files as ticked, always: one an agent wrote since the sheet opened isn't in it, so it stays out
-      const r = await onShip({ message: msg.trim(), files: picked.map(f => f.path), title: prTitle.trim() || undefined, body, draft, base: base.trim() && base.trim() !== d?.base ? base.trim() : undefined, reviewers: reviewers.split(/[\s,]+/).filter(Boolean), mode, autoLand, autoFix, ...(allow.size && { allowSecrets: [...allow] }) })
+      const r = await onShip({ message: msg.trim(), files: picked.map(f => f.path), title: prTitle.trim() || undefined, body, draft, base: base.trim() && base.trim() !== d?.base ? base.trim() : undefined, reviewers: reviewers.split(/[\s,]+/).filter(Boolean), mode, autoLand, autoFix, ...(allow.size && { allowSecrets: [...allow] }), ...(!proofOn && { proof: false }) })
       const again = (r as { secrets?: SecretFound[] } | undefined)?.secrets
       if (again) setFound(again)
     } catch (e) {
@@ -144,6 +145,11 @@ export function ShipSheet({ ws, title, busy, land, call, onClose, onShip }: { ws
             <label className="small">
               <input type="checkbox" checked={draft} onChange={e => setDraft(e.target.checked)} /> Draft
             </label>
+            {d?.proof && (
+              <label className="small" data-tip={d.proof === 'stale' ? 'The branch changed since the last Done check: the PR says only that' : "The last Done check's scripts and their ends, under Checked by Laki"}>
+                <input type="checkbox" checked={proofOn} onChange={e => setProofOn(e.target.checked)} /> Add what Laki checked{d.proof === 'stale' ? ' (changed since)' : ''}
+              </label>
+            )}
             {land && (
               <label className="small">
                 <input type="checkbox" checked={autoLand} onChange={e => setAutoLand(e.target.checked)} /> Merge when green
