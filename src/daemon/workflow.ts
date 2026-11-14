@@ -23,7 +23,7 @@ import { linkAdd } from './artifacts.ts'
 import { flowAsk, flowPhone } from './phone.ts'
 import { aiComplete, aiDecide } from './ai.ts'
 import { eventHooks, eventWs, HOPS_MAX, widgetEvent, widgetUse } from './widgets.ts'
-import { copyTree, move, readCapped, readJson, writeAtomic } from '../shared/conn.ts'
+import { abortAfter, copyTree, move, readCapped, readJson, writeAtomic } from '../shared/conn.ts'
 import { chatCost, chatCostBefore } from './meters.ts'
 import { isolationEnv } from '../shared/isolation.ts'
 
@@ -1290,7 +1290,7 @@ async function parallel(r: FlowRun, b: Block, vars: Record<string, string>) {
       const sp: Span = { block: c.id, parent: b.id, start: Date.now() } // its own time, beside the others'
       ;(r.spans ??= []).push(sp)
       const min = c.timeout ?? (c.kind === 'run' ? RUN_TIMEOUT : CALL_TIMEOUT)
-      const signal = AbortSignal.any([ctl.signal, AbortSignal.timeout(min * 60000)])
+      const signal = abortAfter(min * 60000, ctl.signal)
       const log = (line: string, detail?: string) => mine() && say(r, `  ${line}`, detail)
       let got: Got
       try {
@@ -1452,7 +1452,7 @@ function request(r: FlowRun, b: Block) {
   const min = b.timeout ?? CALL_TIMEOUT
   r.wait = { kind: 'run' }
   touch()
-  return { signal: AbortSignal.any([ctl.signal, AbortSignal.timeout(min * 60000)]), mine: () => calls.get(r.id) === ctl && (calls.delete(r.id), true), min }
+  return { signal: abortAfter(min * 60000, ctl.signal), mine: () => calls.get(r.id) === ctl && (calls.delete(r.id), true), min }
 }
 const why = (e: unknown, min: number) => ((e as Error).name === 'TimeoutError' ? `nothing after ${min} min` : (e as Error).message)
 

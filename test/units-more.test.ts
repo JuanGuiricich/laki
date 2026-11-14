@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process'
 import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync, writeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { copyTree, logLine, pingStep, readJson, rotateLog, writeAtomic } from '../src/shared/conn.ts'
+import { abortAfter, copyTree, logLine, pingStep, readJson, rotateLog, writeAtomic } from '../src/shared/conn.ts'
 import { firstLoad } from '../scripts/size.ts'
 import { pickTests } from '../scripts/test-changed.ts'
 import { debtOf } from '../scripts/debt.ts'
@@ -1013,4 +1013,22 @@ test("shortcutOf: the remote page's icon shortcuts; locked waits, Answer only ge
   assert.deepEqual(shortcutOf('#new', { ...open, level: 'full' }), { to: 'new' })
   // only a plain fragment: no query, no other words, not the dev page's port and token
   for (const h of ['', '#', '#foo', '#new?x=1', '#new&t=abc', '#port=5&token=x', '#NEW', '#needs/x']) assert.equal(shortcutOf(h, open), undefined, h)
+})
+
+test('abortAfter fires after a GC: its timeout is held (AbortSignal.any alone holds it weakly: Laki AI waited forever)', async () => {
+  const { setFlagsFromString } = await import('node:v8')
+  const { runInNewContext } = await import('node:vm')
+  setFlagsFromString('--expose-gc')
+  const gc = runInNewContext('gc') as () => void
+  const outer = new AbortController()
+  const s = abortAfter(100, outer.signal, undefined)
+  let fired = false
+  s.addEventListener('abort', () => (fired = true))
+  for (let i = 0; i < 5; i++) gc(), await new Promise(r => setImmediate(r))
+  await new Promise(r => setTimeout(r, 400))
+  assert.ok(fired, 'the timeout fired')
+  assert.equal((s.reason as Error).name, 'TimeoutError')
+  const early = abortAfter(60_000, outer.signal)
+  outer.abort()
+  assert.ok(early.aborted, "a caller's signal ends it too")
 })

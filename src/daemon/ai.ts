@@ -8,7 +8,7 @@
 import { type ChildProcess, execFile, spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { appendFileSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { readJson, rotateLog, writeAtomic } from '../shared/conn.ts'
+import { abortAfter, readJson, rotateLog, writeAtomic } from '../shared/conn.ts'
 import { dirname, extname, join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { helpFind, helpParts, type HelpPart } from '../shared/help.ts'
@@ -718,7 +718,7 @@ async function openrouter(o: Opts) {
 // with its cost among Laki AI's calls (ask: what made it)
 // one OpenRouter call (aiComplete, aiDecide: workflows' blocks, memory's compaction) waits 5 minutes at most, its
 // caller's stop too (LAKI_AI_WAIT_MS: tests' shorter)
-const waitOf = (signal?: AbortSignal) => AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(Number(process.env.LAKI_AI_WAIT_MS) || 5 * 60_000)])
+const waitOf = (signal?: AbortSignal) => abortAfter(Number(process.env.LAKI_AI_WAIT_MS) || 5 * 60_000, signal)
 export async function aiComplete(o: { model?: string; prompt: string; system?: string; temperature?: number; json?: boolean; signal?: AbortSignal; ask: string }) {
   const at = target(state.settings?.ai?.backend === 'endpoint' ? 'endpoint' : 'openrouter') // Your endpoint when it's Laki AI's; else OpenRouter (claude and codex: aiOnce)
   if (at.or && !at.key) throw new Error('no OpenRouter API key: Settings › AI')

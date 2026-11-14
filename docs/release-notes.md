@@ -6,6 +6,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 ## Next
 
 - The rail's buttons click again with Glass's *Grain* on, as in the Frosted design: its grain made the rail a place to drag the window from.
+- Laki AI gives up on a server that never answers after its 5 minutes again, and a workflow block's time limit ends it: either could wait forever.
 
 ## 0.52.0 · Nov 14, 2026
 

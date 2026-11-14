@@ -209,6 +209,17 @@ export async function freshDaemon(start: () => Promise<DaemonInfo>, minApi: numb
   return start()
 }
 
+// a signal that aborts after ms, or with any of the signals given. Not AbortSignal.any([..., AbortSignal.timeout(ms)])
+// alone: Node holds any()'s sources weakly, so a timeout nothing else holds goes at the next GC and never fires (a Laki AI
+// call to a server that never answers waited past its 5 minutes, forever). Held here as long as the signal it feeds
+const timeoutsHeld = new WeakMap<AbortSignal, AbortSignal>()
+export function abortAfter(ms: number, ...signals: (AbortSignal | undefined)[]): AbortSignal {
+  const t = AbortSignal.timeout(ms)
+  const s = AbortSignal.any([...signals.filter(x => x !== undefined), t])
+  timeoutsHeld.set(s, t)
+  return s
+}
+
 // a response's text (and bytes), at most max bytes read: past it the rest is let go (body.cancel()), the connection
 // with it. cut: it had more
 export async function readCapped(r: Response, max: number): Promise<{ text: string; buf: Buffer; cut: boolean }> {
