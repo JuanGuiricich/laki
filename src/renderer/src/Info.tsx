@@ -661,7 +661,13 @@ export function InfoTab(p: {
 function AgentLog({ load, tabName }: { load: () => Promise<AgentDid[]>; tabName?: (id: string) => string }) {
   const [l, setL] = useState<AgentDid[] | null>(null)
   const [all, setAll] = useState(false)
-  useEffect(() => void load().then(setL, () => setL([])), [])
+  useEffect(() => {
+    // read again every 5 s while it shows: what its agents do meanwhile (a list in the daemon's memory)
+    const go = () => void load().then(setL, () => setL(x => x ?? []))
+    go()
+    const t = setInterval(() => document.visibilityState === 'visible' && go(), 5000)
+    return () => clearInterval(t)
+  }, [])
   if (!l?.length) return null
   return (
     <section className="info-agentlog">

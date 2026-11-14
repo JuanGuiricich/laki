@@ -3419,6 +3419,7 @@ async function tidyNow(now: number, over?: number) {
     const days = over ?? ws.soon?.days ?? set
     if (!(days >= 0) || (over === undefined && ws.soon?.days === undefined && !(set > 0))) continue // archivedDays unset: only Disk's Tidy's
     if (!ws.archivedAt) (ws.archivedAt = now), (dated = true)
+    if (over !== undefined && now < ws.archivedAt + over * DAY) continue // Disk's Tidy: only the archives it listed (over its days); the others' notices stay as they are
     const due = ws.archivedAt + days * DAY
     if (now < due - DAY) {
       if (ws.soon) delete ws.soon, (dated = true) // not within a day any more (archivedDays raised): its notice comes again then

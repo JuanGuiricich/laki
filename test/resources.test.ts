@@ -224,4 +224,17 @@ test("Disk: a workspace's worktree and its node_modules measured; a folder gone 
   assert.equal((await rig.rpc('turnList', { ws: b.ws.id })).length, 1)
   assert.equal(execFileSync('git', ['-C', rig.repo, 'for-each-ref', `refs/laki/turns/${a.ws.id}/`], { encoding: 'utf8' }), '', 'its refs too')
   await assert.rejects(rig.rpc('diskTidy', { what: 'everything' }), /tidy what\?/)
+  // Archives over 30 days: only the ones it listed get the notice; one archived later, under 30 days then, is left as it is
+  await rig.rpc('hook', { tab: b.tab.id, state: 'idle', payload: { hook_event_name: 'Stop', last_assistant_message: 'Done.' } })
+  await rig.rpc('wsArchive', { id: a.ws.id })
+  await sleep(50)
+  await rig.rpc('wsArchive', { id: b.ws.id })
+  const at = async (id: string) => (await rig.rpc('state')).workspaces.find((w: any) => w.id === id)
+  const [t1, t2] = [(await at(a.ws.id)).archivedAt, (await at(b.ws.id)).archivedAt]
+  assert.ok(t2 > t1, 'archived one after the other')
+  const now = t1 + 30 * 86400e3 + (t2 - t1) / 2
+  assert.deepEqual((await rig.rpc('diskTidy', { what: 'archives', days: 30, dry: true, now })).goes, ['alpha'])
+  await rig.rpc('diskTidy', { what: 'archives', days: 30, now })
+  assert.ok((await at(a.ws.id))?.soon, "alpha: its day's notice (its files go to the trash)")
+  assert.equal((await at(b.ws.id))?.soon, undefined, 'beta: not listed, not noticed')
 })

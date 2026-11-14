@@ -216,11 +216,13 @@ managed policy locks it like any setting. `aiState`'s `endpointKey`: whether a k
 ### Keys in the Keychain (`keychain.ts`)
 
 `keyRead(name, path)` and `keyWrite(name, path, key)` keep Laki AI's two keys (`openrouter`, `endpoint`): in the macOS
-Keychain (service *Laki AI*, account the name) when `keychainOn()` (darwin, no `LAKI_HOME`, and `codesign -dv` on
+Keychain (service *Laki AI*, account the name) when `keychainOn()` (darwin, not a test's, the data folder `~/.laki` or `~/.laki-electron` whatever `LAKI_HOME`
+says (Laki's own launcher and tabs set it to that), and `codesign -dv` on
 `process.execPath` says *Developer ID Application*, once; a test's daemon: `LAKI_KEYCHAIN=1` and the `security` on its
 PATH), else their 0600 files. `/usr/bin/security`, 5 s per call: `find-generic-password -w` (44: none),
 `delete-generic-password`, and a write as `security -i` with `add-generic-password -U … -w "<key>"` on its stdin (quotes
 and backslashes escaped), then read back. A file there is the key to keep (not moved yet, or written when the Keychain
-failed): moved in when it reads back equal, then removed; else the file is used. Read once, then kept in memory.
+failed): moved in when it reads back equal, then removed; else the file is used. Read once, then kept in memory; a
+read the Keychain didn't answer is asked again after a minute.
 `keysWhere()` is the diagnostics' *Laki AI's keys* line: the Keychain, a key *in file* with why, or files. aiKey's API
 and the view are as before (the view only says whether there's a key). `test/ai.test.ts` fakes `security`.

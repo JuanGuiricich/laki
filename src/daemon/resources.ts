@@ -415,13 +415,14 @@ export async function diskScan(): Promise<DiskUsage> {
 // what: turns (kept turns older than days, of workspaces with no turn running), storage (the storage folders of archived
 // workspaces whose PR merged, to the trash), archives (archived over days: archivedTidy's own way, its day's notice and
 // trash for what's its own). dry: what would go, by name. ponytail: merged is as Laki last saw the PR (or archived for it)
-export async function diskTidy(o: { what?: unknown; days?: unknown; dry?: unknown }) {
+export async function diskTidy(o: { what?: unknown; days?: unknown; dry?: unknown; now?: unknown }) {
   const what = o.what as DiskTidyWhat
   const days = Math.max(0, Math.floor(Number(o.days ?? 7)))
   if (!Number.isFinite(days)) throw new Error('days: a number')
   const dry = o.dry === true
   const { turnsDrop, turnsKept } = await import('./turns.ts')
-  const before = Date.now() - days * 86400e3
+  const now = typeof o.now === 'number' && Number.isFinite(o.now) ? o.now : Date.now() // a test's clock (main.ts drops it otherwise)
+  const before = now - days * 86400e3
   const named = (w: { name?: string; id: string }) => w.name ?? w.id
   const goes: string[] = []
   if (what === 'turns') {
@@ -438,9 +439,9 @@ export async function diskTidy(o: { what?: unknown; days?: unknown; dry?: unknow
       if (!dry) storageTrash(w)
     }
   } else if (what === 'archives') {
-    const due = state.workspaces.filter(w => w.archived && (w.archivedAt ?? Date.now()) < before)
+    const due = state.workspaces.filter(w => w.archived && (w.archivedAt ?? now) < before)
     goes.push(...due.map(named)) // what's its own (uncommitted changes, a storage folder) to the trash after a day's notice, as archivedTidy does
-    if (!dry && due.length) await archivedTidy().then(() => archivedTidy(Date.now(), days)) // after an hourly one under way, which would take this call (archivedTidy shares one run)
+    if (!dry && due.length) await archivedTidy(now).then(() => archivedTidy(now, days)) // after an hourly one under way, which would take this call (archivedTidy shares one run)
   } else throw new Error('tidy what? turns, storage or archives')
   if (!dry && goes.length) (disk = undefined), save(), changed(), log(`disk: tidied ${what}: ${goes.length}`)
   return { goes }

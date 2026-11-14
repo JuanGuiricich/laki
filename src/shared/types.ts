@@ -1161,8 +1161,6 @@ export const WIDGET_EVENTS = ['turn.done', 'turn.failed', 'turn.long', 'turn.wai
 export const GATES = ['ship', 'merge', 'archive', 'tool'] as const // tool: each tool call claude makes (widgetEvents.ts toolGate), the others steps of core's gated
 export type Gate = (typeof GATES)[number]
 export type GateHeld = { widget: string; name: string; gate: Gate; why: string; fix?: string; icon?: string }
-// Ship's secret check (core.ts shipSecrets): a token-shaped string in a line it would commit: masked, never itself; hash
-// names it for "Not a secret" (ship's allowSecrets, remembered for that workspace)
 // what an agent did through Laki's API (daemon agentLog.ts): when, its tab and workspace, the method, names and ids only
 // (what), refused: why it wasn't done
 export type AgentDid = { at: number; tab: string; ws: string; method: string; what?: string; refused?: string }
@@ -1173,6 +1171,8 @@ export type DiskPart = { what: 'worktree' | 'deps' | 'turns' | 'storage' | 'save
 export type DiskWs = { id: string; name: string; archived?: true; merged?: true; parts: DiskPart[]; bytes: number }
 export type DiskUsage = { at: number; free?: number; projects: { id: string; name: string; bytes: number; workspaces: DiskWs[] }[] }
 export type DiskTidyWhat = 'turns' | 'storage' | 'archives'
+// Ship's secret check (core.ts shipSecrets): a token-shaped string in a line it would commit: masked, never itself; hash
+// names it for "Not a secret" (ship's allowSecrets, remembered for that workspace)
 export type SecretFound = { file: string; line: number; kind: string; masked: string; hash: string }
 // events of your own (laki widget emit): custom.<name>; "custom.*" in on: answers every one
 export const CUSTOM_EVENT = /^custom\.[a-z0-9][a-z0-9._-]{0,40}$/

@@ -5,8 +5,10 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
-- A workflow run's page has a *Time* tab: each block's bar on one time line, what waited on you or on CI in its own color, tries and costs, with a line for the whole run.
+- Ship looks for secrets before it commits: an API key, a private key or a password in a URL in the lines it would add stops it, each shown by file and line, masked. Untick the file, or say *Not a secret* (remembered for that workspace). `laki ship` exits 1 unless `--allow-secrets`; an agent can't pass it.
+- Confirm risky actions with Touch ID (Settings › General, off until you turn it on): starting remote access, pairing a device, Bypass permissions, a webhook's secret and Reset the interface ask for your finger first, and only Laki's window can do them then. [Try it](laki://settings/general?spot=Confirm%20risky%20actions%20with%20Touch%20ID)
 - Workflows have a *For each* block: its blocks run once per item of a list (an earlier step's JSON list, or a line each), the item as `{{item}}`, up to 50 items; a failing item stops it unless *continue: yes*.
+- A workflow run's page has a *Time* tab: each block's bar on one time line, what waited on you or on CI in its own color, tries and costs, with a line for the whole run.
 - *Hide bubbles and cards from screen recording* (Settings › Extras, on for new installs): screen sharing, recordings and screenshots leave out the bubbles, Laki's cards on screen and the quick bar. Recording mode does it too.
 - Long-press Laki's icon on an Android Home Screen for *New task*, *Needs you* and *Last workspace*.
 - Laki on your phone's Home Screen shows a count on its icon: the agents that wait for you, kept up to date by each push even with the page closed.
@@ -19,9 +21,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 - An archived workspace keeps its agents' chats: when Claude Code or Codex deletes its old sessions, the Reader and Search chats still read them (*Kept by Laki*), and a restore starts a new session under the old chat.
 - A deleted note goes to the trash for 30 days: *Undo* in the toast brings it back with its pictures and files.
 - Laki AI's keys (OpenRouter's and your endpoint's) live in the macOS Keychain now, out of Laki's data folder; the old file moves in by itself once the Keychain has it. Copy diagnostics says where they are.
-- Confirm risky actions with Touch ID (Settings › General, off until you turn it on): starting remote access, pairing a device, Bypass permissions, a webhook's secret and Reset the interface ask for your finger first, and only Laki's window can do them then. [Try it](laki://settings/general?spot=Confirm%20risky%20actions%20with%20Touch%20ID)
 - A workspace's Info shows *What its agents did*: each change its agents made through Laki and each thing Laki refused them, newest first, with names and ids only. `laki agent log <ws>` prints it.
-- Ship looks for secrets before it commits: an API key, a private key or a password in a URL in the lines it would add stops it, each shown by file and line, masked. Untick the file, or say *Not a secret* (remembered for that workspace). `laki ship` exits 1 unless `--allow-secrets`; an agent can't pass it.
 - Remote access through Tailscale: stopping it now stops `tailscale serve` too. With Tailscale's command-line tool installed from its app, the serve kept running and the next start failed with *listener already exists for port 443*; that error now says how to find the old one.
 
 ## 0.51.0 · Nov 14, 2026
