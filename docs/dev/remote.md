@@ -246,9 +246,10 @@ access running at a stable address. main.ts' `PWA` routes, closed (404) unless `
 access runs at all): `GET /manifest.webmanifest` (name Laki, `display: standalone`, `start_url` and `scope` `/`, the
 Laki theme's `bg` and `accent`; the icons `src/renderer/public/icon-192.png`, `icon-512.png`, `apple-touch-icon.png`,
 copied to `out/renderer` by the build; shared/pwa.ts `manifestOf`, with three `shortcuts` on the icon's long press:
-`/#new`, `/#needs`, `/#last`, which App routes once the view is in through `shortcutOf`: a laki:// link (the
-new-workspace page; the first tab waiting on you, else the first that needs you, none the board; the workspace in
-`laki.ws`), the shortcut then taken out of the address), `GET /sw.js` (`swJs`, versioned by the page's build: caches `/assets/` and the
+*New task* `/#new`, *Needs you* `/#needs`, *Last workspace* `/#last` (plain fragments, no query or secret), which App
+routes through `shortcutOf` once the page is unlocked (a view; locked: `wait`, the fragment kept): the new-task page (an
+Answer only device: Needs you instead), the drawer with Needs you unfolded, the workspace in `laki.ws`; then the
+fragment is taken off the address), `GET /sw.js` (`swJs`, versioned by the page's build: caches `/assets/` and the
 icons only, network first; never `/rpc`, `/pin`, `/push`, `/tap`, the socket or the page itself (`no-store`, and it
 holds no token anyway); a navigation with no network gets an inline *Offline: your Mac is not reachable* page with
 Try again). The renderer's `pwa.ts` (the remote page only: http(s), no `bridge`) adds the manifest link and Apple's

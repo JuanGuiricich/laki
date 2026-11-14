@@ -997,20 +997,20 @@ test("badgeOf: the remote page's icon count is what Needs you counts, muted, arc
   assert.equal(badgeOf({ projects: [], settings: {}, workspaces: [], tabs: [] }), 0)
 })
 
-test("shortcutOf: the remote page's icon shortcuts as laki:// links; no shortcut, nothing", async () => {
+test("shortcutOf: the remote page's icon shortcuts; locked waits, Answer only gets Needs you, anything else is left alone", async () => {
   const { shortcutOf } = await import('../src/shared/pwa.ts')
-  const w = (id: string, o: object = {}) => ({ id, kind: 'worktree', ...o }) as never
-  const t = (id: string, ws: string, o: object) => ({ id, workspace: ws, name: id, kind: 'agent', status: 'idle', ...o }) as never
-  const v = { workspaces: [w('a'), w('b'), w('m', { muted: true }), w('old', { archived: true })], tabs: [t('1', 'a', { done: true }), t('2', 'b', { status: 'waiting' }), t('3', 'm', { status: 'waiting' })] }
-  assert.equal(shortcutOf('', v), undefined)
-  assert.equal(shortcutOf('#port=5&token=x', v), undefined)
-  assert.equal(shortcutOf('#new', v), 'laki://new')
-  assert.equal(shortcutOf('#needs', v), 'laki://ws/b?tab=2', 'a waiting one before a done one; the muted workspace aside')
-  assert.equal(shortcutOf('#needs', { ...v, tabs: [t('1', 'a', { done: true })] }), 'laki://ws/a?tab=1')
-  assert.equal(shortcutOf('#needs', { ...v, tabs: [] }), 'laki://board')
-  assert.equal(shortcutOf('#last', v, 'b'), 'laki://ws/b')
-  assert.equal(shortcutOf('#last', v, 'old'), 'laki://board', 'archived since')
-  assert.equal(shortcutOf('#last', v, null), 'laki://board')
-  assert.equal(shortcutOf('#port=5&new', v), 'laki://new', 'beside the rest of the fragment')
-  assert.equal(shortcutOf('#last', { ...v, workspaces: [w('a/b')] }, 'a/b'), 'laki://ws/a%2Fb')
+  const wss = [{ id: 'a' }, { id: 'old', archived: true }]
+  const open = { locked: false, workspaces: wss }
+  assert.deepEqual(shortcutOf('#new', open), { to: 'new' })
+  assert.deepEqual(shortcutOf('#needs', open), { to: 'needs' })
+  assert.deepEqual(shortcutOf('#last', { ...open, last: 'a' }), { to: 'ws', ws: 'a' })
+  assert.deepEqual(shortcutOf('#last', { ...open, last: 'old' }), { to: 'none' }, 'archived since')
+  assert.deepEqual(shortcutOf('#last', open), { to: 'none' })
+  // locked: a PIN or passkey pending, the fragment kept for later
+  for (const h of ['#new', '#needs', '#last']) assert.deepEqual(shortcutOf(h, { locked: true }), { to: 'wait' })
+  // Answer only can't start agents: Needs you
+  assert.deepEqual(shortcutOf('#new', { ...open, level: 'answer' }), { to: 'needs' })
+  assert.deepEqual(shortcutOf('#new', { ...open, level: 'full' }), { to: 'new' })
+  // only a plain fragment: no query, no other words, not the dev page's port and token
+  for (const h of ['', '#', '#foo', '#new?x=1', '#new&t=abc', '#port=5&token=x', '#NEW', '#needs/x']) assert.equal(shortcutOf(h, open), undefined, h)
 })

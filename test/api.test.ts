@@ -1622,10 +1622,13 @@ test("Touch ID: with it on, remoteStart takes a fresh ticket of its own, once; a
   await start() // off: no ticket needed
 })
 
-test("10b: the remote page's manifest has three shortcuts, each a fragment in its scope with an icon", async () => {
+test("10b, remote access: the remote page's manifest has three shortcuts, each a plain fragment on its own origin with an icon", async () => {
   const { manifestOf } = await import('../src/shared/pwa.ts')
   const m = manifestOf()
-  assert.deepEqual(m.shortcuts.map(s => s.url), ['/#new', '/#needs', '/#last'])
+  assert.deepEqual(m.shortcuts.map(s => [s.name, s.url]), [['New task', '/#new'], ['Needs you', '/#needs'], ['Last workspace', '/#last']])
+  // fragment-only, on the page's own origin: a path of its own, a plain #name, no query or secret
+  for (const s of m.shortcuts) assert.match(s.url, /^\/#[a-z]+$/)
+  assert.equal(new URL(m.shortcuts[0].url, 'https://laki.example.com/').origin, 'https://laki.example.com')
   for (const s of m.shortcuts) {
     assert.ok(s.url.startsWith(m.scope), `${s.url} is in the scope`)
     assert.ok(s.name && s.short_name.length <= 12, `${s.name}: a short name`)

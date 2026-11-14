@@ -33,7 +33,7 @@ import type { ExtTab } from './Extension'
 import type { FlowStartAt, Sel as FlowSel } from './Workflows'
 import { FLOW_ENDED, type WorkflowItem } from '../../shared/workflow'
 import { Glyph, rollup } from './Glyph'
-import { SHORTCUTS, shortcutOf } from '../../shared/pwa'
+import { shortcutOf } from '../../shared/pwa'
 import { badgeOf, needsTab, nextStep, type Step, type StepId, waitsElsewhere } from '../../shared/nextStep'
 import { bounceOf, dockProgress, inboxOf, stateOf } from '../../shared/tray'
 import { flushDraft, Reader, type ReaderApi, readable } from './Reader'
@@ -1502,18 +1502,18 @@ export function App() {
     return off
   }, [selectTab])
 
-  // the remote page's icon shortcuts (shared/pwa.ts: #new, #needs, #last): its fragment once the view is in, as a link,
-  // then gone from the address (the rest of the fragment kept), so a reload doesn't go there again
+  // the remote page's icon shortcuts (shared/pwa.ts: #new, #needs, #last): its fragment once the page is unlocked (a
+  // view: none while its PIN or passkey is pending, the fragment kept), then off the address, so a reload doesn't again
   const routed = useRef(false)
   useEffect(() => {
-    if (bridge || !view || routed.current) return
+    if (bridge || routed.current) return
+    const go = shortcutOf(location.hash, { locked: !view, level: view?.remote?.level, workspaces: view?.workspaces, last: load<string | null>('laki.ws', null) })
+    if (!go || go.to === 'wait') return
     routed.current = true
-    const l = shortcutOf(location.hash, view, load<string | null>('laki.ws', null))
-    if (!l) return
-    const h = new URLSearchParams(location.hash.slice(1))
-    for (const k of SHORTCUTS) h.delete(k)
-    history.replaceState(history.state, '', `${location.pathname}${location.search}${h.size ? `#${h}` : ''}`)
-    setLink(l)
+    history.replaceState(history.state, '', `${location.pathname}${location.search}`)
+    if (go.to === 'new') setLink('laki://new')
+    else if (go.to === 'ws') setLink(`laki://ws/${encodeURIComponent(go.ws)}`)
+    else if (go.to === 'needs') setSideOpen(true), setFolded(f => f.filter(x => x !== 'needs')) // the drawer, its Needs you list unfolded
   }, [view])
   // laki:// links select and fill in; nothing starts from one
   useEffect(() => {

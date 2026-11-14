@@ -1,12 +1,8 @@
 // the remote page as an app (M4, docs/dev/remote.md): its manifest (main.ts serves it at a stable address), with three
-// shortcuts on its icon's long press (Android; iOS has none), and the page's router for them: the fragment they open
-// with, as a laki:// link App routes as it does every link (a select or a fill-in, never a start)
-import { needsTab } from './nextStep.ts'
-import type { TabView, WorkspaceView } from './types.ts'
-
+// shortcuts on its icon's long press (Android; iOS has none), and the page's router for them: the plain fragment they
+// open with, read once the page is unlocked, then taken off the address
 const ICON = [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }]
 export const SHORTCUTS = ['new', 'needs', 'last'] as const
-export type Shortcut = (typeof SHORTCUTS)[number]
 export function manifestOf() {
   return {
     name: 'Laki',
@@ -20,25 +16,23 @@ export function manifestOf() {
     theme_color: '#171412',
     icons: [...ICON, { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }],
     shortcuts: [
-      { name: 'New workspace', short_name: 'New', url: '/#new', icons: ICON },
+      { name: 'New task', short_name: 'New task', url: '/#new', icons: ICON },
       { name: 'Needs you', short_name: 'Needs you', url: '/#needs', icons: ICON },
       { name: 'Last workspace', short_name: 'Last', url: '/#last', icons: ICON },
     ],
   }
 }
-// the fragment's shortcut (#new, #needs, #last; the link's own t= and k= go first: api.ts pageToken), as a link:
-// new, the new-workspace page; needs, the first tab waiting on you, else the first that needs you (muted and archived
-// aside), none: the board; last, the workspace you had open (last: App's laki.ws), if it's still there. undefined: no
-// shortcut in it
-export function shortcutOf(hash: string, v: { workspaces: WorkspaceView[]; tabs: TabView[] }, last?: string | null): string | undefined {
-  const h = new URLSearchParams(hash.replace(/^#/, ''))
-  const s = SHORTCUTS.find(k => h.has(k))
+// a shortcut's fragment (only a plain #new, #needs or #last) as what the page does: new, the new-task page (an Answer
+// only device can't start agents: Needs you instead); needs, the Needs you list; last, the workspace you had open (App's
+// laki.ws) if it's still there, else nothing. Locked (a PIN or passkey pending, no view yet): wait, the fragment kept.
+// undefined: not a shortcut, the fragment left alone
+export type ShortcutGo = { to: 'new' } | { to: 'needs' } | { to: 'ws'; ws: string } | { to: 'none' } | { to: 'wait' }
+export function shortcutOf(hash: string, o: { locked: boolean; level?: 'answer' | 'full'; workspaces?: { id: string; archived?: boolean }[]; last?: string | null }): ShortcutGo | undefined {
+  const s = /^#(new|needs|last)$/.exec(hash)?.[1]
   if (!s) return
-  if (s === 'new') return 'laki://new'
-  const live = v.workspaces.filter(w => !w.archived)
-  if (s === 'last') return (w => (w ? `laki://ws/${encodeURIComponent(w.id)}` : 'laki://board'))(live.find(w => w.id === last))
-  const ok = new Set(live.filter(w => !w.muted).map(w => w.id))
-  const needs = v.tabs.filter(t => needsTab(t) && !t.muted && ok.has(t.workspace))
-  const t = needs.find(x => x.status === 'waiting') ?? needs[0]
-  return t ? `laki://ws/${encodeURIComponent(t.workspace)}?tab=${encodeURIComponent(t.id)}` : 'laki://board'
+  if (o.locked) return { to: 'wait' }
+  if (s === 'new') return o.level === 'answer' ? { to: 'needs' } : { to: 'new' }
+  if (s === 'needs') return { to: 'needs' }
+  const w = o.workspaces?.find(x => x.id === o.last && !x.archived)
+  return w ? { to: 'ws', ws: w.id } : { to: 'none' }
 }
