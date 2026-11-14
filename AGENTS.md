@@ -231,6 +231,7 @@ for the part you change, and keep it up to date with the change.
 | `src/shared/workflow.ts` | workflows' model and Markdown file, `check`, the format in words (MCP's and Laki AI's) |
 | `src/shared/island.ts` | the bubbles' island (floaterAt notch): where the pill and its card go, which card shows next, when one folds; a reply's words |
 | `src/renderer/src/Workflows.tsx` | the Workflows page: list, canvas with its blocks and variables sidebar, inspector, file, runs |
+| `src/daemon/keychain.ts` | Laki AI's keys in the macOS Keychain (`/usr/bin/security`, a signed release, the default data folder), else their 0600 files; a file moved in once it reads back the same; `keysWhere` for the diagnostics |
 | `src/daemon/ai.ts` | Laki AI: OpenRouter's tool loop, claude -p and codex exec with `laki mcp`, the conversation, the key, the call log |
 | `src/renderer/src/tell.ts` | the quick bar's hand-off (Q1, Q7's show and tell): `handOff`, the call its target gets, a picture's path in the words (pure: `test/tell.test.ts`) |
 | `src/renderer/src/Ai.tsx` | the AI page: its earlier chats' sidebar, Chat (a thread, the composer, images as thumbnails), Calls and Info tabs |

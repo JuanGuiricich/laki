@@ -846,8 +846,8 @@ opens it in Laki (from the bubbles' window too); a tool line's *Open* goes to th
 lists every ask with its backend and model, tokens in and out, cost and time; *Info* says how it runs and how it's paid
 for, what it spent today and this month (also in Settings › AI), and what it can do. It runs with:
 - **OpenRouter**: any model there that can call tools (images too, for screenshots), `anthropic/claude-sonnet-5.5`
-  unless you pick one; paid per token with your API key, which Laki keeps in `ai-key` in its data folder (0600), never
-  in its settings and never shown again;
+  unless you pick one; paid per token with your API key, which Laki keeps in the macOS Keychain (a signed release), else in `ai-key` in its
+  data folder (0600), never in its settings and never shown again;
 - **claude -p** or **codex exec**: the agent in the background on your plan, in `<data>/ai`, with `laki mcp` as its only
   tools (claude: Read too, for a screenshot; codex: read-only, without your config.toml's MCP servers), going on with
   the same session ask after ask (one conversation, it remembers; *New chat* starts a new session). claude's

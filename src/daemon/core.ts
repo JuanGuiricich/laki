@@ -25,6 +25,7 @@ import { dir, inRig } from './dir.ts'
 import { accountEnv, accountFor, accountIds, accountNamed, accounts, claudeVersion, effortsSaid, homeDir, loginCmd, modelNeedsView, modelRefused } from './accounts.ts'
 import { findSecrets, redact, transcriptOf } from './share.ts'
 import { agentLogDrop } from './agentLog.ts'
+import { keysWhere } from './keychain.ts'
 import * as cs from './codespace.ts'
 import * as gitlab from './gitlab.ts'
 import { limitReset } from './limits.ts'
@@ -4824,6 +4825,7 @@ export async function diagnostics(): Promise<string> {
     `${process.platform} ${release()} ${process.arch}; node ${process.versions.node}${process.versions.electron ? `, Electron ${process.versions.electron}` : ''}`,
     `${state.projects.filter(p => !p.archived).length} projects, ${live.length} workspaces (${state.workspaces.length - live.length} archived), ${state.tabs.length} tabs (${sessions.size} running)`,
     `Labs on: ${labs.join(', ') || 'none'} (the Labs switch ${s.labs ? 'on' : 'off'})`,
+    `Laki AI's keys: ${keysWhere()}`,
     ...(trouble ? [`${trouble.n} uncaught error${trouble.n === 1 ? '' : 's'} since the daemon started, the last: ${trouble.last}`] : []),
     '',
     '## Agents',

@@ -1263,3 +1263,63 @@ test("A8: a long chat's history goes by size: whole turns, newest first, under t
   await rig.rpc('aiNew')
   assert.equal((await rig.rpc('aiState')).seenFrom, undefined)
 })
+
+// a fake macOS security (keychain.ts's, forced by LAKI_KEYCHAIN=1 in a test's daemon): an item a file in $HOME/keychain;
+// $HOME/security-fails: every call exits 1; $HOME/security-garbles: a find answers something else. Each call's
+// arguments in FAKE_LOG (a -i's stdin, where the key is, never)
+const FAKE_SECURITY = `#!/usr/bin/env node
+const fs = require('fs'), p = require('path')
+const H = process.env.HOME, dir = p.join(H, 'keychain'), a = process.argv.slice(2)
+fs.appendFileSync(process.env.FAKE_LOG, 'security ' + a.join(' ') + '\\n')
+if (fs.existsSync(p.join(H, 'security-fails'))) process.exit(1)
+const opt = (w, k) => w[w.indexOf(k) + 1]
+const file = w => p.join(dir, opt(w, '-s') + '__' + opt(w, '-a'))
+const words = l => { const out = []; let cur = null, q = false; for (let i = 0; i < l.length; i++) { const c = l[i]; if (c === '\\\\') { cur = (cur ?? '') + l[++i]; continue } if (c === '"') { q = !q; cur ??= ''; continue } if (!q && c === ' ') { if (cur !== null) out.push(cur), (cur = null); continue } cur = (cur ?? '') + c } if (cur !== null) out.push(cur); return out }
+if (a[0] === 'find-generic-password') { const f = file(a); if (!fs.existsSync(f)) process.exit(44); process.stdout.write((fs.existsSync(p.join(H, 'security-garbles')) ? 'garbled' : fs.readFileSync(f, 'utf8')) + '\\n'); process.exit(0) }
+if (a[0] === 'delete-generic-password') { const f = file(a); if (!fs.existsSync(f)) process.exit(44); fs.rmSync(f); process.exit(0) }
+if (a[0] === '-i') { for (const l of fs.readFileSync(0, 'utf8').split('\\n').filter(Boolean)) { const w = words(l); if (w[0] !== 'add-generic-password') process.exit(1); fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(file(w), opt(w, '-w')) } process.exit(0) }
+process.exit(1)
+`
+
+test("Laki AI's keys in the Keychain: set, read after a restart, delete; a file moves in only once it reads back the same; a failing security keeps the file and says so", async t => {
+  const rig = await fresh(t, { env: { LAKI_KEYCHAIN: '1' } })
+  writeFileSync(join(rig.home, 'bin', 'security'), FAKE_SECURITY, { mode: 0o755 })
+  const item = join(rig.home, 'keychain', 'Laki AI__openrouter')
+  const file = join(rig.data, 'ai-key')
+  const KEY = 'sk-or-fake-"key\\one'
+  // set: in the Keychain, no file; never on a command line
+  await rig.rpc('aiKey', { key: KEY })
+  assert.equal(readFileSync(item, 'utf8'), KEY)
+  assert.throws(() => statSync(file))
+  assert.equal(readFileSync(rig.env.FAKE_LOG, 'utf8').includes('fake-'), false, 'the key is in no argument')
+  assert.match(await rig.rpc('diagnostics'), /Laki AI's keys: the Keychain: openrouter in Keychain/)
+  // read after a restart, from the Keychain
+  await rig.stop()
+  await rig.start()
+  assert.equal((await rig.rpc('aiState')).key, true)
+  // delete
+  await rig.rpc('aiKey', { key: null })
+  assert.throws(() => statSync(item))
+  assert.equal((await rig.rpc('aiState')).key, false)
+  // a file from before: moved in only once it reads back the same
+  await rig.stop()
+  writeFileSync(file, 'sk-or-from-a-file\n', { mode: 0o600 })
+  writeFileSync(join(rig.home, 'security-garbles'), '')
+  await rig.start()
+  assert.equal((await rig.rpc('aiState')).key, true)
+  assert.equal(readFileSync(file, 'utf8'), 'sk-or-from-a-file\n', "it didn't read back the same: the file stays")
+  assert.match(await rig.rpc('diagnostics'), /openrouter in file \(the Keychain didn't take it\)/)
+  await rig.stop()
+  rmSync(join(rig.home, 'security-garbles'))
+  await rig.start()
+  assert.equal((await rig.rpc('aiState')).key, true)
+  assert.throws(() => statSync(file), 'moved in: the file is gone')
+  assert.equal(readFileSync(item, 'utf8'), 'sk-or-from-a-file')
+  // security failing: the key goes to its 0600 file, and the diagnostics say so
+  writeFileSync(join(rig.home, 'security-fails'), '')
+  await rig.rpc('aiEndpointKey', { key: 'ep-fake-key' })
+  assert.equal(readFileSync(join(rig.data, 'ai-endpoint-key'), 'utf8'), 'ep-fake-key\n')
+  assert.equal((statSync(join(rig.data, 'ai-endpoint-key')).mode & 0o777).toString(8), '600')
+  assert.match(await rig.rpc('diagnostics'), /endpoint in file \(the Keychain didn't take it\)/)
+  assert.equal((await rig.rpc('aiState')).endpointKey, true)
+})

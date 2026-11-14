@@ -1,6 +1,6 @@
 // Laki's own AI (Settings › AI, the AI page, `laki ai`): optional, and only when asked. A conversation that works
 // Laki with the MCP server's tools (shared/tools.ts: none archives, deletes, ships or merges), run by OpenRouter (its key in
-// <data>/ai-key, 0600) or by an agent's CLI in the background: claude -p or codex exec, each given `laki mcp`. Every ask
+// the Keychain, else <data>/ai-key, 0600: keychain.ts) or by an agent's CLI in the background: claude -p or codex exec, each given `laki mcp`. Every ask
 // is logged with its tokens and cost in <data>/ai-calls.jsonl; the conversation is <data>/ai-chat.json. A spec or brainstorm
 // has a chat of its own (the Specs page's side panel), kept in its folder (.chat.json), which ends after PLAN_CHAT_IDLE
 // unused: the next ask starts a new one, unless aiContinue takes it up again. One ask at a time, in any chat. Its `ai`
@@ -18,6 +18,7 @@ import { endpointOk, AGENTS, AI_ACTS, AI_ITEMS, type AiItem, AI_PERM, AI_MODEL, 
 import { BRAINSTORM_METHOD, PLAN_CHAT_IDLE } from '../shared/plans.ts'
 import { broadcast, cliArgv, modelCheck, presets, prs, sessions, state } from './core.ts'
 import { dir } from './dir.ts'
+import { keyRead, keyWrite } from './keychain.ts'
 import { execGroup, own } from './resources.ts'
 import { accountEnv, accountUsed } from './accounts.ts'
 import { planGet, planOfChat } from './plans.ts'
@@ -50,18 +51,12 @@ const api = () => {
 // (0600; none for a local server). OpenRouter's own parts (cache marks, usage.include, x-title, its prices) stay out:
 // its calls aren't priced
 const endpointKeyPath = join(dir, 'ai-endpoint-key')
-const readEndpointKey = () => {
-  try {
-    return readFileSync(endpointKeyPath, 'utf8').trim()
-  } catch {
-    return ''
-  }
-}
+const readEndpointKey = () => keyRead('endpoint', endpointKeyPath)
 export function aiEndpointKey(o: { key?: string | null }) {
   const key = o.key?.trim()
-  if (!key) return rmSync(endpointKeyPath, { force: true }), { key: false }
+  if (!key) return keyWrite('endpoint', endpointKeyPath, ''), { key: false }
   if (!/^[\x21-\x7e]{1,400}$/.test(key)) throw new Error('that does not look like an API key')
-  writeFileSync(endpointKeyPath, key + '\n', { mode: 0o600 })
+  keyWrite('endpoint', endpointKeyPath, key)
   return { key: true }
 }
 // where a chat-completions call goes: Your endpoint (backend 'endpoint'), else OpenRouter
@@ -166,18 +161,12 @@ const toolsFor = (to: Rpc, chat: string, rpc = aiRpc(to, chat)) => [...tools(rpc
 // ---------- the key: a file only you can read, never in state.json or the view
 
 export const hasKey = () => !!readKey()
-function readKey() {
-  try {
-    return readFileSync(keyPath, 'utf8').trim()
-  } catch {
-    return ''
-  }
-}
+const readKey = () => keyRead('openrouter', keyPath)
 export function aiKey(o: { key?: string | null }) {
   const key = o.key?.trim()
-  if (!key) return rmSync(keyPath, { force: true }), { key: false }
+  if (!key) return keyWrite('openrouter', keyPath, ''), { key: false }
   if (!/^[\x21-\x7e]{8,400}$/.test(key)) throw new Error('that does not look like an API key')
-  writeFileSync(keyPath, key + '\n', { mode: 0o600 })
+  keyWrite('openrouter', keyPath, key)
   return { key: true }
 }
 

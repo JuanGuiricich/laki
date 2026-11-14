@@ -84,8 +84,8 @@ Q14: several in one question, and more of the Mac.
   `HISTORY_CHARS`, 60 KB, the newest always), never the tools' calls or results; `seenFrom` (in `aiState` and the `ai`
   event, OpenRouter's only) is the first message it still sees, where the page draws *Laki AI sees the chat from here
   on* with New chat. What's stored and shown is the same. A pasted image (only from
-  `<data>/images`, `imageOk`: nothing else of the Mac goes to a model) as a data URL. The key: `<data>/ai-key`, 0600
-  (`aiKey`), never in state.json, the view or `aiState` (only whether there is one). Model: `models.openrouter`, else
+  `<data>/images`, `imageOk`: nothing else of the Mac goes to a model) as a data URL. The key: the Keychain or `<data>/ai-key`, 0600
+  (`aiKey`; keychain.ts, below), never in state.json, the view or `aiState` (only whether there is one). Model: `models.openrouter`, else
   `AI_MODEL`. Prompt caching (A3): an `anthropic/*` model (`cachesByMark`) caches only up to a `cache_control`
   breakpoint, so its last tool definition and its system prompt (sent as one text part) each carry
   `{ type: 'ephemeral' }`: the tools and instructions are read back from the cache each round and on the next ask
@@ -201,10 +201,22 @@ first) }`, the rail's Notes and ⌘K; `listOff`): `Page` with the list (`.notes-
 Settings › AI › Runs with: Your endpoint (`ai.backend: 'endpoint'`, `settings.aiEndpoint`: `{ url, model }`). ai.ts
 `target()` picks where a chat-completions call goes: OpenRouter (`api()`, the `ai-key` file, its model) or the endpoint
 (`types.ts` `endpointOk`: https anywhere, http only for localhost, 127.0.0.1 and [::1], no user or password, no ? or #;
-core's settingsSet checks it and drops the trailing /; its key `<data>/ai-endpoint-key`, 0600, `aiEndpointKey`, none for a
+core's settingsSet checks it and drops the trailing /; its key the Keychain's `endpoint` or `<data>/ai-endpoint-key`, 0600, `aiEndpointKey`, none for a
 local server: no Authorization header). The same loop (`openrouter()`) and `aiComplete` (workflows' AI call blocks,
 memory's compaction, aiOnce) go there; OpenRouter's own parts stay out: no cache_control marks, no `usage.include` (the
 standard `stream_options.include_usage` instead), no x-title, no cost (the call log's `cost` unset: not priced). Voice
 and the decision blocks stay OpenRouter's. `aiEndpointTest`: one short ask, its answer (Settings' Test). Both methods are
 the user's only (gates.ts AGENT_NO, REMOTE_NO; main.ts FROM, ANSWER_NO), as `aiEndpoint` is (AGENT_KEYS, REMOTE_KEYS); a
 managed policy locks it like any setting. `aiState`'s `endpointKey`: whether a key is kept, never the key.
+
+### Keys in the Keychain (`keychain.ts`)
+
+`keyRead(name, path)` and `keyWrite(name, path, key)` keep Laki AI's two keys (`openrouter`, `endpoint`): in the macOS
+Keychain (service *Laki AI*, account the name) when `keychainOn()` (darwin, no `LAKI_HOME`, and `codesign -dv` on
+`process.execPath` says *Developer ID Application*, once; a test's daemon: `LAKI_KEYCHAIN=1` and the `security` on its
+PATH), else their 0600 files. `/usr/bin/security`, 5 s per call: `find-generic-password -w` (44: none),
+`delete-generic-password`, and a write as `security -i` with `add-generic-password -U … -w "<key>"` on its stdin (quotes
+and backslashes escaped), then read back. A file there is the key to keep (not moved yet, or written when the Keychain
+failed): moved in when it reads back equal, then removed; else the file is used. Read once, then kept in memory.
+`keysWhere()` is the diagnostics' *Laki AI's keys* line: the Keychain, a key *in file* with why, or files. aiKey's API
+and the view are as before (the view only says whether there's a key). `test/ai.test.ts` fakes `security`.

@@ -5,6 +5,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
+- Laki AI's keys (OpenRouter's and your endpoint's) live in the macOS Keychain now, out of Laki's data folder; the old file moves in by itself once the Keychain has it. Copy diagnostics says where they are.
 - Confirm risky actions with Touch ID (Settings › General, off until you turn it on): starting remote access, pairing a device, Bypass permissions, a webhook's secret and Reset the interface ask for your finger first, and only Laki's window can do them then. [Try it](laki://settings/general?spot=Confirm%20risky%20actions%20with%20Touch%20ID)
 - A workspace's Info shows *What its agents did*: each change its agents made through Laki and each thing Laki refused them, newest first, with names and ids only. `laki agent log <ws>` prints it.
 - Ship looks for secrets before it commits: an API key, a private key or a password in a URL in the lines it would add stops it, each shown by file and line, masked. Untick the file, or say *Not a secret* (remembered for that workspace). `laki ship` exits 1 unless `--allow-secrets`; an agent can't pass it.

@@ -173,10 +173,17 @@ project's test script is, which the agent can edit.
   source (`npm run pack`) is ad-hoc signed: macOS asks you to allow it once (Privacy & Security › Open Anyway; the
   guide's [Install](docs/guide.md#install)).
 - Electron's cookie encryption fuse is off: turned on, the Keychain prompt keeps the window from reaching the daemon.
+- Laki AI's keys (OpenRouter's, your endpoint's) are in the macOS Keychain (service *Laki AI*) in a Developer ID signed
+  build using the default data folder: out of the data folder, so out of its backups and copies. They're written
+  through `/usr/bin/security -i` on its stdin (never on a command line) and read back before a file of them is
+  removed; Keychain trouble keeps the 0600 file, and Copy diagnostics says which. The item trusts `/usr/bin/security`,
+  so a program running as you can read it with that tool, as it could the file: the Keychain keeps it off the disk's
+  plain files, not from your own programs. An ad-hoc build, a custom `LAKI_HOME` and Linux keep the files.
 - Electron's `runAsNode` fuse is off on Laki's own binary: no program can run its JavaScript inside it
   (`ELECTRON_RUN_AS_NODE=1`) to borrow the privacy grants you gave Laki. The daemon, the CLI, hooks and MCP run on Laki
   Node, a binary of its own in the bundle (its own bundle id, no privacy usage strings) that does run as node: anything
-  started on it directly gets none of Laki's grants, but the Keychain items Laki Node itself may read (none today) and
+  started on it directly gets none of Laki's grants, but the Keychain items Laki Node itself may read (none: Laki AI's
+  keys go through `/usr/bin/security`, below) and
   what the daemon does for the app (started by the app, it is Laki's to macOS) are its. The `--inspect` and
   `NODE_OPTIONS` fuses are off on both, and Chromium's debugging switches are refused. On Linux (a preview) there are
   no per-binary grants; `laki-node` beside `laki` is the same split.
