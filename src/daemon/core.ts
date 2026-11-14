@@ -1354,7 +1354,8 @@ function keepChats(ws: Workspace) {
       const own = transcriptOf(t.preset, agentHome(t), t.resumeId)
       if (!own) continue
       const real = realpathSync(own)
-      if (!real.startsWith(realpathSync(agentHome(t)) + sep)) {
+      // under the agent's chats folder as it resolves (an account's projects/ or sessions/ is a link to the agent's own)
+      if (!real.startsWith(realpathSync(join(agentHome(t), t.preset === 'claude' ? 'projects' : 'sessions')) + sep)) {
         wsLog(ws, `archive: ${t.name}'s chat not kept (its file is a link out of ${t.preset}'s folder)`)
         continue
       }

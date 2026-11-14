@@ -1462,7 +1462,11 @@ const beside = (w: number, h: number, along: number) => {
 // 10c: each floating window kept out of screen recording and screenshots (guards.ts protectedKind), as each is made and
 // as the setting or Recording mode changes
 const guardFloat = (kind: string, w: BrowserWindow | null) => w && !w.isDestroyed() && w.setContentProtection(protectedKind(kind, { hideFloats: floats.hide }, recording))
+let guarded = '' // what protectFloats last set: each window made since got it as it was made (guardFloat)
 function protectFloats() {
+  const k = `${floats.hide === true} ${recording}`
+  if (k === guarded) return
+  guarded = k
   for (const [k, w] of [['bar', floater], ['card', card], ['menu', menu], ['voice', voice], ['ask', cardWin], ['inbox', inboxWin], ['quick', quickW], ['talk', talkW]] as const) guardFloat(k, w)
 }
 const floatOpts = (width: number, height: number, focusable = true): BrowserWindowConstructorOptions => ({

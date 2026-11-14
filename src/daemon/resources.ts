@@ -337,26 +337,37 @@ export function wake(id: string) {
 const DISK_KEEP = 10 * 60_000
 let disk: { at: number; data: DiskUsage } | undefined
 let diskNow: Promise<DiskUsage> | undefined
-const duLimit = { n: 0, q: [] as (() => void)[] }
-async function du(path: string): Promise<number | undefined> {
-  if (!existsSync(path)) return
-  if (duLimit.n >= 2) await new Promise<void>(r => duLimit.q.push(r))
-  duLimit.n++
+// two of du's and git's walks at once: a slot handed straight to the next waiting one, so a new call can't slip in
+const slots = { n: 0, q: [] as (() => void)[] }
+async function limited<T>(f: () => Promise<T>): Promise<T> {
+  if (slots.n >= 2) await new Promise<void>(r => slots.q.push(r))
+  else slots.n++
   try {
-    const r = await run('nice', ['-n', '10', 'du', '-sk', path], { timeout: 120_000 })
-    const kb = Number(r.stdout.split(/\s/)[0])
-    return Number.isFinite(kb) ? kb * 1024 : undefined
-  } catch {
-    return // gone meanwhile, unreadable, too slow
+    return await f()
   } finally {
-    duLimit.n--
-    duLimit.q.shift()?.()
+    const next = slots.q.shift()
+    if (next) next()
+    else slots.n--
   }
 }
+async function du(path: string): Promise<number | undefined> {
+  if (!existsSync(path)) return
+  return limited(async () => {
+    try {
+      const r = await run('nice', ['-n', '10', 'du', '-sk', path], { timeout: 120_000 })
+      const kb = Number(r.stdout.split(/\s/)[0])
+      return Number.isFinite(kb) ? kb * 1024 : undefined
+    } catch {
+      return // gone meanwhile, unreadable, too slow
+    }
+  })
+}
 const gitUse = (repo: string, ...refs: string[]) =>
-  run('git', ['-C', repo, 'rev-list', '--objects', '--disk-usage', ...refs, '--not', '--branches', '--tags', '--remotes'], { timeout: 120_000 }).then(
-    r => (n => (Number.isFinite(n) && n > 0 ? n : undefined))(Number(r.stdout.trim())),
-    () => undefined,
+  limited(() =>
+    run('git', ['-C', repo, 'rev-list', '--objects', '--disk-usage', ...refs, '--not', '--branches', '--tags', '--remotes'], { timeout: 120_000 }).then(
+      r => (n => (Number.isFinite(n) && n > 0 ? n : undefined))(Number(r.stdout.trim())),
+      () => undefined,
+    ),
   )
 export function diskUsage(o: { again?: boolean } = {}): Promise<DiskUsage> {
   if (disk && !o.again && Date.now() - disk.at < DISK_KEEP) return Promise.resolve(disk.data)
@@ -429,7 +440,7 @@ export async function diskTidy(o: { what?: unknown; days?: unknown; dry?: unknow
   } else if (what === 'archives') {
     const due = state.workspaces.filter(w => w.archived && (w.archivedAt ?? Date.now()) < before)
     goes.push(...due.map(named)) // what's its own (uncommitted changes, a storage folder) to the trash after a day's notice, as archivedTidy does
-    if (!dry && due.length) await archivedTidy(Date.now(), days)
+    if (!dry && due.length) await archivedTidy().then(() => archivedTidy(Date.now(), days)) // after an hourly one under way, which would take this call (archivedTidy shares one run)
   } else throw new Error('tidy what? turns, storage or archives')
   if (!dry && goes.length) (disk = undefined), save(), changed(), log(`disk: tidied ${what}: ${goes.length}`)
   return { goes }

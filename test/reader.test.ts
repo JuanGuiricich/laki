@@ -338,11 +338,19 @@ test("an archived workspace's chats are kept: the agent's file deleted, chatRead
   writeFileSync(outside, line({ type: 'user', message: { content: 'not to be copied' } }))
   symlinkSync(outside, join(dir, 'chat-l.jsonl'))
   await rig.rpc('hook', { tab: other.id, state: 'start', payload: { session_id: 'chat-l' } })
+  // a tab on another account: its folder's projects/ is a link to claude's own, its chat kept all the same
+  const a = await rig.rpc('accountAdd', { agent: 'claude', name: 'Work' })
+  await rig.rpc('settingsSet', { presets: [...(await rig.rpc('state')).presets, { name: 'work', agent: 'claude', account: a.id }] })
+  const acct = await rig.rpc('tabNew', { ws: ws.id, preset: 'work' })
+  await until(async () => (await rig.rpc('state')).tabs.find((x: any) => x.id === acct.id)?.resumeId, 'its chat')
+  writeFileSync(join(dir, 'chat-m.jsonl'), line({ type: 'user', message: { content: 'on the Work account' } }))
+  await rig.rpc('hook', { tab: acct.id, state: 'start', payload: { session_id: 'chat-m' } })
   await rig.rpc('wsArchive', { id: ws.id })
   const storage = (await rig.rpc('state')).workspaces.find((w: any) => w.id === ws.id).storage
   const kept = join(storage, 'chats', `${tab.id}.jsonl`)
   assert.equal(readFileSync(kept, 'utf8'), readFileSync(file, 'utf8'))
   assert.equal(existsSync(join(storage, 'chats', `${other.id}.jsonl`)), false, 'a link out of the agent folder: not copied')
+  assert.match(readFileSync(join(storage, 'chats', `${acct.id}.jsonl`), 'utf8'), /on the Work account/)
   // the agent deletes its old chat: Laki's copy is read
   rmSync(file)
   const r = await until(async () => (r => r.said?.length && r)(await rig.rpc('chatRead', { tab: tab.id })), 'the kept chat read')
