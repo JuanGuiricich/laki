@@ -536,6 +536,14 @@ drives it (Electron); `pageChanges` and `browseSays` are tested in `test/units-m
   the pointer went down in last (`lastDown`), or the full review while it's shown; the lines' text found by a
   TreeWalker (not `.dl-n` or `.dl-blame`), marked by the CSS Custom Highlight API (`laki-find`, `laki-find-on`),
   found again as the diff changes (a MutationObserver); a folded file's lines aren't drawn, so aren't found.
+- **The change map** (Diff.tsx `ChangeMap`, Changes' `sp-body` and the full review's `.fr-diff`): a `--cmap-w` strip at
+  the scroller's right edge (a sibling, absolutely placed by the scroller's offsets; the scroller gets `cmap-on`, its
+  padding for it). Each `.dl-add`, `.dl-del`, `.fr-inline` (a comment not sent yet: `--waiting`) and `.fr-thread` (a
+  review thread: `--hunk`) measured as the scroller resizes or its DOM changes (a ResizeObserver, a MutationObserver,
+  one frame each), then text.ts `marksOf`: scaled to the strip, at least 2px, a lane's marks closer than 2px one (an
+  added and a taken-out line together: `cmap-both`, two halves). A frame shows what's in view; a click or a drag
+  scrolls there (pointer capture). None while it all fits, in a window under 600px or with a coarse pointer (a phone);
+  `aria-hidden` (the keys and ⌘F do the same).
 - **Errors** (ui.tsx `Boundary`): main.tsx wraps every window's root and App's `Lazy` each lazy page (`Waiting` its
   Suspense fallback): a throw while drawing, or a page's code gone (remote access after an update), says so with
   *Reload* (and *Close* for a page) instead of a blank window. Main's `render-process-gone` reloads the window, at most

@@ -4,7 +4,7 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type HTMLAttributes, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { Folded } from './MarkdownView'
 import { ago, Avatar } from './Info'
-import { type Gap, gapsOf, linesAt, reviewedLines, sameLines, splitRows, type Suggestion, suggestionOf, type WordSpans, wordDiff, isPage } from './text'
+import { type Gap, gapsOf, linesAt, type MapKind, type MapMark, marksOf, reviewedLines, sameLines, splitRows, type Suggestion, suggestionOf, type WordSpans, wordDiff, isPage } from './text'
 import { closeTo, escapes, Icon, IconButton, type MenuItem, openFrom, useMenu, act } from './ui'
 import { diffCounts } from '../../shared/ask'
 import type { FileContent, PanelApi, PRFiles, Thread } from './SidePanel'
@@ -143,6 +143,61 @@ export const lineClass = (l: DiffLine, picked = false) => `dl ${l.text.startsWit
 // them; a context line is both). row: a line's own props (its clicks); head: a hunk header's contents; after: what goes
 // under a line (its comment box, a review's threads); gutter: before a line's text (the full review's blame), side: the
 // column it's in (both: one column)
+// the change map (Changes, the Review tab): a strip at the scroller's right edge, each changed line's place in all of it
+// (--add, --del, both as two halves), your comments not sent yet (--waiting) and the review's threads (--hunk), a frame
+// where you are; a click or a drag goes there. Measured from the DOM (a ResizeObserver, changes under it, each in one
+// frame); none while it all fits, in a window under 600px or on a phone (a coarse pointer)
+const MAP_PICK: [string, MapKind][] = [['.dl-add', 'add'], ['.dl-del', 'del'], ['.fr-inline', 'note'], ['.fr-thread', 'thread']]
+export function ChangeMap({ at }: { at: RefObject<HTMLElement | null> }) {
+  const [m, setM] = useState<{ marks: MapMark[]; left: number; top: number; h: number; frame: [number, number] } | null>(null)
+  const drag = useRef(false)
+  useEffect(() => {
+    const el = at.current
+    if (!el) return
+    let raf = 0
+    const measure = () => {
+      raf = 0
+      const { scrollHeight: total, clientHeight: h } = el
+      if (total <= h + 1 || innerWidth < 600 || matchMedia('(pointer: coarse)').matches) return setM(null), el.classList.remove('cmap-on')
+      el.classList.add('cmap-on')
+      const box = el.getBoundingClientRect()
+      const spans = MAP_PICK.flatMap(([q, kind]) =>
+        [...el.querySelectorAll<HTMLElement>(q)].map(n => (r => ({ top: r.top - box.top + el.scrollTop, h: r.height, kind }))(n.getBoundingClientRect())),
+      )
+      setM({ marks: marksOf(spans, total, h), left: el.offsetLeft + el.clientLeft + el.clientWidth, top: el.offsetTop + el.clientTop, h, frame: [(el.scrollTop / total) * h, (h / total) * h] })
+    }
+    const soon = () => void (raf ||= requestAnimationFrame(measure))
+    const scrolled = () => setM(v => v && { ...v, frame: [(el.scrollTop / el.scrollHeight) * v.h, (el.clientHeight / el.scrollHeight) * v.h] })
+    const ro = new ResizeObserver(soon)
+    ro.observe(el)
+    const mo = new MutationObserver(soon)
+    mo.observe(el, { childList: true, subtree: true })
+    el.addEventListener('scroll', scrolled, { passive: true })
+    soon()
+    return () => (cancelAnimationFrame(raf), ro.disconnect(), mo.disconnect(), el.removeEventListener('scroll', scrolled), el.classList.remove('cmap-on'))
+  }, [at])
+  if (!m) return null
+  const go = (e: { clientY: number; currentTarget: HTMLElement }) => {
+    const el = at.current
+    if (!el) return
+    const y = e.clientY - e.currentTarget.getBoundingClientRect().top
+    el.scrollTop = (y / m.h) * el.scrollHeight - el.clientHeight / 2
+  }
+  return (
+    <div
+      className="cmap"
+      aria-hidden
+      style={{ left: m.left, top: m.top, height: m.h }}
+      onPointerDown={e => (e.currentTarget.setPointerCapture(e.pointerId), (drag.current = true), go(e))}
+      onPointerMove={e => drag.current && go(e)}
+      onPointerUp={() => (drag.current = false)}
+      onPointerCancel={() => (drag.current = false)}
+    >
+      {m.marks.map((k, i) => <i key={i} className={`cmap-${k.kind}`} style={{ top: k.y, height: k.h }} />)}
+      <b style={{ top: m.frame[0], height: Math.max(m.frame[1], 6) }} />
+    </div>
+  )
+}
 export type Side = 'old' | 'new' | 'both'
 // word marks (text.ts wordDiff): in each hunk, a run of deleted lines and the run of added lines right after it, paired
 // by index up to the shorter, WORD_PAIRS a file at most; a pair too different (or too long) gets none

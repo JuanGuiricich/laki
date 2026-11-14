@@ -6,7 +6,7 @@ import { bridge, openExternal } from './api'
 import { highlight } from './highlight'
 import { PanelHandle } from './Panes'
 import { Markdown, outlineItems } from './MarkdownView'
-import { atHead, canPage, CommentBox, DiffFind, diffByFile, useExpand, type DiffLine, DiffRows, IMAGE, ImageDiff, lineClass, localStore, NO_DIFF, parentOf, sameLine, type Scope, ScopeSeg, turnNext, sizeText, ThreadCard, threadKey, useGhViewed, useLoad, useRevert, useScope, useSuggestions, webItems } from './Diff'
+import { atHead, canPage, ChangeMap, CommentBox, DiffFind, diffByFile, useExpand, type DiffLine, DiffRows, IMAGE, ImageDiff, lineClass, localStore, NO_DIFF, parentOf, sameLine, type Scope, ScopeSeg, turnNext, sizeText, ThreadCard, threadKey, useGhViewed, useLoad, useRevert, useScope, useSuggestions, webItems } from './Diff'
 import type { MergeMethod, TurnKept } from '../../shared/types'
 import { ago, type AutoKey, type Check, type FixWhat, type LabelApi, type PRAct, PRSection, type WsInfo } from './Info'
 import { type actionsFor, csvSep, fileTree, forgeName, prName, findFiles, parseCsv, parseSize, type Picked, pickPrompt, pickWords, previewAddr, previewUrl, type RunAction, SIZES, type Suggestion, toCsv } from './text'
@@ -491,6 +491,7 @@ function ChangesTab({ api: wsApi, ws, pr, linked, empty, worktree, turn, reviewe
           : files.map(f => fileEl(f))}
         {rv.bar}
       </div>
+      <ChangeMap at={findAt} />
       {menu}
     </>
   )

@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useRef, useState, type HTMLAttributes, type MouseEvent } from 'react'
 import type { Blame, PR } from '../../shared/types'
 import { globTest } from '../../shared/widgetSchema'
-import { atHead, canPage, changeLine, CommentBox, CopyComment, DiffFind, useExpand, diffByFile, type DiffLine, DiffRows, type FileDiff, IMAGE, ImageDiff, lineClass, localStore, NO_DIFF, parentOf, sameLine, ScopeSeg, type Side, ThreadCard, threadKey, useGhViewed, useLoad, useRevert, useScope, useSuggestions, webItems, webSub } from './Diff'
+import { atHead, canPage, ChangeMap, changeLine, CommentBox, CopyComment, DiffFind, useExpand, diffByFile, type DiffLine, DiffRows, type FileDiff, IMAGE, ImageDiff, lineClass, localStore, NO_DIFF, parentOf, sameLine, ScopeSeg, type Side, ThreadCard, threadKey, useGhViewed, useLoad, useRevert, useScope, useSuggestions, webItems, webSub } from './Diff'
 import { ago, Avatar } from './Info'
 import { Folded, Markdown } from './MarkdownView'
 import type { PanelApi, Thread } from './SidePanel'
@@ -632,6 +632,7 @@ export function FullReview({ ws, base, branch, pr, linked, empty, worktree, api:
           })}
           {rv.bar}
         </div>
+        <ChangeMap at={body} />
         {noNotes ? (
           <button type="button" className="fr-strip" onClick={() => hideNotes(false)} data-tip={autoOff ? 'The comments: folded while the diff has no room (widen the window, or hide the files)' : 'Show the comments'}>
             <Icon name="messages" />

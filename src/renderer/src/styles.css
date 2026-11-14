@@ -43,6 +43,7 @@
   --lift-2: 0 8px 24px rgba(0, 0, 0, 0.35);
   --lift-3: 0 20px 60px rgba(0, 0, 0, 0.5);
   --h-s: 22px; --h-m: 28px; --h-l: 34px;
+  --cmap-w: 10px; /* the change map's strip (Diff.tsx ChangeMap) */
   --z-dialog: 10; --z-toast: 20; --z-page: 30; --z-ask: 40; --z-pop: 50; --z-drag: 100; --z-tip: 200; --z-top: 9997; /* a dialog, a toast, a page over the work, a yes/no, a menu, a drag, a tooltip, the element picker; under 10: within a part */
   --mono: 'JetBrains Mono', 'SF Mono', Menlo, Monaco, monospace;
   --ui-default: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif; /* SF Pro on a Mac, Inter elsewhere */
@@ -1562,6 +1563,14 @@ mark.wd-del { background: color-mix(in srgb, var(--del) 15%, transparent); }
 .fr-filter input { flex: 1; min-width: 0; border: none; background: none; padding: var(--sp-2) 0; font-size: var(--fs-2); color: var(--fg); }
 .fr-filter:focus-within { border-color: var(--accent); }
 .fr-filter > .ib { margin-right: -6px; } /* Hide the files: at the box's end */
+.cmap { position: absolute; z-index: 4; width: var(--cmap-w); translate: -100% 0; cursor: pointer; background: color-mix(in srgb, var(--line) 30%, transparent); touch-action: none; }
+.cmap i { position: absolute; left: 0; width: 60%; border-radius: var(--r-xs); background: var(--add); }
+.cmap .cmap-del { background: var(--del); }
+.cmap .cmap-both { background: linear-gradient(var(--add) 50%, var(--del) 50%); } /* a hunk with both: two halves */
+.cmap .cmap-note, .cmap .cmap-thread { left: auto; right: 0; width: 40%; background: var(--waiting); }
+.cmap .cmap-thread { background: var(--hunk); }
+.cmap b { position: absolute; left: 0; right: 0; border: 1px solid color-mix(in srgb, var(--fg) 35%, transparent); border-radius: var(--r-xs); background: color-mix(in srgb, var(--fg) 6%, transparent); pointer-events: none; }
+.sp-body.cmap-on, .fr-diff.cmap-on { padding-right: var(--cmap-w); }
 .fr-strip { display: flex; flex-direction: column; align-items: center; gap: var(--sp-4); padding: var(--sp-4) 0; border: none; border-left: 1px solid var(--line); background: var(--panel); color: var(--muted); cursor: pointer; font: inherit; font-size: var(--fs-2); }
 .fr-strip:hover { color: var(--fg); background: var(--hover); }
 .fr-strip.left { border-left: none; border-right: 1px solid var(--line); }

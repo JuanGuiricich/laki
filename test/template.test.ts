@@ -552,3 +552,23 @@ test('wordDiff: identical lines, one word changed, an inserted word, a different
   assert.equal(wordDiff('a'.repeat(501), 'a'.repeat(500) + 'b'), undefined, 'over 500 characters')
   assert.deepEqual(wordDiff('', ''), { old: [], new: [] })
 })
+
+test('marksOf: the change map scales lines, merges what is closer than 2px, keeps comments and threads apart', async () => {
+  const { marksOf } = await import('../src/renderer/src/text.ts')
+  assert.deepEqual(marksOf([], 1000, 100), [])
+  assert.deepEqual(marksOf([{ top: 10, h: 10, kind: 'add' }], 0, 100), [])
+  // 1000px of content in 100px: a 20px line is 2px, a tiny one still 2px
+  assert.deepEqual(marksOf([{ top: 500, h: 20, kind: 'add' }], 1000, 100), [{ y: 50, h: 2, kind: 'add' }])
+  assert.deepEqual(marksOf([{ top: 500, h: 1, kind: 'del' }], 1000, 100), [{ y: 50, h: 2, kind: 'del' }])
+  // a deleted line right above an added one: one mark, both
+  assert.deepEqual(marksOf([{ top: 100, h: 20, kind: 'del' }, { top: 120, h: 20, kind: 'add' }], 1000, 100), [{ y: 10, h: 4, kind: 'both' }])
+  // far apart: two
+  assert.equal(marksOf([{ top: 100, h: 20, kind: 'add' }, { top: 600, h: 20, kind: 'add' }], 1000, 100).length, 2)
+  // a comment at the same place as a line: its own lane, not merged
+  const m = marksOf([{ top: 100, h: 20, kind: 'add' }, { top: 100, h: 20, kind: 'note' }, { top: 105, h: 20, kind: 'thread' }], 1000, 100)
+  assert.deepEqual(m.map(x => x.kind).sort(), ['add', 'note', 'thread'])
+  // unsorted input, and nothing past the strip's bottom
+  const z = marksOf([{ top: 990, h: 50, kind: 'add' }, { top: 0, h: 10, kind: 'add' }], 1000, 100)
+  assert.equal(z[0].y, 0)
+  assert.ok(z.every(x => x.y + x.h <= 100))
+})
