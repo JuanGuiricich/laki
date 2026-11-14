@@ -38,6 +38,11 @@ export function nextStep(w: WorkspaceView, tabs: TabView[], o: { merge?: boolean
 
 // U5: the Board's columns, from the same rules: what the sidebar's Needs you counts (needsTab) is always in Answer, Review
 // or Fix, never in Working, Merge or Done. setup: its setup script runs
+// the edge glow (settings.edgeGlow): an agent waits for you in a workspace that isn't the one on screen (shown), its
+// tab and its workspace not muted, the workspace not archived. Reduced motion, a flat look, a small window and a phone:
+// styles.css' and App's, not here
+export const waitsElsewhere = (wss: WorkspaceView[], tabs: TabView[], shown?: string | null) =>
+  tabs.some(t => t.status === 'waiting' && !t.muted && t.workspace !== shown && (w => !!w && !w.muted && !w.archived)(wss.find(w => w.id === t.workspace)))
 export const needsTab = (t: TabView) => t.status === 'waiting' || !!t.secret || !!t.failed || (!!t.done && t.status === 'idle')
 export const BOARD = [['working', 'Working'], ['answer', 'Answer'], ['review', 'Review'], ['fix', 'Fix'], ['merge', 'Merge'], ['done', 'Done']] as const
 export type BoardCol = (typeof BOARD)[number][0]

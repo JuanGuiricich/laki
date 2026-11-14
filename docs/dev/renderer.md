@@ -536,6 +536,11 @@ drives it (Electron); `pageChanges` and `browseSays` are tested in `test/units-m
   the pointer went down in last (`lastDown`), or the full review while it's shown; the lines' text found by a
   TreeWalker (not `.dl-n` or `.dl-blame`), marked by the CSS Custom Highlight API (`laki-find`, `laki-find-on`),
   found again as the diff changes (a MutationObserver); a folded file's lines aren't drawn, so aren't found.
+- **The edge glow** (settings.edgeGlow, on unless false: Settings › General › Notifications): App's root `.app` gets
+  `data-glow` while nextStep.ts `waitsElsewhere` (a waiting tab in a workspace other than the one on screen, neither it
+  nor its workspace muted, not archived) and not `narrow`; styles.css' `.app[data-glow]::after` draws it (an inset ring
+  and glow of `--waiting`, `edge-glow` pulsing its opacity). None with `prefers-reduced-motion`, Motion's none, a flat
+  look (`:root.opaque`), a window under 900 × 520 or a coarse pointer.
 - **The change map** (Diff.tsx `ChangeMap`, Changes' `sp-body` and the full review's `.fr-diff`): a `--cmap-w` strip at
   the scroller's right edge (a sibling, absolutely placed by the scroller's offsets; the scroller gets `cmap-on`, its
   padding for it). Each `.dl-add`, `.dl-del`, `.fr-inline` (a comment not sent yet: `--waiting`) and `.fr-thread` (a

@@ -2,7 +2,7 @@
 // to you, a closed PR, conflicts, CI, a review, the radar, merge, look, ship; busy while an agent or CI works.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { nextStep, boardCol, needsTab, overUsual, usual, usualText } from '../src/shared/nextStep.ts'
+import { nextStep, boardCol, needsTab, overUsual, usual, usualText, waitsElsewhere } from '../src/shared/nextStep.ts'
 import type { TabView, WorkspaceView } from '../src/shared/types.ts'
 
 const ws = (o: object = {}) => ({ id: 'w', kind: 'worktree', ...o }) as unknown as WorkspaceView
@@ -80,4 +80,18 @@ test('usual: the median of the turns that ran 20 s or more, once there are 5; it
   assert.equal(overUsual(720, 360), true)
   assert.equal(overUsual(200, 60), false) // under 5 minutes
   assert.equal(overUsual(300, 60), true)
+})
+
+test('waitsElsewhere: the edge glow, for an agent waiting in a workspace not on screen, not muted or archived', () => {
+  const a = ws({ id: 'a' })
+  const b = ws({ id: 'b' })
+  const asks = tab({ id: 't1', workspace: 'b', status: 'waiting' })
+  assert.equal(waitsElsewhere([a, b], [asks], 'a'), true)
+  assert.equal(waitsElsewhere([a, b], [asks], 'b'), false, 'the one on screen: you see it')
+  assert.equal(waitsElsewhere([a, b], [asks], null), true, 'none on screen')
+  assert.equal(waitsElsewhere([a, b], [{ ...asks, status: 'running' }], 'a'), false)
+  assert.equal(waitsElsewhere([a, b], [{ ...asks, muted: true }], 'a'), false, 'a muted tab')
+  assert.equal(waitsElsewhere([a, ws({ id: 'b', muted: true })], [asks], 'a'), false, 'a muted workspace')
+  assert.equal(waitsElsewhere([a, ws({ id: 'b', archived: true })], [asks], 'a'), false, 'archived')
+  assert.equal(waitsElsewhere([a], [asks], 'a'), false, 'its workspace not in the view')
 })
