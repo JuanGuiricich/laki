@@ -183,7 +183,7 @@ export const PWA = new Set([...PWA_ICONS, '/manifest.webmanifest', '/sw.js'])
 const MANIFEST = JSON.stringify({ name: 'Laki', short_name: 'Laki', description: 'Your coding agents, from your phone', id: '/', start_url: '/', scope: '/', display: 'standalone', background_color: '#171412', theme_color: '#171412', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }] })
 // the service worker: the static shell only (/assets/, the icons: network first, the cache when it fails), never the
 // API, the socket, /pin, /push, /tap or the page itself (no-store: it goes through the sign-in); a navigation with no
-// network (or a tunnel's 5xx: the Mac unreachable) gets the offline page. A notification's action posts its tap to /tap; a click elsewhere opens the app.
+// network (or a tunnel's 5xx: the Mac unreachable) gets the offline page. A push sets the icon's badge (its badge: nextStep.ts badgeOf) as it shows; a notification's action posts its tap to /tap; a click elsewhere opens the app.
 // Versioned by the page's build, so an update's assets replace the old ones
 const OFFLINE = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Laki: offline</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#171412;color:#ece6df;font:16px -apple-system,system-ui,sans-serif;text-align:center}p{color:#a39a90;max-width:20em;margin:8px auto 20px}button{font:inherit;padding:10px 18px;border-radius:10px;border:0;background:#ff7a45;color:#1a0f08}</style><main><h1>Offline: your Mac is not reachable</h1><p>Laki runs on your Mac. Wake it, check its connection and that remote access is on, then try again.</p><button onclick="location.reload()">Try again</button></main>`
 const swJs = () => `const CACHE = 'laki-shell-${(() => { try { return statSync(join(pageDir ?? '', 'index.html')).mtimeMs } catch { return 0 } })()}'
@@ -206,7 +206,8 @@ self.addEventListener('fetch', e => {
 self.addEventListener('push', e => {
   let d = {}
   try { d = e.data ? e.data.json() : {} } catch {}
-  e.waitUntil(self.registration.showNotification(d.title || 'Laki', { body: d.body || '', tag: d.tag, renotify: !!d.tag, icon: '/icon-192.png', data: d, actions: (d.actions || []).map(a => ({ action: a.tap, title: a.title })) }))
+  const n = navigator.setAppBadge && typeof d.badge === 'number' ? (d.badge > 0 ? navigator.setAppBadge(d.badge) : navigator.clearAppBadge()).catch(() => {}) : undefined // the icon's count: what waits for you
+  e.waitUntil(Promise.all([self.registration.showNotification(d.title || 'Laki', { body: d.body || '', tag: d.tag, renotify: !!d.tag, icon: '/icon-192.png', data: d, actions: (d.actions || []).map(a => ({ action: a.tap, title: a.title })) }), n]))
 })
 self.addEventListener('notificationclick', e => {
   e.notification.close()

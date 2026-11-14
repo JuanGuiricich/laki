@@ -44,6 +44,12 @@ export function nextStep(w: WorkspaceView, tabs: TabView[], o: { merge?: boolean
 export const waitsElsewhere = (wss: WorkspaceView[], tabs: TabView[], shown?: string | null) =>
   tabs.some(t => t.status === 'waiting' && !t.muted && t.workspace !== shown && (w => !!w && !w.muted && !w.archived)(wss.find(w => w.id === t.workspace)))
 export const needsTab = (t: TabView) => t.status === 'waiting' || !!t.secret || !!t.failed || (!!t.done && t.status === 'idle')
+// the remote page's icon badge (navigator.setAppBadge: the page's, and Web Push's payload for its service worker): what
+// Needs you counts, a muted tab, a muted or archived workspace and one not in the view aside, as the Dock's count
+export function badgeOf(v: { workspaces: WorkspaceView[]; tabs: TabView[] }) {
+  const live = new Set(v.workspaces.filter(w => !w.muted && !w.archived).map(w => w.id))
+  return v.tabs.filter(t => needsTab(t) && !t.muted && live.has(t.workspace)).length
+}
 export const BOARD = [['working', 'Working'], ['answer', 'Answer'], ['review', 'Review'], ['fix', 'Fix'], ['merge', 'Merge'], ['done', 'Done']] as const
 export type BoardCol = (typeof BOARD)[number][0]
 export function boardCol(w: WorkspaceView, tabs: TabView[], o: { merge?: boolean; git?: boolean } = {}): BoardCol {

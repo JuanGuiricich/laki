@@ -412,6 +412,14 @@ test('D4: remote access link in each format: the tap opens it (ntfy Click, Teleg
   assert.equal(webPushPayload({ format: 'webpush' }, r).url, r.url)
 })
 
+test("10a: Web Push carries the remote page's icon count (badge), 0 too; none given, none sent; the service worker sets it", async () => {
+  assert.equal(webPushPayload({ format: 'webpush' }, { ...p, badge: 3 }).badge, 3)
+  assert.equal(webPushPayload({ format: 'webpush' }, { ...p, badge: 0 }).badge, 0, 'cleared')
+  assert.ok(!('badge' in webPushPayload({ format: 'webpush' }, p)))
+  const main = readFileSync(new URL('../src/daemon/main.ts', import.meta.url), 'utf8')
+  assert.match(main, /navigator\.setAppBadge\(d\.badge\) : navigator\.clearAppBadge\(\)/)
+})
+
 test('D4: remote access pushes its link to the phone when asked (off by default), never its PIN, never with anyone-with-the-link', async t => {
   const got: { head: string; body: string }[] = []
   const server = createServer((req, res) => {

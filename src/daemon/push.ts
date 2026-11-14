@@ -8,7 +8,7 @@ import { createCipheriv, createECDH, createHmac, createPrivateKey, type ECDH, ge
 import { type Webhook, webhookUrl } from '../shared/types.ts'
 
 export type Option = { n: number; label: string }
-export type Push = { event: 'waiting' | 'done' | 'test' | 'long' | 'remote'; workspace: string; tab: string; agent: string; question?: string; options?: Option[]; nonce?: string; key?: string; title?: string; url?: string } // title: its own (a workflow's, remote access's); key: what signs ntfy's taps; url: D4, what a tap on it opens (remote access's link)
+export type Push = { event: 'waiting' | 'done' | 'test' | 'long' | 'remote'; workspace: string; tab: string; agent: string; question?: string; options?: Option[]; nonce?: string; key?: string; title?: string; url?: string; badge?: number } // badge: Web Push's, the remote page's icon count (webPush.badge); title: its own (a workflow's, remote access's); key: what signs ntfy's taps; url: D4, what a tap on it opens (remote access's link)
 
 // an ntfy tap is nonce:n:<sig>, signed with a key in Laki's data folder (never in settings): a tap made up without it
 // is ignored. ponytail: anyone who reads the pushed topic sees the taps too, so answers need a topic only you read (answerOk)
@@ -67,7 +67,7 @@ export function pushRequest(w: Webhook, p: Push, now = Date.now()): RequestInit 
 // (phone.ts fills webPush: remote.ts keeps one per device), the keys this Mac's (vapid.json, 0600)
 export type WebSub = { endpoint: string; p256dh: string; auth: string } // a browser's PushSubscription: its keys base64url
 export type Vapid = { pub: string; key: string } // pub: the raw P-256 public point, base64url (the page's applicationServerKey); key: the private one, PKCS8 PEM
-export const webPush: { devices?: () => WebSub[]; vapid?: () => Vapid; gone?: (endpoint: string) => void } = {}
+export const webPush: { devices?: () => WebSub[]; vapid?: () => Vapid; gone?: (endpoint: string) => void; badge?: () => number } = {} // badge: the icon's count as it's sent (phone.ts: nextStep.ts badgeOf)
 // only a browser vendor's push service takes our bytes (Chrome's, Firefox's, Safari's, Edge's): never this Mac or a
 // network's, whatever a page sent as its endpoint
 export const PUSH_HOSTS = /^(fcm\.googleapis\.com|([\w-]+\.)*push\.services\.mozilla\.com|web\.push\.apple\.com|([\w-]+\.)*notify\.windows\.com)$/
@@ -112,7 +112,7 @@ export function webPushPayload(w: Webhook, p: Push) {
   p = shown(w, p)
   const { title, body } = pushText(p)
   const taps = buttons(p)
-  const o = { title: cut(title, 200), body: cut(body, 1500), tag: p.tab || title, ...(p.url && { url: p.url }), actions: (taps.length > 2 ? [taps[0], taps.at(-1)!] : taps).map(o => ({ title: cut(o.label, 40), tap: `${p.nonce}:${o.n}:${tapSig(p.key ?? '', p.nonce!, o.n)}` })) }
+  const o = { title: cut(title, 200), body: cut(body, 1500), tag: p.tab || title, ...(p.url && { url: p.url }), ...(p.badge !== undefined && { badge: p.badge }), actions: (taps.length > 2 ? [taps[0], taps.at(-1)!] : taps).map(o => ({ title: cut(o.label, 40), tap: `${p.nonce}:${o.n}:${tapSig(p.key ?? '', p.nonce!, o.n)}` })) }
   while (Buffer.byteLength(JSON.stringify(o)) > PAYLOAD_MAX && o.body.length > 1) o.body = cut(o.body, Math.floor(o.body.length * 0.8))
   return o
 }
@@ -124,6 +124,7 @@ export async function pushTo(w: Webhook, p: Push) {
   if (w.format === 'webpush') {
     const subs = webPush.devices?.() ?? []
     if (!subs.length) throw new Error('no phone has notifications on: open remote access there (Tailscale or My domain), add Laki to its Home Screen, then turn notifications on')
+    if (p.badge === undefined && webPush.badge) p = { ...p, badge: webPush.badge() }
     let ok = 0
     for (const s of subs) {
       const r = webPushRequest(w, s, p, webPush.vapid!())

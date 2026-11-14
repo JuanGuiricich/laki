@@ -4,8 +4,9 @@
 import { randomBytes } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { badgeOf } from '../shared/nextStep.ts'
 import { answerOk, pushOn, type Tab, type Webhook, type Workspace } from '../shared/types.ts'
-import { answer, changed, log, rtOf, save, sessions, state } from './core.ts'
+import { answer, changed, log, rtOf, save, sessions, state, view } from './core.ts'
 import { dir } from './dir.ts'
 import { pushTo, replies, type Tap, tapOf, type Vapid, vapidNew, webPush } from './push.ts'
 import { flowHooks } from './schedule.ts'
@@ -184,6 +185,7 @@ export function vapid(): Vapid {
   return vapidIs
 }
 webPush.vapid = vapid
+webPush.badge = () => badgeOf(view()) // the remote page's icon count, as each push goes
 webPush.devices = () => (state.remoteDevices ?? []).filter(d => d.push && d.until > Date.now()).map(d => d.push!)
 webPush.gone = endpoint => {
   for (const d of state.remoteDevices ?? []) if (d.push?.endpoint === endpoint) delete d.push, log(`push: ${d.name}'s notifications are gone (its push service says so)`)

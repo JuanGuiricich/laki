@@ -252,6 +252,10 @@ Try again). The renderer's `pwa.ts` (the remote page only: http(s), no `bridge`)
 meta tags, registers the worker when the manifest answers, and `PwaBar` (App, on a phone) says *Add Laki to your Home
 Screen* (Android's install prompt when the browser offers one) or, when the manifest is closed (a quick tunnel), *Add to
 Home Screen works with a stable address*; installed (`display-mode: standalone`), *Notifications* subscribes.
+The icon's badge (10a): nextStep.ts `badgeOf(view)`, Needs you's count (a muted tab, a muted or archived workspace
+aside), is `navigator.setAppBadge` on the page (App, no `bridge`; `clearAppBadge` at 0) and each Web Push payload's
+`badge` (`pushTo` fills it from `webPush.badge`, phone.ts: `badgeOf(view())`), which `swJs`' push handler sets as it
+shows the notification, so the Home Screen icon counts what waits for you with the page closed.
 Web Push (push.ts, `format: 'webpush'`, Settings › Phone pushes › *This phone (Web Push)*, no URL): VAPID keys made on
 this Mac (`vapid.json`, 0600, P-256: `vapidNew`); `POST /push` from the page's origin with a paired device's cookie
 gives the public key (`{}`), keeps `{ sub }` on that device (`SavedDevice.push`: endpoint, p256dh, auth; the view says

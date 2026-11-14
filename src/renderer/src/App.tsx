@@ -33,7 +33,7 @@ import type { ExtTab } from './Extension'
 import type { FlowStartAt, Sel as FlowSel } from './Workflows'
 import { FLOW_ENDED, type WorkflowItem } from '../../shared/workflow'
 import { Glyph, rollup } from './Glyph'
-import { needsTab, nextStep, type Step, type StepId, waitsElsewhere } from '../../shared/nextStep'
+import { badgeOf, needsTab, nextStep, type Step, type StepId, waitsElsewhere } from '../../shared/nextStep'
 import { bounceOf, dockProgress, inboxOf, stateOf } from '../../shared/tray'
 import { flushDraft, Reader, type ReaderApi, readable } from './Reader'
 import { AskWrap, turnNext } from './Diff'
@@ -940,6 +940,9 @@ export function App() {
   const rem = view?.remote
   useEffect(() => bridge?.handoff?.(view?.settings.remoteHandoff && rem?.url ? { url: rem.url, via: rem.via, host: rem.host } : null), [view?.settings.remoteHandoff, rem?.url, rem?.via, rem?.host])
   useEffect(() => bridge?.badge?.(trayItems.length, trayItems, view?.settings.menuBar !== false, !!view?.settings.recording, trayInfo, dockBar, inboxItems), [trayKey])
+  // the remote page installed as an app: its icon's badge, the same count (its service worker sets it as a push comes)
+  const pageBadge = !bridge && view ? badgeOf(view) : 0
+  useEffect(() => void (!bridge && 'setAppBadge' in navigator && (pageBadge ? navigator.setAppBadge(pageBadge) : navigator.clearAppBadge()).catch(() => {})), [pageBadge])
   // U15: a workspace that starts waiting on you while Laki isn't in front: the Dock bounces once (tray.ts bounceOf)
   const waitedWs = useRef<Set<string> | null>(null)
   useEffect(() => {

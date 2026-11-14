@@ -977,3 +977,12 @@ test('proofMd: the last Done check in a PR body, masked; stale says only that; n
   assert.equal(proofMd(undefined), '')
   assert.match(proofMd({ ...p, checks: [{ ...p.checks[0], name: 'a`b' }] }), /`a'b`/) // a backtick can't end the code span
 })
+
+test("badgeOf: the remote page's icon count is what Needs you counts, muted and archived aside", async () => {
+  const { badgeOf } = await import('../src/shared/nextStep.ts')
+  const w = (id: string, o: object = {}) => ({ id, kind: 'worktree', ...o }) as never
+  const t = (id: string, ws: string, o: object) => ({ id, workspace: ws, name: id, kind: 'agent', status: 'idle', ...o }) as never
+  const v = { workspaces: [w('a'), w('b', { muted: true }), w('c', { archived: true })], tabs: [t('1', 'a', { status: 'waiting' }), t('2', 'a', { done: true }), t('3', 'a', { status: 'running' }), t('4', 'a', { status: 'waiting', muted: true }), t('5', 'b', { status: 'waiting' }), t('6', 'c', { status: 'waiting' }), t('7', 'gone', { status: 'waiting' })] }
+  assert.equal(badgeOf(v), 2)
+  assert.equal(badgeOf({ workspaces: [], tabs: [] }), 0)
+})
