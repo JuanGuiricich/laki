@@ -142,6 +142,25 @@ timeout: a command through `cmdSend` (`spawnIn`, a process group of its own, `li
 (`steps.<child>.*`, its `out:`) through `scrub`, its cost into the run's. `all`: the first bad exit leaves `fail` and
 aborts the rest, else `ok` once every one is; `any`: the first ok leaves `ok`, all bad `fail`. Simulate takes it as one
 block (`simWhat`: each child's); the canvas draws its children in the node (`wf-kids`; a run's `r.par` colors them).
+For-each blocks (`each: <items>`, `as:` (unset: item), `max: N` (`limit`: `EACH_MAX` 10 unset, `EACH_CAP` 50 at most;
+`max: N → id` stays the visits' limit), `continue: yes` (`goOn`), its body as `children`, indented as a parallel's, run
+in order): `check` refuses no items, a max past 50, an `as:` that's taken (`EACH_TAKEN`), no body or more than
+`EACH_BODY`, a kind not in `EACH_KINDS` (agent, llm, run, webhook, action, save, extension: never another each), a way
+out of a body block's own, and an outward action in it (`OUTWARD`) without `confirm: each` (`confirmEach`; never with `ask
+first: no`) or in a workflow that isn't trusted (`calls.untrusted`). The engine: `eachIn` fills the items (`fill`; shared
+`itemsOf`: a JSON list, an object as its JSON, else a line each), cuts them to the max (said in the log), keeps
+`r.each[<block>]` (`items`, `at`, `failed`: saved, a new visit clears it) and `eachItem` sets the item's variables
+(`itemVars`: `<as>`, an object's top fields as `<as>.<field>`) and enters the first body block. Body blocks keep their own
+ids (`blockOf` finds them through `hostOf`), so each is an `enter`: Pause after this block, the budget, the turns limit,
+retries and a restart's `enter(…, true, true)` (the item it was on, its variables saved in `r.vars`) work as anywhere.
+`leave` hands a body block's exit to `eachStep`: the next body block, else the item's outputs (`steps.<id>.items[n].<name>`
+for their `out:` names, `.output` the last one's answer or output), `steps.<id>.count` and `.failed`, then the next item;
+a bad exit (its tries over) leaves `fail` there unless `continue: yes`; the last item `ok`. The item is outside text:
+`outsideVar` names `<as>` and `<as>.*` of a for-each block in scope, so `dataFill` fences it for an agent or a model, and
+`shellFill` makes it an env reference for a command, as other outside values. Simulate takes it as one block (`simWhat`:
+the count and the first item, the body's prompts for it). Run from here: the block itself (a body block isn't one of the
+file's blocks: refused). The canvas draws it as a frame (`wf-each`) with `{{<as>}}` in its head and the body in order; the
+inspector edits its items, name, max, Go on past a failing item and the body.
 Call blocks (`call`, the file's `workflow: <id or name>` and `with task: …`/`with NAME: …` lines): the workflow it names
 in the caller's own folder (yours run yours, a project's its project's: `callFinder`, shared `filesFinder` by id, else
 by `# name`, each parsed and checked alone). `check(wf, calls)` follows them (`item()`'s, the editor's from the page's

@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { tabAgent } from '../shared/install.ts'
 import { agentVars, eventOk, findAction, flowsOn, isAgent, type GateHeld, mergeActions, type RunAction, taskTitle, type Project, type Tab, type Workspace } from '../shared/types.ts'
 import { stamp } from '../shared/when.ts'
-import { queueOrder, ACTIONS, AGENT_TIMEOUT, leftWords, apiQuestions, budgetOf, budgetText, CALL_DEPTH, type Calls, filesFinder, dollars, minutes, type Budget, bypassIn, permOf, permWords, jsonFill, varsFill, fillData, outsideVar, BAD_EXITS, NUM_TESTS, SHOWN_MAX, blockName, branchLabel, branchOf, check, DECIDE_MODELS, exitsOf, fill, FLOW_ENDED, holds, ID, inputVals, jsonAsk, lastJson, OUTWARD, outAsk, outsOf, parse, RETRY_KINDS, SURE, runOf, QUEUE_MAX, PAUSE_AFTER, STATS_RECENT, statsView, RUNS_AT_ONCE, shellFill, TURNS, type Block, type FlowHeard, type FlowRun, type FlowStatus, type FlowWait, type Workflow, type WorkflowItem, type WorkflowSource } from '../shared/workflow.ts'
+import { queueOrder, EACH_CAP, EACH_MAX, itemsOf, itemVars, ACTIONS, AGENT_TIMEOUT, leftWords, apiQuestions, budgetOf, budgetText, CALL_DEPTH, type Calls, filesFinder, dollars, minutes, type Budget, bypassIn, permOf, permWords, jsonFill, varsFill, fillData, outsideVar, BAD_EXITS, NUM_TESTS, SHOWN_MAX, blockName, branchLabel, branchOf, check, DECIDE_MODELS, exitsOf, fill, FLOW_ENDED, holds, ID, inputVals, jsonAsk, lastJson, OUTWARD, outAsk, outsOf, parse, RETRY_KINDS, SURE, runOf, QUEUE_MAX, PAUSE_AFTER, STATS_RECENT, statsView, RUNS_AT_ONCE, shellFill, TURNS, type Block, type FlowHeard, type FlowRun, type FlowStatus, type FlowWait, type Workflow, type WorkflowItem, type WorkflowSource } from '../shared/workflow.ts'
 import { addTab, rtOf, answer as coreAnswer, broadcast, changed, findProject, input as coreInput, findWs, modelCheck, modelKnown, plainEnv, presets, prOf, projectConfig, runDev, save, send as coreSend, sessions, settingUp, shell, ship, state, storageOf, tabStatus, turnEnds, turnWaits, within, unsavedWhy, wsArchive, wsNew, proofIn } from './core.ts'
 import { dir } from './dir.ts'
 import { flowFiles, flowHooks, scheduleFlowEnded } from './schedule.ts'
@@ -371,7 +371,9 @@ const cause = (r: FlowRun) => ({ run: r.id, hops: hop(r) })
 const going = (r: FlowRun) => live(r) && r.status !== 'queued' && !r.sim // what at once: counts (a simulation never)
 const procs = new Map<string, ChildProcess>() // a run block's command, by run
 const calls = new Map<string, AbortController>() // an AI call's or a webhook's request, by run
-const blockOf = (r: FlowRun, id?: string) => r.flow.blocks.find(b => b.id === id) ?? r.inner?.find(b => b.id === id)
+const blockOf = (r: FlowRun, id?: string) => r.flow.blocks.find(b => b.id === id) ?? r.inner?.find(b => b.id === id) ?? hostOf(r, id)?.children?.find(b => b.id === id)
+// the for-each block whose body a block is in (its id: a body's are unique in the file, a call's inlined as <call>/<id>)
+const hostOf = (r: FlowRun, id?: string) => (id ? [...r.flow.blocks, ...(r.inner ?? [])].find(b => b.kind === 'each' && b.children?.some(c => c.id === id)) : undefined)
 const scopeOf = (id?: string) => (id?.includes('/') ? id.slice(0, id.lastIndexOf('/')) : undefined) // a called block's call block
 const wsOf = (r: FlowRun) => state.workspaces.find(w => w.id === r.ws)
 const clip = (s: string, n = 100) => {
@@ -662,6 +664,13 @@ function simWhat(r: FlowRun, b: Block, vars: Record<string, string>): string {
       return `fetch ${b.extension ?? ''}`
     case 'parallel':
       return (b.children ?? []).map(c => `${blockName(c)}: ${simWhat(r, c, vars)}`).join('\n\n')
+    case 'each': {
+      // its count and its first item: what the body would get first
+      const { items, all, cap } = eachList(b, vars)
+      if (!items.length) return 'no items'
+      const v = { ...vars, ...itemVars(b.as || 'item', items[0]) }
+      return [`${items.length} item${items.length === 1 ? '' : 's'}${all > cap ? ` (of ${all}: max ${cap})` : ''}, the first: ${clip(items[0], 200)}`, ...(b.children ?? []).map(c => `${blockName(c)}: ${simWhat(r, c, v)}`)].join('\n\n')
+    }
     default:
       return '' // start, choice, case, wait: nothing goes out
   }
@@ -736,6 +745,7 @@ function enter(r: FlowRun, b: Block, again = false, cut = false): void {
     r.visits[b.id] = n
     if (r.tries?.[b.id]) delete r.tries[b.id] // entered anew: its tries again are its own
     if (r.par?.[b.id]) delete r.par[b.id] // and a parallel's children all run again
+    if (r.each?.[b.id]) delete r.each[b.id] // and a for-each block's items from their first
   }
   if (spend(r)) return budgetAsk(r, b) // its visit counted: Give it more enters it again without one
   Object.assign(r, { cur: b.id, at: Date.now(), wait: undefined, status: 'running' })
@@ -749,6 +759,8 @@ function leave(r: FlowRun, b: Block, exit: string, why: string, you = false): vo
   if (!you && BAD_EXITS.includes(exit) && retry(r, b, why)) return
   decide(r, b, exit, why, you)
   say(r, `${blockName(b)} → ${exit}: ${why}`)
+  const host = hostOf(r, b.id)
+  if (host) return eachStep(r, host, b, exit, why) // a for-each block's body: its next block, or the next item
   const e = exitsOf(b).find(x => x.name === exit)
   if (!e?.to && BAD_EXITS.includes(exit)) return stuck(r, b, `${blockName(b)}: ${why}`)
   if (!e?.to && scopeOf(b.id)) return back(r, b, 'ok', `${blockName(b)}'s ${exit} leads nowhere: the end`)
@@ -795,6 +807,8 @@ async function work(r: FlowRun, b: Block) {
   switch (b.kind) {
     case 'parallel':
       return parallel(r, b, vars)
+    case 'each':
+      return eachIn(r, b, vars)
     case 'call':
       return callIn(r, b, vars)
     case 'start':
@@ -1285,6 +1299,63 @@ function cmdSend(r: FlowRun, b: Block, ws: Workspace, vars: Record<string, strin
         ok({ exit: code === 0 ? 'ok' : 'fail', why: late ? `stopped after ${min} min` : sig ? `killed (${sig})` : `exit ${code}${code ? `: ${clip(lines.at(-1) ?? '', 80)}` : ''}`, vars: { [`steps.${b.id}.output`]: tail, [`steps.${b.id}.code`]: String(code ?? -1) }, text: lines.join('\n') })
       })
     })
+}
+
+// a for-each block (shared/workflow.ts EACH_*): its list filled (a JSON list, or a line each), cut to its max; its body
+// runs once per item in order, the item as {{<as>}} (an object's fields too), outside text (outsideVar: fenced for an
+// agent or a model, env for a command). r.each keeps where it is, so a restart goes on at that item; each body block's
+// entry is an enter (Pause after this block, the budget, the turns are checked between them and between items)
+function eachList(b: Block, vars: Record<string, string>) {
+  const all = itemsOf(fill(b.items ?? '', vars))
+  const cap = Math.min(b.limit ?? EACH_MAX, EACH_CAP)
+  return { items: all.slice(0, cap), all: all.length, cap }
+}
+function eachIn(r: FlowRun, b: Block, vars: Record<string, string>) {
+  const { items, all, cap } = eachList(b, vars)
+  for (const k of Object.keys(r.vars)) if (k.startsWith(`steps.${b.id}.`)) delete r.vars[k] // an earlier visit's
+  ;(r.each ??= {})[b.id] = { items, at: 0, failed: 0 }
+  r.vars[`steps.${b.id}.count`] = '0'
+  r.vars[`steps.${b.id}.failed`] = '0'
+  if (all > cap) say(r, `${blockName(b)}: ${all} items, the first ${cap} run (max: ${cap})`)
+  if (!items.length || !b.children?.length) return leave(r, b, 'ok', 'no items')
+  say(r, `${blockName(b)}: ${items.length} item${items.length === 1 ? '' : 's'}`)
+  eachItem(r, b)
+}
+// the item it's on: its variables (the last item's fields gone), then its body's first block
+function eachItem(r: FlowRun, b: Block) {
+  const e = r.each![b.id]
+  const as = b.as || 'item'
+  for (const k of Object.keys(r.vars)) if (k === as || k.startsWith(`${as}.`)) delete r.vars[k]
+  Object.assign(r.vars, itemVars(as, e.items[e.at]))
+  say(r, `${blockName(b)}: item ${e.at + 1} of ${e.items.length}`, e.items[e.at])
+  touch()
+  enter(r, b.children![0])
+}
+// a body block left: the next one, else this item is done (its outputs as steps.<id>.items[n].*): the next item, else
+// the block's ok. A bad exit (its tries again over) fails the block there, unless continue: yes
+function eachStep(r: FlowRun, b: Block, kid: Block, exit: string, why: string) {
+  const e = r.each?.[b.id]
+  if (!e) return stuck(r, kid, `${blockName(b)}: its items are gone (it started again elsewhere)`)
+  const kids = b.children ?? []
+  const i = kids.findIndex(k => k.id === kid.id)
+  const bad = BAD_EXITS.includes(exit)
+  if (!bad && i + 1 < kids.length) return enter(r, kids[i + 1])
+  const n = `steps.${b.id}.items[${e.at}]`
+  for (const x of kids.slice(0, i + 1)) for (const name of x.out ?? []) if (r.vars[`steps.${x.id}.${name}`] !== undefined) r.vars[`${n}.${name}`] = r.vars[`steps.${x.id}.${name}`]
+  const last = r.vars[`steps.${kid.id}.answer`] ?? r.vars[`steps.${kid.id}.output`]
+  if (last !== undefined) r.vars[`${n}.output`] = last
+  if (bad) e.failed++
+  r.vars[`steps.${b.id}.count`] = String(e.at + 1)
+  r.vars[`steps.${b.id}.failed`] = String(e.failed)
+  r.cur = b.id // its leave, or its next item's first block
+  const as = b.as || 'item'
+  const done = (exit: string, words: string) => {
+    for (const k of Object.keys(r.vars)) if (k === as || k.startsWith(`${as}.`)) delete r.vars[k]
+    leave(r, b, exit, words)
+  }
+  if (bad && !b.goOn) return done('fail', `item ${e.at + 1} of ${e.items.length}: ${blockName(kid)}: ${why}`)
+  if (++e.at < e.items.length) return eachItem(r, b)
+  done('ok', `${e.items.length} item${e.items.length === 1 ? '' : 's'}${e.failed ? `, ${e.failed} failed (continue: yes)` : ''}`)
 }
 
 // a call block: its workflow's blocks (inlined as the run started) from their start, afresh: their visits, variables

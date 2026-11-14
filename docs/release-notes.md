@@ -5,6 +5,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
+- Workflows have a *For each* block: its blocks run once per item of a list (an earlier step's JSON list, or a line each), the item as `{{item}}`, up to 50 items; a failing item stops it unless *continue: yes*.
 - *Hide bubbles and cards from screen recording* (Settings › Extras, on for new installs): screen sharing, recordings and screenshots leave out the bubbles, Laki's cards on screen and the quick bar. Recording mode does it too.
 - Long-press Laki's icon on an Android Home Screen for *New task*, *Needs you* and *Last workspace*.
 - Laki on your phone's Home Screen shows a count on its icon: the agents that wait for you, kept up to date by each push even with the page closed.

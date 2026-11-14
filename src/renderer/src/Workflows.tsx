@@ -9,7 +9,7 @@ import { type ChangeEvent, Fragment, type PointerEvent as PE, useEffect, useLayo
 import { type Agent, FAST, findAction, mergeActions, neverAsks, PERMS, WIDGET_EVENTS, type Preset, type Project, type RunAction, type WorkspaceView } from '../../shared/types'
 import { ago } from '../../shared/widget'
 import { Grouped } from './Schedules'
-import { queueOrder, ACTIONS, AGENT_TIMEOUT, askMinutes, askWait, leftWords, DONES, TURNS, budgetOf, budgetText, type Budget, dollars, minutes, apiQuestions, bypassIn, flowVars, permOf, permWords, VAR_NAME, QTYPE_INFO, renameBlock, routesOf, workflowAsk, BAD_EXITS, BLOCK_NAMES, DECIDE_MODELS, type DecideQ, fromApi, NUM_TESTS, QTYPES, SURE, blockName, branchLabel, branchOf, type Block, type BlockKind, check, type Calls, hints, PAR_KINDS, PAR_MAX, PAR_MIN, EXITS, exitsOf, FLOW_ENDED, type FlowRun, type FlowView, flowView, MAX_BLOCKS, optioned, parse, RESULTS, runOf, SESSIONS, TESTS, toFile, WAITS, WHERES, METHODS, OUT_KINDS, OUT_NAME, OUT_TAKEN, RETRY_KINDS, RETRY_MAX, RUNS_AT_ONCE, inputsOf, inputText, type Shown, type Workflow, type WorkflowItem, type WorkflowSource, whenProblem } from '../../shared/workflow'
+import { queueOrder, EACH_BODY, EACH_CAP, EACH_KINDS, EACH_MAX, ACTIONS, AGENT_TIMEOUT, askMinutes, askWait, leftWords, DONES, TURNS, budgetOf, budgetText, type Budget, dollars, minutes, apiQuestions, bypassIn, flowVars, permOf, permWords, VAR_NAME, QTYPE_INFO, renameBlock, routesOf, workflowAsk, BAD_EXITS, BLOCK_NAMES, DECIDE_MODELS, type DecideQ, fromApi, NUM_TESTS, QTYPES, SURE, blockName, branchLabel, branchOf, type Block, type BlockKind, check, type Calls, hints, PAR_KINDS, PAR_MAX, PAR_MIN, EXITS, exitsOf, FLOW_ENDED, type FlowRun, type FlowView, flowView, MAX_BLOCKS, optioned, parse, RESULTS, runOf, SESSIONS, TESTS, toFile, WAITS, WHERES, METHODS, OUT_KINDS, OUT_NAME, OUT_TAKEN, RETRY_KINDS, RETRY_MAX, RUNS_AT_ONCE, inputsOf, inputText, type Shown, type Workflow, type WorkflowItem, type WorkflowSource, whenProblem } from '../../shared/workflow'
 import { tabAgent } from '../../shared/install'
 import { pageNow } from './api'
 import { highlightWorkflow } from './highlight'
@@ -41,7 +41,7 @@ type At = { kind: 'index' } | { kind: 'wf'; sel: Sel } | { kind: 'run'; id: stri
 const W = 180
 const H = 58
 const RUNS_SHOWN = 12
-const KIND_COLOR: Record<BlockKind, string> = { start: 'teal', agent: 'purple', llm: 'red', decide: 'yellow', popup: 'teal', webhook: 'brown', run: 'blue', choice: 'yellow', case: 'yellow', ask: 'orange', action: 'green', wait: 'pink', save: 'lime', extension: 'teal', parallel: 'blue', call: 'teal', end: 'gray' }
+const KIND_COLOR: Record<BlockKind, string> = { start: 'teal', agent: 'purple', llm: 'red', decide: 'yellow', popup: 'teal', webhook: 'brown', run: 'blue', choice: 'yellow', case: 'yellow', ask: 'orange', action: 'green', wait: 'pink', save: 'lime', extension: 'teal', parallel: 'blue', each: 'blue', call: 'teal', end: 'gray' }
 const STATUS_WORDS: Record<string, string> = { queued: 'queued', running: 'running', waiting: 'asks you', paused: 'paused', done: 'done', stopped: 'stopped', failed: 'failed' }
 const statusWords = (r: { status: string; hold?: number }) => (r.hold ? 'pausing' : STATUS_WORDS[r.status]) // Pause after this block, asked: its block finishing
 const atEnd = (r: { wait?: FlowRun['wait'] }) => r.wait?.kind === 'hold' && r.wait.end !== undefined // parked before the run's end: cur is the block it finished
@@ -611,6 +611,7 @@ function subOf(b: Block, wf: Workflow) {
     case 'wait': return WAITS[b.for ?? ''] ?? b.for ?? ''
     case 'save': return b.link !== undefined ? `link: ${b.link}` : b.from !== undefined ? `${b.from} → ${b.file ?? ''}` : b.file ?? ''
     case 'parallel': return `${b.join === 'any' ? 'the first ok' : 'every one ok'} · ${b.children?.length ?? 0} at once`
+    case 'each': return [b.items, `max ${b.limit ?? EACH_MAX}`, b.goOn && 'goes on past a failure'].filter(Boolean).join(' · ')
     case 'call': return b.with?.task ? `task: ${b.with.task}` : ''
     case 'end': return `${b.result ?? 'success'}${shows(b, !!b.modal)}`
   }
@@ -758,6 +759,22 @@ function Canvas({ wf, sel, many = [], onPick, onMany, onMove, onMenu, onDrop, on
               </div>
               <div className="t">{blockName(b)}</div>
               <div className="s">{subOf(b, wf)}</div>
+              {b.kind === 'each' && (
+                // a frame around its body: the item's variable in its head, the blocks it runs for each, in order
+                <div className="wf-kids wf-each" aria-label={`For each {{${b.as || 'item'}}}`}>
+                  <div className="wf-each-head">
+                    for each <code>{`{{${b.as || 'item'}}}`}</code>
+                  </div>
+                  {(b.children ?? []).map((c, i) => (
+                    <div key={c.id} className="wf-kid" data-state={lit?.state[c.id]} style={{ ['--kc' as string]: `var(--tc-${KIND_COLOR[c.kind] ?? 'gray'})` }}>
+                      <b>
+                        {i + 1}. {blockName(c)}
+                      </b>
+                      <span>{subOf(c, wf)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {b.kind === 'parallel' && (
                 <div className="wf-kids">
                   {(b.children ?? []).map(c => (
@@ -1059,6 +1076,7 @@ const KIND_SAYS: Record<BlockKind, string> = {
   save: 'Text, a file or a link, into the workspace’s Artifacts',
   extension: 'Fetch one of your extensions now: its data as variables',
   parallel: 'Commands, AI calls or webhooks at once: every one ok, or the first',
+  each: 'Its blocks once per item of a list, in order',
   call: 'Another workflow, inside this run: its outputs back',
   end: 'Done, stopped or failed',
 }
@@ -1100,6 +1118,7 @@ const NEW_BLOCK: Record<BlockKind, Partial<Block>> = {
   save: { name: 'Save', file: 'notes.md', text: '{{prev}}' },
   extension: { name: 'Extension', extension: '' },
   parallel: { name: 'Checks', children: [{ id: 'lint', kind: 'run', cmd: 'npm run lint' }, { id: 'test', kind: 'run', cmd: 'npm test' }] },
+  each: { name: 'Each file', items: '{{prev}}', children: [{ id: 'one', kind: 'agent', agent: 'claude', text: 'Look at {{item}}' }] },
   call: { name: 'Run workflow', workflow: '', with: { task: '{{task}}' } },
   end: { name: 'Done', result: 'success' },
 }
@@ -1110,7 +1129,7 @@ function picks(actions: RunAction[], presets: Preset[]): { head: string; items: 
   const one = (k: BlockKind): Pick => ({ label: BLOCK_NAMES[k], sub: KIND_SAYS[k], kind: k })
   const presetOf = (a: RunAction) => (a.target !== 'any' && presets.some(p => p.name === a.target) ? a.target : undefined)
   return [
-    { head: 'Blocks', items: [one('agent'), ...(['run', 'parallel', 'call', 'choice', 'case', 'ask', 'popup', 'action', 'wait'] as const).map(one)] },
+    { head: 'Blocks', items: [one('agent'), ...(['run', 'parallel', 'each', 'call', 'choice', 'case', 'ask', 'popup', 'action', 'wait'] as const).map(one)] },
     { head: 'Agent actions', items: actions.map(a => ({ label: a.name, sub: a.slug, pill: a.target === 'any' ? undefined : a.target, kind: 'agent', more: { name: a.name, use: ref(a), text: undefined, ...(presetOf(a) && { agent: presetOf(a) }) } })) },
     { head: 'Outside Laki', items: [one('llm'), one('decide'), one('webhook'), one('extension')] },
     {
@@ -1276,7 +1295,7 @@ A \`## id\` per block. Its first key says its kind: \`input: task\` (start), \`a
 
 \`> lines\` are its prompt (or text). Exits: \`next: id\`, \`ok:\`, \`fail:\`, \`error:\`, \`pass:\`; a choice's and an ask's options: \`- Label → id\`. \`max: 3 → id\` limits a block (every loop needs one, or an ask). \`retry: 2\` on an agent, run, llm, decide or extension block tries it again after a fail or an error (10 s, then 60 s), before it goes that way; a run block's \`retry on: 1, 75\`: only those exit codes. \`at: x,y\`: where it's drawn.
 
-\`parallel: all|any\` with 2 to 6 blocks indented under it (\`  ## lint\`, then \`  run: npm run lint\`): commands, AI calls or webhooks at once, each its own \`{{steps.<id>.*}}\`; all goes on once every one is ok, any with the first. \`workflow: <id or name>\` runs another of the same place inside this run, \`with task: …\` and \`with NAME: …\` lines its task and values; its blocks' \`out:\` names come back as \`{{steps.<id>.<name>}}\`, 3 deep at most.
+\`parallel: all|any\` with 2 to 6 blocks indented under it (\`  ## lint\`, then \`  run: npm run lint\`): commands, AI calls or webhooks at once, each its own \`{{steps.<id>.*}}\`; all goes on once every one is ok, any with the first. \`each: {{steps.<id>.answer}}\` (\`as: file · max: 20 · continue: yes\`) runs the blocks indented under it once per item of a list (a JSON list, or a line each), in order, the item as \`{{item}}\` (fenced for agents: outside text); after it \`{{steps.<id>.count}}\` and each item's \`{{steps.<id>.items[0].output}}\`. \`workflow: <id or name>\` runs another of the same place inside this run, \`with task: …\` and \`with NAME: …\` lines its task and values; its blocks' \`out:\` names come back as \`{{steps.<id>.<name>}}\`, 3 deep at most.
 
 Variables: \`{{task}}\`, \`{{answer}}\` (your last), \`{{steps.<id>.answer}}\` (an agent's), \`{{steps.<id>.output}}\` (a command's last lines, a wait's failed checks, a webhook's response), \`{{steps.<id>.log}}\` (the end of a wait's failed GitHub Actions logs), \`{{steps.<id>.status}}\` (a webhook's HTTP status), \`{{steps.<id>.<name>}}\` (its \`out:\`), \`{{env.NAME}}\` (a webhook's only), \`{{pr.url}}\`, \`{{ws.branch}}\`, \`{{base}}\`, \`{{project}}\`.`
 
@@ -1515,6 +1534,41 @@ function Inspector({ wf, flows = [], onCall, id, presets, actions, exts, edit, o
         <>
           {field('Command', text(b.cmd, (x, v) => (x.cmd = v), false, 'npm test'), 'In the run’s folder; its exit code picks ok or fail. Variables are quoted.')}
           {field('Timeout (minutes)', <Typed type="number" min={1} value={b.timeout ?? 10} onText={v => set(x => void (x.timeout = Number(v) || undefined))} />)}
+        </>
+      )}
+      {b.kind === 'each' && (
+        <>
+          {field('Items', text(b.items, (x, v) => (x.items = v), true, '{{steps.list.answer}}'), 'A JSON list, or a line each: an earlier block’s answer or output')}
+          {field('Each one as', <Typed value={b.as ?? ''} placeholder="item" onText={v => set(x => void (x.as = v.trim() || undefined))} />, `Its blocks read it as {{${b.as || 'item'}}} (an object’s fields as {{${b.as || 'item'}.name}}): outside text, fenced for agents`)}
+          {field(`At most (1 to ${EACH_CAP})`, <Typed type="number" min={1} max={EACH_CAP} value={b.limit ?? EACH_MAX} onText={v => set(x => void (x.limit = Number(v) && Number(v) !== EACH_MAX ? Number(v) : undefined))} />, 'A longer list is cut there, and the log says so')}
+          <Switch className="switch-row" on={!!b.goOn} onChange={v => set(x => void (x.goOn = v || undefined))}>
+            Go on past a failing item (off: it stops there, its fail way goes on)
+          </Switch>
+          <div className="wf-field">
+            <label>For each item, in order (1 to {EACH_BODY})</label>
+            {(b.children ?? []).map((c, i) => (
+              <div key={i} className="wf-kid-edit">
+                <IdField key={c.id} id={c.id} rename={to => edit(w => void renameBlock(w, c.id, to))} check={to => renameBlock(JSON.parse(JSON.stringify(wf)), c.id, to)} />
+                <div className="wf-kid-row">
+                  <select value={c.kind} aria-label="What it is" onChange={e => set(x => void (x.children![i] = (({ name: _, ...d }) => ({ id: c.id, kind: e.target.value as BlockKind, ...JSON.parse(JSON.stringify(d)) }))(NEW_BLOCK[e.target.value as BlockKind])))}>
+                    {EACH_KINDS.map(k => (
+                      <option key={k} value={k}>{BLOCK_NAMES[k]}</option>
+                    ))}
+                  </select>
+                  <IconButton icon="x" title="Remove it" disabled={(b.children?.length ?? 0) <= 1} onClick={() => set(x => void x.children!.splice(i, 1))} />
+                </div>
+                {(c.kind === 'agent' || c.kind === 'llm') && <Typed area rows={2} value={c.text ?? ''} placeholder="Its prompt" aria-label="Its prompt" onText={v => set(x => void (x.children![i].text = v || undefined))} />}
+                {c.kind === 'run' && <Typed value={c.cmd ?? ''} placeholder="npm test" aria-label="Its command" onText={v => set(x => void (x.children![i].cmd = v))} />}
+                {c.kind === 'webhook' && <Typed value={c.url ?? ''} placeholder="https://example.com/hook" aria-label="Its URL" onText={v => set(x => void (x.children![i].url = v.trim()))} />}
+              </div>
+            ))}
+            {(b.children?.length ?? 0) < EACH_BODY && (
+              <button type="button" className="ghost" onClick={() => edit(w => void (w.blocks.find(x => x.id === b.id)!.children ??= []).push({ id: freeId(w, 'step'), kind: 'run', cmd: 'echo "$item"' }))}>
+                Add one
+              </button>
+            )}
+            <span className="wf-hint">More of a kind (a model, out: names, confirm: each for an outward action) in the file</span>
+          </div>
         </>
       )}
       {b.kind === 'parallel' && (
