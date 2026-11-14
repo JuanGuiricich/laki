@@ -2621,6 +2621,14 @@ or its path, opens it, or shows it in Finder. The strip's ⋯ has *Show in
   message (`laki send`, a scheduled task, the PR buttons) resumes the chat (`--resume`), and a message waits until
   it's up. Never one with a dev server listening under it, getting PR feedback (the PR switches), or on an SSH
   host. An agent grows the longer it runs; a resumed one starts small.
+- *Disk* (Resources): what each project's workspaces take on disk, biggest first, a bar each: the worktree (its
+  dependency folders named: `node_modules`, `.venv`, `target`…; one Laki cloned is *may be shared*, as APFS keeps a
+  clone's files once until either side changes), kept turns, the storage folder and an archive's saved changes, with
+  the free space on the volume. It's measured as you open it (`du`, at low priority, two folders at a time) and kept
+  10 minutes; *Measure again* does it now. Three buttons make room, each naming what goes first: *Kept turns over 7
+  days old* (workspaces with no turn running), *Storage of merged archives* (to the trash) and *Archives over 30 days
+  old* (as the archive age setting deletes them: what's their own goes to the trash after a day's notice). Nothing
+  outside Laki's own data and the worktrees it made. `laki doctor --disk` prints it.
 - *Hidden browser pages* (Resources; off unless you turn it on, 2 GB to start): over the budget, the oldest Browsers page you aren't on
   is unloaded, one every 15 seconds at most; opening it loads its address again, but what you typed or scrolled to isn't kept. Never the
   page you're on, the two you used last, or one playing, downloading, being inspected, or with typing or form edits. Pressing a key in a page
@@ -2739,6 +2747,7 @@ laki wait fix-the-login dark --timeout 20m              # until neither's agent 
 laki --version                                          # this CLI's version, and the daemon's when it runs
 laki doctor                                             # git, gh, the agents, hooks: ✓ ● ✗ and a fix each; exit 1 on a ✗
 laki doctor --bundle | pbcopy                           # diagnostics for a bug report (redacted): Help › Copy diagnostics too
+laki doctor --disk                                      # what each workspace takes on disk, and the free space (Settings › Resources › Disk)
 laki progress 40 "writing the tests"                    # in an agent's tab: its estimate, shown on the tab
 path=$(laki secret "Stripe test key")                   # in an agent's tab: you type it on a masked card; it gets a 0600 file's path
 laki alert "Ship it?" --choice Ship --choice Wait       # an important card on your screen; prints your pick

@@ -3104,6 +3104,7 @@ async function cloneDirs(proj: Project, ws: Workspace) {
       if (!within(root, realpathSync(src)) || !within(to, realpathSync(up))) continue
       mkdirSync(dirname(dst), { recursive: true })
       await run('cp', process.platform === 'darwin' ? ['-cR', src, dst] : ['--reflink=auto', '-R', src, dst], { timeout: 10 * 60_000 })
+      ws.cloned = [...new Set([...(ws.cloned ?? []), rel])]
       wsLog(ws, `cloned ${rel} in ${Date.now() - began} ms`)
       log(`cloned ${rel} into ${ws.id} in ${Date.now() - began} ms`)
     } catch (e) {
@@ -3370,11 +3371,19 @@ export const soonSay: { fn?: (ws: Workspace) => void } = {} // main.ts': the not
 const DAY = 86400e3
 const TRASH_DAYS = 30 // Linux's trash folder (Laki's own): what's in it this long goes, as workflows' trash
 const trashRoot = () => (process.platform === 'darwin' ? join(homedir(), '.Trash') : join(dir, 'trash'))
-const storageFull = (ws: Workspace) => !!ws.storage && !state.settings?.keepStorage && basename(ws.storage).includes(ws.id) && (() => { try { return readdirSync(ws.storage!).some(f => f !== 'proof' && f !== 'chats') } catch { return false } })() // the Proof card's folder and the chats kept (keepChats): Laki's own record, not yours; they go with the rest
+export const storageFull = (ws: Workspace) => !!ws.storage && !state.settings?.keepStorage && basename(ws.storage).includes(ws.id) && (() => { try { return readdirSync(ws.storage!).some(f => f !== 'proof' && f !== 'chats') } catch { return false } })() // the Proof card's folder and the chats kept (keepChats): Laki's own record, not yours; they go with the rest
 const repoOf = (ws: Workspace) => (ws.host ? '' : (state.projects.find(p => p.id === ws.project)?.path ?? ''))
 // what deleting it would lose for good, in words: none, nothing of its own
 export async function hasSaved(ws: Workspace) {
   return [(await archiveHas(repoOf(ws), ws.id)) && 'its uncommitted changes', storageFull(ws) && 'its storage folder'].filter((x): x is string => !!x)
+}
+// Disk's Tidy: a workspace's storage folder alone to the trash (<name>-<time>/<folder>), as trashSaved puts it
+export function storageTrash(ws: Workspace, now = Date.now()) {
+  if (!storageFull(ws)) return
+  const to = join(trashRoot(), `${String(ws.name ?? ws.id).replace(/[^\w.-]+/g, '-').replace(/^[-.]+/, '').slice(0, 60) || ws.id}-storage-${now}`)
+  mkdirSync(to, { recursive: true, mode: 0o700 })
+  moveFile(ws.storage!, join(to, basename(ws.storage!)))
+  return to
 }
 // its kept changes as changes.patch (git apply puts them back) and its storage folder, in the trash as <name>-<time>
 async function trashSaved(ws: Workspace, now: number) {
@@ -3395,14 +3404,17 @@ function trashTidy(now: number) {
 }
 const soonList = () => state.workspaces.filter(w => w.archived && w.soon).map(w => ({ id: w.id, name: w.name ?? w.id, what: w.soon!.what }))
 let tidying: Promise<void> | undefined // one run at a time: the hourly tick and the start's (its awaits between the checks and the trash)
-export const archivedTidy = (now = Date.now()) => (tidying ??= tidyNow(now).finally(() => (tidying = undefined)))
-async function tidyNow(now: number) {
+// days: Disk's Tidy (archives past that many days, now: through the same notice and trash; a noticed one keeps its days,
+// soon.days, for the hourly run to finish)
+export const archivedTidy = (now = Date.now(), days?: number) => (tidying ??= tidyNow(now, days).finally(() => (tidying = undefined)))
+async function tidyNow(now: number, over?: number) {
   trashTidy(now)
-  const days = Number(state.settings?.archivedDays)
-  if (!(days > 0)) return
+  const set = Number(state.settings?.archivedDays)
   let n = 0
   let dated = false
   for (const ws of state.workspaces.filter(w => w.archived)) {
+    const days = over ?? ws.soon?.days ?? set
+    if (!(days >= 0) || (over === undefined && ws.soon?.days === undefined && !(set > 0))) continue // archivedDays unset: only Disk's Tidy's
     if (!ws.archivedAt) (ws.archivedAt = now), (dated = true)
     const due = ws.archivedAt + days * DAY
     if (now < due - DAY) {
@@ -3411,7 +3423,7 @@ async function tidyNow(now: number) {
     }
     const what = await hasSaved(ws)
     if (!ws.soon) {
-      ws.soon = { at: now, what }
+      ws.soon = { at: now, what, ...(over !== undefined && { days: over }) }
       dated = true
       soonSay.fn?.(ws)
       log(`${ws.id}: deleted within a day (archived over ${days} days)${what.length ? `; ${what.join(' and ')} to the trash` : ''}`)
@@ -3471,6 +3483,7 @@ export async function wsArchive(ref: string, o: { ifClean?: boolean } & GateOpts
   if (ws.codespace) await cs.stop(ws.codespace).then(() => (ws.csState = 'Shutdown'))
   await archiveKeep(ws) // R2: its uncommitted files, for Restore
   keepChats(ws) // its agents' chats, in case an agent deletes its own old ones
+  if (prs.get(ws.id)?.state === 'MERGED' || ws.autoArchived) ws.merged = true // Disk's Tidy: an archive whose PR merged
   await teardown(ws)
   ws.archived = true
   ws.archivedAt = Date.now()

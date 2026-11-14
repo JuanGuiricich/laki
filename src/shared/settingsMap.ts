@@ -245,6 +245,7 @@ export const FIND: [string, string, string?][] = [
   ['simulator', 'Emulator window', 'android emulator window headless no-window one instance avd'],
   ['achievements', 'Show achievements', 'trophy trophies badges unlock tour learn gamification'],
   ['resources', 'Memory', 'ram cpu usage processes monitor activity heavy slow'],
+  ['resources', 'Disk', 'disk space storage size du node_modules worktrees free tidy clean room gigabytes full'],
   ['resources', 'Sleep idle agents after', 'memory ram free idle suspend hibernate'],
   ['resources', 'Unload hidden pages over a memory budget', 'browser memory ram free webview discard tabs'],
 ]

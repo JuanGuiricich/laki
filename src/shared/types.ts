@@ -230,7 +230,7 @@ export type Workspace = {
   noSetup?: boolean // made without its setup script (wsNew noSetup): Run ▾'s Run the setup script (run's setup) clears it
   archivedAt?: number // when (ms), for settings.archivedDays
   reviewed?: { at: number; tree: string; turn?: number } // R11: Since I reviewed's mark (turns.ts reviewMark): when, the worktree's tree then, the newest kept turn then
-  soon?: { at: number; what: string[] } // R8: told it goes within a day (archivedTidy): when, and what it keeps that would go to the trash
+  soon?: { at: number; what: string[]; days?: number } // R8: told it goes within a day (archivedTidy): when, and what it keeps that would go to the trash; days: Disk's Tidy's, not archivedDays
   color?: string // its sidebar color's name
   name?: string // shown instead of the id (which names the worktree and branch)
   term?: boolean // made as a terminal (quickNew's shells): its menus close it, no branch or PR items
@@ -246,6 +246,8 @@ export type Workspace = {
   autoFix?: boolean // failing CI goes to the agent
   autoReview?: boolean // new PR review comments go to the agent
   autoMerge?: boolean // merge conflicts with the PR's base go to the agent
+  cloned?: string[] // the folders Laki cloned into it (core's cloneDirs: APFS clones), for Disk's "may be shared"
+  merged?: true // archived with its PR merged (Disk's Tidy)
   secretOk?: string[] // Ship's secret check: the hashes of what you said is not a secret (findSecrets'), here only; never in the view (wsOut)
   autoLand?: boolean // merge when green: Laki merges the PR (its project's last way) once all checks pass, no conflicts, not a draft, approved if it must be
   fix?: PRFix // what autoFix/autoReview/autoMerge/autoLand did already
@@ -1161,6 +1163,13 @@ export type GateHeld = { widget: string; name: string; gate: Gate; why: string; 
 // what an agent did through Laki's API (daemon agentLog.ts): when, its tab and workspace, the method, names and ids only
 // (what), refused: why it wasn't done
 export type AgentDid = { at: number; tab: string; ws: string; method: string; what?: string; refused?: string }
+// Settings › Resources › Disk (resources.ts diskScan): each workspace's parts in bytes. worktree: its folder, deps in it
+// (CLONE_DIRS; shared: cloned by Laki, APFS's clones counted whole, so maybe on disk once); turns: its kept turns' git
+// objects no branch has (none: git can't say); storage: its folder; saved: an archive's uncommitted files in git
+export type DiskPart = { what: 'worktree' | 'deps' | 'turns' | 'storage' | 'saved'; name?: string; bytes: number; shared?: true }
+export type DiskWs = { id: string; name: string; archived?: true; merged?: true; parts: DiskPart[]; bytes: number }
+export type DiskUsage = { at: number; free?: number; projects: { id: string; name: string; bytes: number; workspaces: DiskWs[] }[] }
+export type DiskTidyWhat = 'turns' | 'storage' | 'archives'
 export type SecretFound = { file: string; line: number; kind: string; masked: string; hash: string }
 // events of your own (laki widget emit): custom.<name>; "custom.*" in on: answers every one
 export const CUSTOM_EVENT = /^custom\.[a-z0-9][a-z0-9._-]{0,40}$/
@@ -1274,7 +1283,7 @@ export type PlanPin = { project: string; kind: PlanKind; slug: string; title: st
 export const RAIL_PINS = 5 // the rail's quick access: workspaces, terminals or browsers pinned there
 // a file's blame (the daemon's blame): its commits, and each line's (lines[n - 1]: line n's index into commits; -1: none)
 export type Blame = { commits: { sha: string; author: string; at: number; summary: string }[]; lines: number[] }
-export const API = 185
+export const API = 186
 export const REPO = 'https://github.com/igorkasyanchuk/laki' // About's and Help's links, the widget schema's raw URL
 
 // the agent browser's open, click or fill (main's browse): what it caused. nav: the page it moved to; errors: the

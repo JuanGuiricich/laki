@@ -2,10 +2,12 @@
 // agents put to sleep. core.ts imports it, and its users import it directly.
 
 import { type ChildProcess, spawn } from 'node:child_process'
-import { basename } from 'node:path'
-import { type Proc, type ProcUse, type Resources, SLEEP_AFTER, type Tab } from '../shared/types.ts'
+import { existsSync, lstatSync, statfsSync } from 'node:fs'
+import { basename, join } from 'node:path'
+import { type DiskPart, type DiskTidyWhat, type DiskUsage, type DiskWs, type Proc, type ProcUse, type Resources, SLEEP_AFTER, type Tab } from '../shared/types.ts'
+import { dir } from './dir.ts'
 import { scanArtifacts } from './artifacts.ts'
-import { bgTell, changed, findTab, findWs, log, ports, procs, projectConfig, queued, restoreNow, rt, rtOf, run, sessions, spawnTab, state } from './core.ts'
+import { archivedTidy, bgTell, changed, CLONE_DIRS, findTab, findWs, log, ports, prs, procs, projectConfig, queued, restoreNow, rt, rtOf, run, save, sessions, spawnTab, state, storageFull, storageTrash, tabStatus } from './core.ts'
 import { syncBranches } from './pr.ts'
 import { Session } from './session.ts'
 import { widgetEvent } from './widgets.ts'
@@ -324,4 +326,111 @@ export function wake(id: string) {
   tab.usedAt = Date.now() // looked at, typed in, sent to: back at once after the next restart
   changed()
   return true
+}
+
+// ---------- Settings › Resources › Disk (diskUsage, laki doctor --disk): what each workspace takes on disk, by project.
+// du -sk under nice, one path at a time and two at most at once, each 2 minutes at most: a workspace's worktree, the
+// dependency folders in it (CLONE_DIRS, and .laki.json's clone; shared: cloned by Laki, whose APFS clones du counts whole),
+// its storage folder; git's own count of what only its kept turns and an archive's saved files hold (rev-list
+// --disk-usage, git 2.38 on; older: not said). A path gone meanwhile is left out. Kept 10 minutes, measured only when asked.
+// diskTidy: three ways to make room, each in Laki's own data or worktrees it made, each said first (dry) and then done
+const DISK_KEEP = 10 * 60_000
+let disk: { at: number; data: DiskUsage } | undefined
+let diskNow: Promise<DiskUsage> | undefined
+const duLimit = { n: 0, q: [] as (() => void)[] }
+async function du(path: string): Promise<number | undefined> {
+  if (!existsSync(path)) return
+  if (duLimit.n >= 2) await new Promise<void>(r => duLimit.q.push(r))
+  duLimit.n++
+  try {
+    const r = await run('nice', ['-n', '10', 'du', '-sk', path], { timeout: 120_000 })
+    const kb = Number(r.stdout.split(/\s/)[0])
+    return Number.isFinite(kb) ? kb * 1024 : undefined
+  } catch {
+    return // gone meanwhile, unreadable, too slow
+  } finally {
+    duLimit.n--
+    duLimit.q.shift()?.()
+  }
+}
+const gitUse = (repo: string, ...refs: string[]) =>
+  run('git', ['-C', repo, 'rev-list', '--objects', '--disk-usage', ...refs, '--not', '--branches', '--tags', '--remotes'], { timeout: 120_000 }).then(
+    r => (n => (Number.isFinite(n) && n > 0 ? n : undefined))(Number(r.stdout.trim())),
+    () => undefined,
+  )
+export function diskUsage(o: { again?: boolean } = {}): Promise<DiskUsage> {
+  if (disk && !o.again && Date.now() - disk.at < DISK_KEEP) return Promise.resolve(disk.data)
+  return (diskNow ??= diskScan().then(d => ((disk = { at: d.at, data: d }), d)).finally(() => (diskNow = undefined)))
+}
+export async function diskScan(): Promise<DiskUsage> {
+  const { turnsKept } = await import('./turns.ts') // not at load: turns.ts reads core's as it loads, and core imports this one
+  const wsOf = async (w: (typeof state.workspaces)[number]): Promise<DiskWs> => {
+    const repo = state.projects.find(p => p.id === w.project)?.path ?? ''
+    const parts: DiskPart[] = []
+    const add = (what: DiskPart['what'], bytes: number | undefined, more: Partial<DiskPart> = {}) => bytes !== undefined && parts.push({ what, bytes, ...more })
+    if (!w.archived && w.kind === 'worktree') {
+      const wt = await du(w.path)
+      add('worktree', wt)
+      if (wt !== undefined) {
+        const own = projectConfig(w).clone
+        for (const rel of new Set([...CLONE_DIRS, ...(Array.isArray(own) ? own.filter((x): x is string => typeof x === 'string') : [])])) {
+          const at = join(w.path, rel)
+          if (rel.split('/').includes('..') || !lstatSync(at, { throwIfNoEntry: false })?.isDirectory()) continue
+          add('deps', await du(at), { name: rel, ...(w.cloned?.includes(rel) && { shared: true as const }) })
+        }
+      }
+    }
+    if (repo && /^[\w.-]+$/.test(w.id)) {
+      if (turnsKept(w).turns.length) add('turns', await gitUse(repo, `--glob=refs/laki/turns/${w.id}/*`))
+      if (w.archived) add('saved', await gitUse(repo, `refs/laki/archived/${w.id}`).catch(() => undefined))
+    }
+    if (w.storage && basename(w.storage).includes(w.id)) add('storage', await du(w.storage))
+    return { id: w.id, name: w.name ?? w.id, ...(w.archived && { archived: true as const }), ...(w.merged && { merged: true as const }), parts, bytes: parts.filter(x => x.what !== 'deps').reduce((n, x) => n + x.bytes, 0) }
+  }
+  const projects: DiskUsage['projects'] = []
+  for (const p of state.projects) {
+    if (p.host) continue
+    const workspaces = (await Promise.all(state.workspaces.filter(w => w.project === p.id && !w.host).map(wsOf))).sort((a, b) => b.bytes - a.bytes)
+    if (workspaces.length) projects.push({ id: p.id, name: p.name, bytes: workspaces.reduce((n, w) => n + w.bytes, 0), workspaces })
+  }
+  const free = (() => {
+    try {
+      const f = statfsSync(dir)
+      return f.bavail * f.bsize
+    } catch {}
+  })()
+  return { at: Date.now(), ...(free !== undefined && { free }), projects: projects.sort((a, b) => b.bytes - a.bytes) }
+}
+// what: turns (kept turns older than days, of workspaces with no turn running), storage (the storage folders of archived
+// workspaces whose PR merged, to the trash), archives (archived over days: archivedTidy's own way, its day's notice and
+// trash for what's its own). dry: what would go, by name. ponytail: merged is as Laki last saw the PR (or archived for it)
+export async function diskTidy(o: { what?: unknown; days?: unknown; dry?: unknown }) {
+  const what = o.what as DiskTidyWhat
+  const days = Math.max(0, Math.floor(Number(o.days ?? 7)))
+  if (!Number.isFinite(days)) throw new Error('days: a number')
+  const dry = o.dry === true
+  const { turnsDrop, turnsKept } = await import('./turns.ts')
+  const before = Date.now() - days * 86400e3
+  const named = (w: { name?: string; id: string }) => w.name ?? w.id
+  const goes: string[] = []
+  if (what === 'turns') {
+    const idle = state.workspaces.filter(w => !w.host && !state.tabs.some(t => t.workspace === w.id && tabStatus(t.id) === 'running'))
+    for (const w of idle) {
+      const n = turnsKept(w).turns.filter(x => x.ended < before).length
+      if (!n) continue
+      goes.push(`${named(w)}: ${n} kept turn${n === 1 ? '' : 's'}`)
+      if (!dry) await turnsDrop(w, before)
+    }
+  } else if (what === 'storage') {
+    for (const w of state.workspaces.filter(w => w.archived && (w.merged || prs.get(w.id)?.state === 'MERGED') && storageFull(w))) {
+      goes.push(`${named(w)}: its storage folder`)
+      if (!dry) storageTrash(w)
+    }
+  } else if (what === 'archives') {
+    const due = state.workspaces.filter(w => w.archived && (w.archivedAt ?? Date.now()) < before)
+    goes.push(...due.map(named)) // what's its own (uncommitted changes, a storage folder) to the trash after a day's notice, as archivedTidy does
+    if (!dry && due.length) await archivedTidy(Date.now(), days)
+  } else throw new Error('tidy what? turns, storage or archives')
+  if (!dry && goes.length) (disk = undefined), save(), changed(), log(`disk: tidied ${what}: ${goes.length}`)
+  return { goes }
 }

@@ -1,9 +1,9 @@
 // Settings › Resources: Laki and each tab by memory and CPU, with their processes, and when idle agents sleep.
 // Settings.tsx re-exports it.
-import { type ProcUse, type Resources, SLEEP_AFTER, type TabView } from '../../shared/types'
+import { type DiskTidyWhat, type DiskUsage, type ProcUse, type Resources, SLEEP_AFTER, type TabView } from '../../shared/types'
 import { type ReactNode, useEffect, useState } from 'react'
 import { BUDGET_DEFAULT } from '../../shared/browserBudget'
-import { Icon, Switch, act } from './ui'
+import { Icon, Switch, act, ask } from './ui'
 import { Group } from './SettingsKit'
 
 // Resources: what Laki and each tab use now (the daemon's ps, every 3 s while it's open), and idle agents put to sleep
@@ -19,6 +19,8 @@ export type ResourcesApi = {
   stop?: (what: string) => void // free one: the video, a widget, the preview, the bubbles, an agent browser
   stopOther?: (key: string) => Promise<unknown> // end one the daemon runs: Laki AI's ask, a tunnel, remote access
   widgetName: (id: string) => string
+  disk?: (again?: boolean) => Promise<DiskUsage> // Disk (diskUsage): measured as it opens, kept 10 minutes
+  tidy?: (what: DiskTidyWhat, days: number, dry: boolean) => Promise<{ goes: string[] }>
 }
 
 const SLEEP: [number, string][] = [[0, 'Never'], [15, '15 minutes'], [30, '30 minutes'], [60, '1 hour'], [120, '2 hours'], [240, '4 hours'], [480, '8 hours']]
@@ -258,6 +260,7 @@ export function ResourcesSection({ api, sleepAfter, onSleepAfter, browserBudget,
           {api.budgetSaid?.() && <div className="muted small">{api.budgetSaid()}</div>}
         </Group>
       )}
+      {api.disk && api.tidy && <Disk load={api.disk} tidy={api.tidy} />}
       <Group title="Idle agents" hint="An idle claude or codex you aren't looking at is ended to free its memory; its screen stays. Looking at it, a key or a message resumes the chat. Not one with a dev server listening under it, getting PR feedback, or on an SSH host. After a restart, one unused this long stays asleep until you open it.">
         <label>
           Sleep idle agents after
@@ -272,5 +275,78 @@ export function ResourcesSection({ api, sleepAfter, onSleepAfter, browserBudget,
         </label>
       </Group>
     </>
+  )
+}
+
+// Disk: each project's workspaces by what they take (the daemon's du, under nice, two at a time; kept 10 minutes), a
+// bar each against the biggest, the free space; three ways to make room, each asked first with what goes
+const gb = (b: number) => (b >= 1 << 30 ? `${(b / (1 << 30)).toFixed(1)} GB` : `${Math.max(0, Math.round(b / (1 << 20)))} MB`)
+const PART: Record<string, string> = { worktree: 'worktree', turns: 'kept turns', storage: 'storage', saved: 'saved changes' }
+const TIDY: [DiskTidyWhat, string, string][] = [
+  ['turns', 'Kept turns over 7 days old', 'of workspaces with no turn running'],
+  ['storage', 'Storage of merged archives', 'archived workspaces whose PR merged: their storage folders to the trash'],
+  ['archives', 'Archives over 30 days old', "deleted as Settings' archive age would; what's their own goes to the trash after a day's notice"],
+]
+function Disk({ load, tidy }: { load: (again?: boolean) => Promise<DiskUsage>; tidy: (what: DiskTidyWhat, days: number, dry: boolean) => Promise<{ goes: string[] }> }) {
+  const [d, setD] = useState<DiskUsage | null>(null)
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const get = (again?: boolean) => (setBusy(true), load(again).then(x => (setD(x), setErr('')), e => setErr(String(e?.message ?? e))).finally(() => setBusy(false)))
+  useEffect(() => void get(), [])
+  const max = Math.max(1, ...(d?.projects.flatMap(p => p.workspaces.map(w => w.bytes)) ?? []))
+  const go = async (what: DiskTidyWhat, label: string) => {
+    const days = what === 'turns' ? 7 : what === 'archives' ? 30 : 0
+    const { goes } = await tidy(what, days, true)
+    if (!goes.length) return setErr(`${label}: nothing to tidy`)
+    if (!(await ask(`${label}?`, { text: `These go: ${goes.slice(0, 12).join('; ')}${goes.length > 12 ? `; and ${goes.length - 12} more` : ''}.`, ok: 'Tidy', danger: true }))) return
+    await tidy(what, days, false).then(() => get(true), e => setErr(String(e?.message ?? e)))
+  }
+  return (
+    <Group title="Disk" hint="What each workspace takes: its worktree (its dependency folders in it), kept turns, storage folder and an archive's saved changes. A folder Laki cloned may be shared on disk: APFS keeps one copy until either side changes.">
+      {!d ? (
+        <p className="muted small">{err || 'Measuring…'}</p>
+      ) : (
+        <>
+          <p className="muted small">
+            {d.free !== undefined && `${gb(d.free)} free on this volume · `}measured {new Date(d.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}{' '}
+            <button type="button" className="link" disabled={busy} onClick={() => void get(true)}>
+              {busy ? 'Measuring…' : 'Measure again'}
+            </button>
+          </p>
+          <div className="disk-list">
+            {d.projects.map(p => (
+              <div key={p.id}>
+                <div className="disk-row disk-project">
+                  <b>{p.name}</b>
+                  <span className="num">{gb(p.bytes)}</span>
+                </div>
+                {p.workspaces.map(w => (
+                  <div key={w.id} className="disk-row" title={w.parts.map(x => `${x.name ?? PART[x.what]}: ${gb(x.bytes)}${x.shared ? ' (may be shared)' : ''}`).join('\n')}>
+                    <span className="res-name">
+                      <span>
+                        {w.name}
+                        {w.archived && <span className="muted"> · archived{w.merged ? ', merged' : ''}</span>}
+                        <span className="muted small"> {w.parts.filter(x => x.what === 'deps').map(x => `${x.name} ${gb(x.bytes)}${x.shared ? ' (may be shared)' : ''}`).join(' · ')}</span>
+                      </span>
+                      <i className="res-bar" style={{ width: `${(w.bytes / max) * 100}%` }} />
+                    </span>
+                    <span className="num">{gb(w.bytes)}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+            {!d.projects.length && <p className="muted small">No workspaces on this Mac yet.</p>}
+          </div>
+          <div className="disk-tidy">
+            {TIDY.map(([what, label, hint]) => (
+              <button key={what} type="button" data-tip={hint} onClick={() => void go(what, label)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {err && <p className="muted small">{err}</p>}
+        </>
+      )}
+    </Group>
   )
 }

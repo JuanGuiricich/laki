@@ -1,6 +1,7 @@
 // Resources: memory by tab; idle agents put to sleep (settings.sleepAfter) and resumed by a message or a look.
 import assert from 'node:assert/strict'
-import { chmodSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { chmodSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fresh, running, sleep, until, viewed } from './helpers.ts'
@@ -173,4 +174,54 @@ test('F7 portClashes: a server on a port of another workspace\'s block shows on 
   assert.deepEqual(m.get('b'), [{ port: 3115, other: 'a', theirs: false }])
   assert.equal(m.has('c'), false)
   assert.equal(m.has('old'), false)
+})
+
+test("Disk: a workspace's worktree and its node_modules measured; a folder gone mid-scan left out; old kept turns tidied for idle workspaces only; an agent's calls refused", async t => {
+  const rig = await fresh(t)
+  const p = await rig.rpc('projectAdd', { path: rig.repo })
+  const made = async (name: string) => {
+    const ws = await rig.rpc('wsNew', { project: p.id, preset: 'claude', name })
+    const tab = await until(async () => (x => x?.resumeId && x.status === 'idle' && x)(await rig.tab(ws.id)), `${name} up`)
+    return { ws, tab }
+  }
+  const a = await made('alpha')
+  const b = await made('beta')
+  mkdirSync(join(a.ws.path, 'node_modules/left-pad'), { recursive: true })
+  writeFileSync(join(a.ws.path, 'node_modules/left-pad/index.js'), Buffer.alloc(300 << 10, 1))
+  // a turn kept in each (files changed between the hooks)
+  const turn = async (x: { ws: any; tab: any }, f: string) => {
+    await rig.rpc('hook', { tab: x.tab.id, state: 'running', payload: { hook_event_name: 'UserPromptSubmit', prompt: `add ${f}` } })
+    await sleep(300)
+    writeFileSync(join(x.ws.path, f), `${f}\n`)
+    await rig.rpc('hook', { tab: x.tab.id, state: 'idle', payload: { hook_event_name: 'Stop', last_assistant_message: 'Done.' } })
+    await until(async () => (await rig.rpc('turnList', { ws: x.ws.id })).length === 1, `${f} kept`)
+  }
+  await turn(a, 'a.txt')
+  await turn(b, 'b.txt')
+  let d = await rig.rpc('diskUsage')
+  const wsOf = (d: any, id: string) => d.projects.flatMap((x: any) => x.workspaces).find((w: any) => w.id === id)
+  const alpha = wsOf(d, a.ws.id)
+  const nm = alpha.parts.find((x: any) => x.what === 'deps' && x.name === 'node_modules')
+  assert.ok(nm && nm.bytes >= 300 << 10, JSON.stringify(alpha))
+  assert.ok(alpha.parts.find((x: any) => x.what === 'worktree').bytes >= nm.bytes)
+  assert.ok(d.free > 0)
+  assert.equal((await rig.rpc('diskUsage')).at, d.at, 'kept 10 minutes')
+  // a folder gone between the look and its du: left out, the rest measured
+  writeFileSync(join(rig.home, 'bin', 'du'), '#!/bin/sh\nfor a; do last=$a; done\ncase "$last" in *node_modules) rm -rf "$last" ;; esac\nexec /usr/bin/du "$@"\n', { mode: 0o755 })
+  d = await rig.rpc('diskUsage', { again: true })
+  assert.equal(wsOf(d, a.ws.id).parts.some((x: any) => x.what === 'deps'), false)
+  assert.ok(wsOf(d, a.ws.id).parts.some((x: any) => x.what === 'worktree'))
+  // an agent can't read or tidy it
+  await assert.rejects(rig.rpc('diskUsage', { from: { tab: a.tab.id } }), /an agent can't read what takes room/)
+  await assert.rejects(rig.rpc('diskTidy', { what: 'turns', days: 0, from: { tab: a.tab.id } }), /an agent can't delete kept turns/)
+  // beta's agent is at work: its turns stay; alpha's go (what goes said first)
+  await rig.rpc('hook', { tab: b.tab.id, state: 'running', payload: { hook_event_name: 'UserPromptSubmit', prompt: 'more' } })
+  await until(async () => (await rig.tab(b.ws.id))?.status === 'running', 'beta at work')
+  assert.deepEqual((await rig.rpc('diskTidy', { what: 'turns', days: 0, dry: true })).goes, ['alpha: 1 kept turn'])
+  assert.equal((await rig.rpc('turnList', { ws: a.ws.id })).length, 1, 'dry: nothing gone')
+  await rig.rpc('diskTidy', { what: 'turns', days: 0 })
+  assert.equal((await rig.rpc('turnList', { ws: a.ws.id })).length, 0)
+  assert.equal((await rig.rpc('turnList', { ws: b.ws.id })).length, 1)
+  assert.equal(execFileSync('git', ['-C', rig.repo, 'for-each-ref', `refs/laki/turns/${a.ws.id}/`], { encoding: 'utf8' }), '', 'its refs too')
+  await assert.rejects(rig.rpc('diskTidy', { what: 'everything' }), /tidy what\?/)
 })

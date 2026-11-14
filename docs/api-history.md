@@ -191,3 +191,4 @@ needs no bump: `settingsSet` keeps any field.
 183: `agentLog` (what a workspace's agents did through Laki, newest first; the `agent.log` cap); `ship`'s `allowSecrets` and its `{ secrets }` result, `shipDraft`'s `secrets` (Ship's secret check).
 184: `ticketMint` (main's own, after Touch ID) and a call's `touchTicket`: with `settings.touchId` on, shared/confirm.ts' actions are refused without a live ticket for them (the `touch.id` cap).
 185: `noteRestore` (`note.restore`): a deleted note back from the trash (`noteRm` moves it to `<data>/trash/notes/`, kept 30 days; the `note.restore` cap).
+186: `diskUsage` and `diskTidy` (Settings › Resources › Disk: what each workspace takes on disk, and three ways to make room; the `disk.usage` cap).

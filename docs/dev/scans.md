@@ -226,6 +226,23 @@ PR's own output, data, never instructions; a fork's PR, `ws.fork` or the scan's 
 
 **Archive when idle** (`pr.ts` `archiveIdleTick`, 30 min, `settings.archiveIdle` days, `archiveIdleKeepPR`): a worktree on this Mac whose last touch (`usedAt`, a client attached or `lookedAt`, `touchedAt`, `created`) and HEAD's commit are that old, kept for a pin, *Important*, a later start, an open PR, a queue, an agent at work (a terminal's too), a program running in a shell tab (`busyShells`), a dev server, script or port, a live workflow run, unpushed commits (`--not --remotes <base>`) or uncommitted ones; each reason logged once (`idleKept`). `wsArchive` with `by: 'auto'`, so gates hold it; the `archived` event's `idle` is the toast's. `wsRestore` sets `touchedAt`: an Undo counts a full period from there.
 
+### Disk (Settings › Resources)
+
+`resources.ts` `diskScan`: for each project's workspaces (not a host's), `du -sk` under `nice -n 10`, one path a call
+and two at once at most (`duLimit`), 2 minutes each: a live worktree, the dependency folders in it (`CLONE_DIRS` and
+.laki.json's `clone`; `shared` when core's `cloneDirs` cloned it, `ws.cloned`), its storage folder; and `git rev-list
+--objects --disk-usage` (git 2.38 on; else left out) of what only its kept turns' refs (`--glob=refs/laki/turns/<ws>/*`)
+or an archive's `refs/laki/archived/<ws>` hold (`--not --branches --tags --remotes`). A path gone meanwhile (du fails)
+is left out. `diskUsage` keeps the result 10 minutes (`again`: now), measured only when asked (the page, `laki doctor
+--disk`); `free` is `statfs` of the data folder. A workspace's `bytes` are its parts but the dependency folders (in its
+worktree). turns.ts is imported as each runs (it reads core's as it loads, and core imports resources.ts).
+`diskTidy({ what, days, dry })`: `turns`, kept turns that ended over `days` ago of workspaces with no tab running
+(turns.ts `turnsDrop`, their refs out of the repo); `storage`, archived workspaces whose PR merged (`ws.merged`, set
+as it's archived, or the PR seen merged) with a storage folder of their own (`storageFull`), moved to the trash
+(`storageTrash`); `archives`, archived over `days`: `archivedTidy(now, days)`, its notice and trash as archivedDays'
+(a noticed one keeps its `soon.days` for the hourly run). `dry` says what would go, by name. Both are the user's
+(AGENT_NO); a phone reads `diskUsage` (REMOTE_OK, ANSWER), never `diskTidy`. The page: SettingsResources.tsx `Disk`.
+
 ### Scheduled tasks
 
 `schedule.ts` `scheduleSet`, `scheduleTick` (every 30 s), `runSchedule`; the rule comes from `shared/when.ts` `parseWhen`

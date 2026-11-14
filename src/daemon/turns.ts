@@ -331,6 +331,20 @@ const keptTurn = (ws: Workspace, n: unknown) => {
   if (!t) throw new Error(`turn ${n} isn't kept any more`)
   return t
 }
+// Disk's: a workspace's kept turns, its repo; and those that ended before `before` let go, their refs out of the repo
+// (as turnsGone does: an archived one's worktree is gone)
+export const turnsKept = (ws: Workspace) => readKept(ws)
+export function turnsDrop(ws: Workspace, before: number) {
+  return inLine(ws.id, async () => {
+    const k = readKept(ws)
+    const gone = k.turns.filter(x => x.ended < before)
+    if (!gone.length) return 0
+    k.turns = k.turns.filter(x => !gone.includes(x))
+    for (const x of gone) for (const side of ['before', 'after'] as const) await new Promise(ok => execFile('git', ['-C', k.repo, 'update-ref', '-d', refOf(ws.id, x.n, side)], ok))
+    writeAtomic(keptFile(ws.id), JSON.stringify(k), 0o600)
+    return gone.length
+  })
+}
 // a workspace's kept turns, oldest first; tab: only that tab's
 export function turnList(o: { ws?: string; tab?: string }): TurnKept[] {
   const ws = wsOf(o)

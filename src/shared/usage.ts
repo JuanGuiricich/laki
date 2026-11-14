@@ -5,6 +5,7 @@ export const USAGE = `laki: coding agents in parallel git worktrees
   laki version | --version                    this CLI's version; with a daemon running, its version and API too
   laki doctor [--json]                        what Laki needs, checked: git, gh, the agents, hooks; a fix for each (exit 1: one failed)
   laki doctor --bundle [--out <file>]         diagnostics for a bug report: versions, the doctor, counts, the logs' ends (redacted)
+  laki doctor --disk [--json]                 what each workspace takes on disk (worktree, dependencies, kept turns, storage, archives), and the free space
   laki open                                   open the app
   laki ls [--json]                            projects, workspaces, tabs and their status
   laki limits [--agent claude] [--json]       how much of each agent's plan is used, and when it resets
