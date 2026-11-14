@@ -251,6 +251,7 @@ export type AppSettings = Paint & {
   shotKey?: string // its keys (unset: SHOT_KEY; '': none)
   quickOn?: boolean // Q1: the quick bar's global hotkey (unset: off)
   quickKey?: string // its keys (unset: QUICK_KEY)
+  touchId?: boolean // Confirm risky actions with Touch ID (shared/confirm.ts; unset: off)
   allowOn?: boolean // Allow the newest ask from any app (a global hotkey; unset: off)
   allowKey?: string // its keys (unset: keys.ts ANSWER_KEYS.allow.key)
   denyOn?: boolean // Deny the newest ask from any app (unset: off)
@@ -848,6 +849,8 @@ export function SettingsPage(p: {
   }, [sec])
   const [themeQ, setThemeQ] = useState('') // the themes' name filter
   const [findQ, setFindQ] = useState('') // Find a setting
+  const [touchCan, setTouchCan] = useState(false) // this Mac can ask for Touch ID (General's Confirm risky actions shows)
+  useEffect(() => void bridge?.touchId?.().then(setTouchCan, () => {}), [])
   const findRef = useRef(findQ)
   findRef.current = findQ
   const [spot, setSpot] = useState<{ title: string; n: number; group?: boolean }>() // the setting a result goes to; group: a whole card
@@ -1443,6 +1446,13 @@ export function SettingsPage(p: {
                 </Group>
               )}
               {globalKeys}
+              {touchCan && (
+                <Group title="Touch ID">
+                  <Switch className="switch-row" on={s.touchId === true} onChange={v => (v ? void bridge!.confirm!('touchIdOn').then(t => t && set({ touchId: true })) : set({ touchId: false }))}>
+                    <Says title="Confirm risky actions with Touch ID" hint="Before starting remote access, pairing a device, turning on Bypass permissions, showing a webhook's secret or resetting the interface, and before turning this off. The laki command, a phone and agents can't do these then: do them here." />
+                  </Switch>
+                </Group>
+              )}
               <Group title="Notifications" hint="Phone pushes are in their own section">
               <div className="setting-box">
                 <Switch className="switch-row" on={s.notify !== false} onChange={v => set({ notify: v })}>

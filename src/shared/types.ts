@@ -528,6 +528,7 @@ export const WHEN_DONE_WAIT = 60_000 // the countdown before it acts, which Canc
 // Linear's signature, else X-Laki-Key), the project its event is for
 export type InHook = { name: string; kind: 'github' | 'linear' | 'key'; project?: string }
 export type Settings = {
+  touchId?: boolean // Confirm risky actions with Touch ID (shared/confirm.ts; macOS, unset: off): the daemon holds CONFIRM's calls without a ticket
   editor?: string
   editors?: Record<string, string> // a project's own (by its id): Open in's last pick for its folder, ⌘E's there; none: editor
   customCss?: string // Appearance › Custom CSS, every window's (themes.ts userCss); not over remote access or from an agent (REMOTE_KEYS); Reset the interface clears it
@@ -1272,7 +1273,7 @@ export type PlanPin = { project: string; kind: PlanKind; slug: string; title: st
 export const RAIL_PINS = 5 // the rail's quick access: workspaces, terminals or browsers pinned there
 // a file's blame (the daemon's blame): its commits, and each line's (lines[n - 1]: line n's index into commits; -1: none)
 export type Blame = { commits: { sha: string; author: string; at: number; summary: string }[]; lines: number[] }
-export const API = 183
+export const API = 184
 export const REPO = 'https://github.com/igorkasyanchuk/laki' // About's and Help's links, the widget schema's raw URL
 
 // the agent browser's open, click or fill (main's browse): what it caused. nav: the page it moved to; errors: the

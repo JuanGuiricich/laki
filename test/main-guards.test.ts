@@ -1,7 +1,7 @@
 // E3: Electron main's checks (src/main/guards.ts), on plain node: who may send IPC, which URLs get through
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { appFile, appPage, BROWSER, externalOf, fromApp, handoffUrl, fromTokenPage, local, MENU_DEPTH, MENU_ITEMS, menuModelOk, pageIs, PREVIEW, tokenPage, webviewOk } from '../src/main/guards.ts'
+import { appFile, appPage, BROWSER, confirmAsk, externalOf, fromApp, handoffUrl, fromTokenPage, local, MENU_DEPTH, MENU_ITEMS, menuModelOk, pageIs, PREVIEW, tokenPage, webviewOk } from '../src/main/guards.ts'
 
 test('main guards: only the app window’s main frame on the app’s own page is the app', () => {
   const page = 'app://laki/index.html'
@@ -119,4 +119,16 @@ test('main guards: Handoff offers only a lasting https address, with no # secret
   assert.equal(handoffUrl({ url: 'http://mac.tail1234.ts.net/', via: 'tailscale' }), undefined, 'http refused')
   assert.equal(handoffUrl({ url: 'https://a:b@mac.tail1234.ts.net/', via: 'tailscale' }), undefined, 'no credentials')
   for (const r of [null, undefined, 'https://x/', { via: 'tailscale' }, { url: 'not a url', via: 'tailscale' }, { url: 'javascript:alert(1)', host: 'x' }]) assert.equal(handoffUrl(r), undefined)
+})
+
+test("Touch ID's confirm IPC: the app window's own page, for one of CONFIRM's actions only", () => {
+  const win = { type: 'window', main: true, url: 'app://laki/index.html' }
+  assert.equal(confirmAsk(win, true, 'remoteStart'), true)
+  assert.equal(confirmAsk(win, true, 'touchIdOff'), true)
+  assert.equal(confirmAsk(win, false, 'remoteStart'), false, 'another of the app\'s windows (new, ai, a floated tab)')
+  assert.equal(confirmAsk({ ...win, url: 'app://laki/index.html?window=ai' }, false, 'remoteStart'), false)
+  assert.equal(confirmAsk({ ...win, type: 'webview' }, true, 'remoteStart'), false, 'a webview')
+  assert.equal(confirmAsk({ ...win, main: false }, true, 'remoteStart'), false, 'a frame inside')
+  assert.equal(confirmAsk({ ...win, url: 'https://evil.example/' }, true, 'remoteStart'), false, 'a site')
+  for (const w of ['wsRm', 'constructor', '', undefined, 42, { what: 'remoteStart' }]) assert.equal(confirmAsk(win, true, w), false, String(w))
 })

@@ -5,6 +5,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
+- Confirm risky actions with Touch ID (Settings › General, off until you turn it on): starting remote access, pairing a device, Bypass permissions, a webhook's secret and Reset the interface ask for your finger first, and only Laki's window can do them then. [Try it](laki://settings/general?spot=Confirm%20risky%20actions%20with%20Touch%20ID)
 - A workspace's Info shows *What its agents did*: each change its agents made through Laki and each thing Laki refused them, newest first, with names and ids only. `laki agent log <ws>` prints it.
 - Ship looks for secrets before it commits: an API key, a private key or a password in a URL in the lines it would add stops it, each shown by file and line, masked. Untick the file, or say *Not a secret* (remembered for that workspace). `laki ship` exits 1 unless `--allow-secrets`; an agent can't pass it.
 - Remote access through Tailscale: stopping it now stops `tailscale serve` too. With Tailscale's command-line tool installed from its app, the serve kept running and the next start failed with *listener already exists for port 443*; that error now says how to find the old one.

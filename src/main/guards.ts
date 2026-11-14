@@ -1,5 +1,6 @@
 // Electron main's checks, pure (no electron import, so test/main-guards.test.ts runs them on plain node): who sent an
 // IPC message (fromApp, from), and the URLs main lets through (open-external, the webviews, the agent browser)
+import { confirmKnown } from '../shared/confirm.ts'
 
 // S9: the built pages' origin, a privileged standard scheme main serves out/renderer on (protocol.handle): 'self' in
 // their CSP is this origin alone, not every file:// on the disk (an agent's worktree among them)
@@ -31,6 +32,9 @@ export const appFile = (url: string, root: string, sep = '/') => {
 export type Sender = { type: string; main: boolean; url?: string }
 export const fromApp = (s: Sender, devOrigin = '') => s.type === 'window' && s.main && appPage(s.url, devOrigin)
 export const fromTokenPage = (s: Sender, devOrigin = '') => fromApp(s, devOrigin) && tokenPage(s.url, devOrigin)
+// Touch ID's confirm IPC (main's 'confirm', shared/confirm.ts): the app window's own page (isWin: its webContents), never a
+// small window, a webview or a frame, and only for one of CONFIRM's actions (main says its words, not the page)
+export const confirmAsk = (s: Sender, isWin: boolean, what: unknown, devOrigin = '') => fromApp(s, devOrigin) && isWin && confirmKnown(what)
 // one of the app's other pages by name: its ?window= (new, ai, tab, sim)
 export const pageIs = (url: string | undefined, page: string) => !!url && URL.canParse(url) && new URL(url).searchParams.get('window') === page
 

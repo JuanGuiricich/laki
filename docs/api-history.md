@@ -189,3 +189,4 @@ needs no bump: `settingsSet` keeps any field.
 181: `chatSearch` (Search chats: every chat Laki knows, what was said, newest first; the `chat.search` cap).
 182: no method: the daemon runs on Laki Node (conn.ts `NODE_API`): a build with Laki Node restarts one under it as it opens (main's `daemon()`), as one from 0.50.0 or earlier sends hooks to Laki Hook.app and node to the app's binary.
 183: `agentLog` (what a workspace's agents did through Laki, newest first; the `agent.log` cap); `ship`'s `allowSecrets` and its `{ secrets }` result, `shipDraft`'s `secrets` (Ship's secret check).
+184: `ticketMint` (main's own, after Touch ID) and a call's `touchTicket`: with `settings.touchId` on, shared/confirm.ts' actions are refused without a live ticket for them (the `touch.id` cap).

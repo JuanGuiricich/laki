@@ -18,7 +18,8 @@ import { type KeyId, keyFor, keyMap } from '../shared/keys.ts'
 import { TRAY_PX, TRAY_STATES, trayBitmap, type TrayInfo, type TrayState, trayTip, trayTitle } from '../shared/tray.ts'
 import { type BrowseDid, pageChanges, urlIs, veiled, type View } from '../shared/types.ts'
 import { hotkeyAnswer } from '../shared/ask.ts'
-import { AGENT_BROWSER, APP_ORIGIN, APP_SCHEME, appFile, appPage as isAppPage, BROWSER, externalOf, handoffUrl, fromApp as senderOk, fromTokenPage, local, menuModelOk, type NativeItem, pageIs, PREVIEW, web, webviewOk } from './guards.ts'
+import { CONFIRM, type ConfirmWhat } from '../shared/confirm.ts'
+import { AGENT_BROWSER, APP_ORIGIN, APP_SCHEME, appFile, appPage as isAppPage, BROWSER, confirmAsk, externalOf, handoffUrl, fromApp as senderOk, fromTokenPage, local, menuModelOk, type NativeItem, pageIs, PREVIEW, web, webviewOk } from './guards.ts'
 import { updater } from './update.ts'
 
 // the app's binary doesn't run as node (its runAsNode fuse is off: docs/dev/helper.md), so a start that asks for it
@@ -1255,6 +1256,20 @@ ipcMain.handle('menu-popup', (e, model: unknown, x: unknown, y: unknown) => {
       )
     Menu.buildFromTemplate(build(m)).popup({ window: w, x: Math.round(x), y: Math.round(y), callback: () => setTimeout(() => done(picked), 50) }) // a click comes before or after the close: whichever is first answers
   })
+})
+// Touch ID (shared/confirm.ts, Settings › General): the app window asks for one of CONFIRM's actions; main prompts with
+// that action's words and, once it passes, has the daemon mint a ticket for it (main's own call: the daemon checks its
+// process, appPeer), which the window's call carries. null: no Touch ID here, cancelled, or failed
+const touchCan = () => mac && systemPreferences.canPromptTouchID()
+ipcMain.handle('touch-id', async e => fromApp(e) && !!win && e.sender === win.webContents && touchCan() && !!(await rpc<{ caps?: string[] }>('ping', { caps: true }).catch(() => undefined))?.caps?.includes('touch.id')) // and a daemon that holds the calls (API 184)
+ipcMain.handle('confirm', async (e, what: unknown) => {
+  if (!confirmAsk(sender(e), !!win && e.sender === win.webContents, what, devOrigin) || !touchCan()) return null
+  try {
+    await systemPreferences.promptTouchID(CONFIRM[what as ConfirmWhat])
+  } catch {
+    return null
+  }
+  return (await rpc<{ ticket: string }>('ticketMint', { what }).catch(() => null))?.ticket ?? null
 })
 ipcMain.handle('pick-folder', async e => {
   if (!from(e)) return null

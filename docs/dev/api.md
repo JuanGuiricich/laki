@@ -16,6 +16,18 @@ a daemon without caps (before 150) the API number `CAP_SINCE` gives. The rendere
 only when the last view's caps list its namespace, else the old one; the CLI's `rpc` (conn.ts) sends it, and on
 `unknown method <it>` once more by the old name, by that one from then on. Achievements match by the old name.
 
+Touch ID (`shared/confirm.ts`, `settings.touchId`, Settings › General, a Mac with Touch ID and the `touch.id` cap):
+`CONFIRM` names the actions (remote access started, a device paired, Bypass permissions on a running tab, `tabMode`, or
+a profile that didn't have it, `presetSave` or Settings' whole list, a webhook's secret shown, `uiReset`, the setting
+turned off; `touchIdOn` asks as it goes on, with nothing for the daemon to hold), `confirmOf(method, params, cur)` which
+one a call is. The renderer never decides: `api.ts`' `call` asks main (`confirm` IPC, guards.ts `confirmAsk`: the app
+window's own page, a known action), main prompts with that action's words (`systemPreferences.promptTouchID`) and calls
+`ticketMint` itself (`what`; the app's token from main's own process, `appPeer`, macOS; a test's daemon: the rig's;
+AGENT_NO, REMOTE_NO, ANSWER_NO), and the call carries the ticket as `touchTicket`. main.ts `ticketNo`, in `call()` after
+`agentNo`: with the setting on, a `CONFIRM` call without a live ticket for that action (30 s, used once, gone once tried)
+is refused, by whoever (the CLI, a phone, an agent, the app's token): *to … , Laki asks for Touch ID first*;
+`touchTicket` is taken off every call's params. `touchId` is in `AGENT_KEYS` and `REMOTE_KEYS`.
+
 What its agents did (`agentLog.ts`): `call()` (and `asAgent`, Laki AI asked by an agent) records an agent's tab's call
 (its `from`, else its `caller`: whoCalls' own) once it went through, unless it is one of `READS` or `AGENT_QUIET`
 (`hook`, `events`, `attach`; `input` once a minute per tab), and every one refused (`agentNo`'s, the handler's error):

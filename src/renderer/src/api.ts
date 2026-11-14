@@ -5,7 +5,9 @@
 import { outCall, outFlush } from './outbox'
 import type { InboxItem, TrayInfo } from '../../shared/tray'
 import type { UpdateState } from '../../shared/update'
-import { sendAs } from '../../shared/caps'
+import { oldName, sendAs } from '../../shared/caps'
+import { confirmOf } from '../../shared/confirm'
+import type { Preset } from '../../shared/types'
 import { baseKey, type Channel, channel, fromB64, keyGet, keyPut } from './e2e'
 
 // a notification's button: a waiting agent's choice (n, and its words: refused if the menu changed), or a pick
@@ -25,6 +27,8 @@ type Bridge = {
   onBrowserTab?(cb: (url: string, front: boolean) => void): void // a Browsers page's link to a new tab: front, or in the background
   onBrowserKey?(cb: (key: string) => void): void // a Browsers page's new or close tab (the page gets keys, not the app) or a menu bar item: a shared/keys.ts id, else a ⌘ key
   pickFolder(): Promise<string | null>
+  touchId?(): Promise<boolean> // macOS: this Mac can ask for Touch ID (Settings › General's switch shows)
+  confirm?(what: string): Promise<string | null> // Touch ID for one of shared/confirm.ts' actions: its ticket, null when it didn't pass
   pathOf?(f: File): string
   openExternal(url: string): void
   openPath?(path: string, root?: string): Promise<{ rel: string } | 'opened' | 'missing'> // a ⌘-clicked file:// link (main's open-path)
@@ -166,6 +170,7 @@ class Api {
   locked = false // D6: the page waits for its unlock (a passkey device's): its state, once it comes, opens it as a new socket would
   private caps: string[] = [] // the daemon's, from its last view
   private waits?: { id: string; status?: string; needAt?: number }[] // the last view's tabs: an outbox answer's ask (outbox.ts)
+  private touch?: { touchId: true; presets?: Preset[] } // Touch ID on (the last view's settings.touchId): CONFIRM's calls ask main first
 
   private fails = 0 // connects in a row that never opened
   private pinned = false // the remote page: no PIN asked for (or given)
@@ -233,6 +238,7 @@ class Api {
           if (m.error) w?.rej(new Error(/^unknown method /.test(m.error) ? `Laki's daemon is older than the app (no ${m.error.slice(15)}): close this page and restart it from the yellow bar at the top (agents resume)` : m.error))
           else w?.res(m.result)
         } else {
+          if (m.ev === 'state') (this.touch = m.view?.settings?.touchId ? { touchId: true, presets: m.view.presets } : undefined)
           if (m.ev === 'state') (this.caps = m.view?.caps ?? []), (this.answerOnly = m.view?.remote?.level === 'answer'), (this.waits = m.view?.tabs) // the namespaces it takes (caps.ts): call() sends the rest by their old names; D7: this page's access
           const opens = m.ev === 'state' && this.locked
           if (opens) this.locked = false
@@ -272,6 +278,9 @@ class Api {
 
   // the remote page's send and answer keep what the socket couldn't take (outbox.ts); the Mac's window calls as it is
   call<T = any>(method: string, params: object = {}): Promise<T> {
+    // Touch ID (shared/confirm.ts): main asks, the ticket it gets goes with the call; no ticket, no call
+    const what = bridge?.confirm && this.touch ? confirmOf(oldName(method), params as Record<string, unknown>, this.touch) : undefined
+    if (what) return bridge!.confirm!(what).then(t => (t ? this.direct<T>(method, { ...params, touchTicket: t }) : Promise.reject(new Error(`Not done: Touch ID didn't confirm it`))))
     if (bridge || (method !== 'send' && method !== 'answer')) return this.direct<T>(method, params)
     return outCall((k, p) => this.direct(k, p), method, params as Record<string, unknown>, this.waitingSince) as Promise<T>
   }

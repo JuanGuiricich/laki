@@ -1587,3 +1587,37 @@ test("a send or an answer with a client's id (the remote page's outbox) is appli
   await assert.rejects(rig.rpc('answer', { tab: tab.id, n: 1, cid: 'c-3' }), /isn't asking anything now/)
   await assert.rejects(rig.rpc('answer', { tab: tab.id, n: 1, cid: 'c-3' }), /isn't asking anything now/)
 })
+
+test("Touch ID: with it on, remoteStart takes a fresh ticket of its own, once; a reused, expired or another action's is refused; turning it off takes one too", async t => {
+  const rig = await fresh(t)
+  symlinkSync(join(import.meta.dirname, 'cloudflared'), join(rig.home, 'bin/cloudflared'))
+  await rig.rpc('settingsSet', { touchId: true })
+  const ticket = async (what: string, now?: number) => (await rig.rpc('ticketMint', { what, ...(now && { now }) })).ticket as string
+  const start = (touchTicket?: string) => rig.rpc('remoteStart', { hours: 1, mail: 'me@x.dev', ...(touchTicket && { touchTicket }) })
+  await assert.rejects(start(), /to start remote access, Laki asks for Touch ID first \(Settings › General\): do it in Laki's window/)
+  await assert.rejects(start(await ticket('remotePair')), /asks for Touch ID first/, "another action's")
+  await assert.rejects(start(await ticket('remoteStart', Date.now() - 60_000)), /asks for Touch ID first/, 'expired')
+  const t1 = await ticket('remoteStart')
+  await start(t1)
+  await rig.rpc('remoteStop')
+  await assert.rejects(start(t1), /asks for Touch ID first/, 'used once')
+  // the laki command is told to use the window (a profile turned to Bypass); an agent and daemon.json's token can't make one
+  const cli = await rig.cli('preset', 'set', 'claude', '--perm', 'bypassPermissions')
+  assert.equal(cli.code, 1)
+  assert.match(cli.err, /to turn on Bypass permissions, Laki asks for Touch ID first \(Settings › General\): do it in Laki's window/)
+  await rig.cli('preset', 'set', 'claude', '--perm', 'auto') // one that asks: as before
+  const p = await rig.rpc('projectAdd', { path: rig.repo })
+  const ws = await rig.rpc('wsNew', { project: p.id, preset: 'claude' })
+  const tab = await rig.tab(ws.id)
+  await assert.rejects(rig.rpc('ticketMint', { what: 'remoteStart', from: { tab: tab.id } }), /an agent can't make a Touch ID ticket/)
+  const { port, token } = rig.info()
+  const plain = await fetch(`http://127.0.0.1:${port}/rpc`, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ method: 'ticketMint', params: { what: 'remoteStart' } }) }).then(r => r.json())
+  assert.ok(plain.error && !plain.result, "daemon.json's token: not the app's")
+  // the other actions, and a ticket never reaches a handler's params (settingsSet keeps none)
+  await assert.rejects(rig.rpc('uiReset'), /to reset the interface/)
+  await assert.rejects(rig.rpc('settingsSet', { touchId: false }), /to stop asking for Touch ID/)
+  await rig.rpc('settingsSet', { notify: true, touchTicket: await ticket('uiReset') }) // not one of them: a ticket is dropped
+  assert.equal('touchTicket' in (await rig.rpc('state')).settings, false)
+  await rig.rpc('settingsSet', { touchId: false, touchTicket: await ticket('touchIdOff') })
+  await start() // off: no ticket needed
+})

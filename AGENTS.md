@@ -134,7 +134,7 @@ for the part you change, and keep it up to date with the change.
 
 - [docs/dev/api.md](docs/dev/api.md): the daemon's API (`src/daemon/main.ts` `api`): each method over `/rpc` and the
   WebSocket, its events and the view; `laki mcp`, the MCP server.
-- [docs/api-history.md](docs/api-history.md): what each `API` number added, 1 to 183. Bump `API` (`src/shared/types.ts`)
+- [docs/api-history.md](docs/api-history.md): what each `API` number added, 1 to 184. Bump `API` (`src/shared/types.ts`)
   when the renderer starts relying on a new method or daemon behavior (a setting needs no bump); the next one goes at its end.
 - [docs/dev/agents.md](docs/dev/agents.md): profiles and accounts, layouts, agent variables, turns, asks, sessions, sleep,
   terminal queries, agents and their hooks, projects and their trust, presets, interrupts, resume after a restart.
@@ -282,6 +282,7 @@ redirect followed, 2 MB read at most, `conn.ts` `readCapped`), kept 15 minutes, 
 | `src/shared/overlap.ts` | Collision radar: a -U0 diff's base lines per file, where two diffs meet |
 | `src/shared/achievements.ts` | the achievements (54): their groups, words, where each is done, and what earns each (a call, a page, the view) |
 | `src/shared/settingsMap.ts` | Settings' sections and each setting's title and words (`FIND`): the page's *Find a setting* and Laki AI's `laki_settings_find` (`skillTools`: where it is, a `laki://settings/<section>?spot=` link, matching plain values, never `SAID_NOT`'s) |
+| `src/shared/confirm.ts` | Touch ID's actions (`CONFIRM`, each with its prompt's words) and `confirmOf`: which one a call is; main prompts and mints a ticket (`ticketMint`), the daemon's `ticketNo` holds the call without one |
 | `src/shared/keys.ts` | Settings › Keys: `KEYS` (the rebindable actions, their defaults), `keyLabel`, `keyMap`, `keyFor`, `keyClash` (another action, `others`, `FIXED`, ⌃ alone), `keyShow`; App's, main's menu's, Help's |
 | `src/shared/when.ts` | scheduled tasks' times: English to a rule, the next run, the rule in words; `stamp` (dates in names, prompts, templates, actions) and `wsTitle` (a run's dated names) |
 | `src/cli/main.ts` | the `laki` CLI (`laki hook` is `src/cli/hook.ts`, its own build entry); `help`: `laki`, `--help`/`-h`, `laki help <command> [sub]`, `<command> --help` (or after its sub), before any daemon (`usage.ts` `helpFor`: its USAGE lines, its alternatives' else, then `HELP`'s details and examples, for agents) |
