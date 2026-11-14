@@ -43,6 +43,8 @@
   --lift-2: 0 8px 24px rgba(0, 0, 0, 0.35);
   --lift-3: 0 20px 60px rgba(0, 0, 0, 0.5);
   --h-s: 22px; --h-m: 28px; --h-l: 34px;
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); /* Glass › Grain: a tile of grey noise */
+  --grain-a: 0.07; /* and how much of it shows */
   --cmap-w: 10px; /* the change map's strip (Diff.tsx ChangeMap) */
   --z-dialog: 10; --z-toast: 20; --z-page: 30; --z-ask: 40; --z-pop: 50; --z-drag: 100; --z-tip: 200; --z-top: 9997; /* a dialog, a toast, a page over the work, a yes/no, a menu, a drag, a tooltip, the element picker; under 10: within a part */
   --mono: 'JetBrains Mono', 'SF Mono', Menlo, Monaco, monospace;
@@ -80,6 +82,11 @@ html.has-bg body::before { content: ''; position: fixed; inset: calc(var(--bg-bl
 html.side-clear body { background: transparent; }
 html.side-clear .main { background: var(--app-bg, var(--bg)); }
 html.side-clear .narrow .sidebar { background: var(--panel); } /* a drawer over the main area: solid */
+/* Glass › Grain (html.grain, themes.ts): a fine noise over the glass surfaces, as frosted glass has; none in a flat look,
+   with Reduce transparency or on a phone. ponytail: darkroom's sidebar ::after is its own, so not there */
+html.grain:not(.opaque) .app:not(.narrow) :is(.sidebar, .rail) { position: relative; }
+html.grain:not(.opaque):not([data-look='darkroom']) .app:not(.narrow) :is(.sidebar, .rail, .info, .side-panel)::after { content: ''; position: absolute; inset: 0; width: auto; height: auto; pointer-events: none; background: var(--grain); opacity: var(--grain-a); }
+@media (prefers-reduced-transparency: reduce), (pointer: coarse) { html.grain .app :is(.sidebar, .rail, .info, .side-panel)::after { display: none; } }
 /* Sidebar see-through without glass: over the desktop, its hovers and lines are tints of the text color (a row's selection, V6's, is one already),
    never solid blocks of the theme's (glass does the whole window: themes.ts) */
 html.side-clear:not(.glass) :is(.sidebar, .rail) { --hover: color-mix(in srgb, var(--fg) 9%, transparent); --line: color-mix(in srgb, var(--fg) 14%, transparent); }

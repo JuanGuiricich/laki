@@ -1939,6 +1939,9 @@ export function SettingsPage(p: {
                     <Switch className="switch-row" on={s.glassGlow !== false} onChange={v => paint({ glassGlow: v })}>
                       <Says title="Glow" hint="The theme's colors, lit from two corners behind the glass" />
                     </Switch>
+                    <Switch className="switch-row" on={s.glassGrain === true} onChange={v => paint({ glassGrain: v })}>
+                      <Says title="Grain" hint="A fine noise over the sidebar and panels, as frosted glass has. Not in a flat look or with Reduce transparency." />
+                    </Switch>
                   </>
                 )}
                 {!glassy && /Mac/.test(navigator.userAgent) && bridge && (

@@ -111,6 +111,7 @@ export const FIND: [string, string, string?][] = [
   ['layout', 'Sidebar see-through', 'transparent translucent sidebar rail blur vibrancy desktop'],
   ['layout', 'Background image', 'wallpaper picture photo backdrop dim blur'],
   ['layout', 'Glow', 'glass colors'],
+  ['layout', 'Grain', 'glass noise texture frosted film'],
   ['appearance', 'Terminals use', 'theme themes colors palette dark light'],
   ['appearance', 'Favorites', 'theme star starred favorite'],
   ['general', 'Storage', 'storage folder files artifacts LAKI_STORAGE_FOLDER keep deleted'],

@@ -577,7 +577,9 @@ drives it (Electron); `pageChanges` and `browseSays` are tested in `test/units-m
   Appearance's Vertical text, `--vt` on <html> (`sideways-lr` up, `vertical-rl` down), which every sideways label's
   `writing-mode: var(--vt, <its own>)` takes (`.fr-vert`, the Board's empty columns, plans.css' `.sd-lane .sd-label`); `paintOf` picks them from the settings, `paintKey` is what terminals watch). Glass sets
   see-through `--app-bg` (with the glow's radial gradients), `--side` and `--rail-bg` (`glassSide`) and `--term-bg` (`#rrggbbaa`: xterm reads only
-  that); `sideClear` (Settings' *Sidebar see-through*, without glass) only `--side` and `--rail-bg`, with `html.side-clear`
+  that), and `glassGrain` `html.grain`: styles.css' `::after` of `--grain` (an SVG noise tile) at `--grain-a` over the
+  sidebar, the rail, Info and the side panel (none with `.opaque`, `.narrow`, Reduce transparency, a coarse pointer or
+  darkroom, whose sidebar `::after` is its own); `sideClear` (Settings' *Sidebar see-through*, without glass) only `--side` and `--rail-bg`, with `html.side-clear`
   (a clear body, `.main` alone on `--app-bg`; glass in the app too: the sidebar's slider is over the desktop, not the Window one's background) and the window's blur (`blurred`; the new-workspace window never: `NewWindow`'s paint); what floats is nearly opaque, never `backdrop-filter` (over the see-through window Electron repaints it badly:
   flicker, stale tooltips, rectangles around menus); the window's own blur is native
   (V5) *Translucent sidebar* (`translucent`, on unless false; `themes.ts` `material`: macOS's app, the Classic design, no
