@@ -2214,7 +2214,7 @@ function DecideFields({ wf, b, set }: { wf: Workflow; b: Block; set: (f: (x: Blo
 // the variables a block uses ({{…}}: env.* aside), for its Test's fields
 function varsIn(b: Block) {
   const t = [b.text, b.url, b.system, b.from, ...(b.headers ?? [])].join('\n')
-  return [...new Set([...t.matchAll(/\{\{\s*([\w.?-]+)\s*\}\}/g)].map(m => m[1]).filter(n => !n.startsWith('env.') && !n.startsWith('vars.')))] // those two filled by Laki
+  return [...new Set([...t.matchAll(/\{\{\s*([\w.?[\]-]+)\s*\}\}/g)].map(m => m[1]).filter(n => !n.startsWith('env.') && !n.startsWith('vars.')))] // those two filled by Laki
 }
 type Tested = { exit: string; why: string; vars: Record<string, string>; missing: string[]; unsure: string[]; log: string[]; ms: number }
 // an AI call, a decision or a webhook sent once with values you type: what it says and gives (a webhook's really sent)

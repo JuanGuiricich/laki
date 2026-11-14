@@ -296,7 +296,8 @@ function Disk({ load, tidy }: { load: (again?: boolean) => Promise<DiskUsage>; t
   const max = Math.max(1, ...(d?.projects.flatMap(p => p.workspaces.map(w => w.bytes)) ?? []))
   const go = async (what: DiskTidyWhat, label: string) => {
     const days = what === 'turns' ? 7 : what === 'archives' ? 30 : 0
-    const { goes } = await tidy(what, days, true)
+    const goes = await tidy(what, days, true).then(x => x.goes, e => void setErr(String(e?.message ?? e)))
+    if (!goes) return
     if (!goes.length) return setErr(`${label}: nothing to tidy`)
     if (!(await ask(`${label}?`, { text: `These go: ${goes.slice(0, 12).join('; ')}${goes.length > 12 ? `; and ${goes.length - 12} more` : ''}.`, ok: 'Tidy', danger: true }))) return
     await tidy(what, days, false).then(() => get(true), e => setErr(String(e?.message ?? e)))

@@ -94,6 +94,7 @@ if (session.startsWith('gone-')) {
   process.stdout.write(`No conversation found with session ID: ${session}\r\n`)
   process.exit(1)
 }
+process.stdin.setRawMode(true) // before its banner and its first hooks (execSync blocks): a prompt sent once "fake claude" shows stays raw, its Enter a \r
 process.stdout.write('\x1b[?2004h') // bracketed paste on, like the real one
 process.stdout.write(`fake claude ${args.filter(a => !a.includes('/')).join(' ')}\r\n`)
 hook('SessionStart', { session_id: session })
@@ -170,7 +171,6 @@ const turn = text => {
   }, Number(process.env.FAKE_TURN_MS || 300))
 }
 const positional = args.filter((a, i) => !a.startsWith('--') && !['--settings', '--resume', '--model', '--plugin-dir', '--append-system-prompt'].includes(args[i - 1]))
-process.stdin.setRawMode(true) // before the first turn's hooks (execSync blocks): a key typed meanwhile stays raw
 if (positional.length) turn(positional.at(-1))
 else process.stdout.write('> ')
 let line = ''

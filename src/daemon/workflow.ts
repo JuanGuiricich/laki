@@ -1363,7 +1363,8 @@ function eachIn(r: FlowRun, b: Block, vars: Record<string, string>) {
 function eachItem(r: FlowRun, b: Block) {
   const e = r.each![b.id]
   const as = b.as || 'item'
-  for (const k of Object.keys(r.vars)) if (k === as || k.startsWith(`${as}.`)) delete r.vars[k]
+  const kids = (b.children ?? []).map(c => `steps.${c.id}.`) // and its body's from the last item: one that fails without an answer isn't the last one's
+  for (const k of Object.keys(r.vars)) if (k === as || k.startsWith(`${as}.`) || kids.some(p => k.startsWith(p))) delete r.vars[k]
   Object.assign(r.vars, itemVars(as, e.items[e.at]))
   say(r, `${blockName(b)}: item ${e.at + 1} of ${e.items.length}`, e.items[e.at])
   touch()

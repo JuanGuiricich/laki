@@ -150,13 +150,14 @@ out of a body block's own, and an outward action in it (`OUTWARD`) without `conf
 first: no`) or in a workflow that isn't trusted (`calls.untrusted`). The engine: `eachIn` fills the items (`fill`; shared
 `itemsOf`: a JSON list, an object as its JSON, else a line each), cuts them to the max (said in the log), keeps
 `r.each[<block>]` (`items`, `at`, `failed`: saved, a new visit clears it) and `eachItem` sets the item's variables
-(`itemVars`: `<as>`, an object's top fields as `<as>.<field>`) and enters the first body block. Body blocks keep their own
+(`itemVars`: `<as>`, an object's top fields as `<as>.<field>`; the body's `steps.<kid>.*` from the item before gone) and enters the first body block. Body blocks keep their own
 ids (`blockOf` finds them through `hostOf`), so each is an `enter`: Pause after this block, the budget, the turns limit,
 retries and a restart's `enter(…, true, true)` (the item it was on, its variables saved in `r.vars`) work as anywhere.
 `leave` hands a body block's exit to `eachStep`: the next body block, else the item's outputs (`steps.<id>.items[n].<name>`
 for their `out:` names, `.output` the last one's answer or output), `steps.<id>.count` and `.failed`, then the next item;
 a bad exit (its tries over) leaves `fail` there unless `continue: yes`; the last item `ok`. The item is outside text:
-`outsideVar` names `<as>` and `<as>.*` of a for-each block in scope, so `dataFill` fences it for an agent or a model, and
+`outsideVar` names `<as>` and `<as>.*` of a for-each block in scope, and its `steps.<id>.items[n].*` (a template's
+name takes `[n]`), so `dataFill` fences it for an agent or a model, and
 `shellFill` makes it an env reference for a command, as other outside values. Simulate takes it as one block (`simWhat`:
 the count and the first item, the body's prompts for it). Run from here: the block itself (a body block isn't one of the
 file's blocks: refused). The canvas draws it as a frame (`wf-each`) with `{{<as>}}` in its head and the body in order; the

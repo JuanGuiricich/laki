@@ -6,7 +6,7 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { QUEUE_MAX, barsOf, check, FLOW_ENDED, flowVars, itemsOf, itemVars, lastJson, parse, toFile } from '../src/shared/workflow.ts'
+import { QUEUE_MAX, barsOf, check, fill, FLOW_ENDED, flowVars, itemsOf, itemVars, lastJson, outsideVar, parse, toFile } from '../src/shared/workflow.ts'
 import { fresh, sleep, until } from './helpers.ts'
 import { AGENT, FLOW } from './flows.ts'
 
@@ -692,6 +692,10 @@ test('workflow each: the model: its file both ways, its items, what check refuse
   assert.deepEqual(itemsOf('[not json'), ['[not json'])
   assert.deepEqual(itemsOf('  '), [])
   assert.deepEqual(itemVars('f', '{"path": "x.ts", "n": 2}'), { f: '{"path": "x.ts", "n": 2}', 'f.path': 'x.ts', 'f.n': '2' })
+  // an item's outputs reach later blocks ({{steps.<id>.items[n].*}}), as outside text
+  assert.equal(fill('got {{steps.files.items[1].output}}', { 'steps.files.items[1].output': 'b' }), 'got b')
+  assert.ok(outsideVar('steps.files.items[1].output', undefined, [{ id: 'files', kind: 'each' }]))
+  assert.equal(outsideVar('steps.files.items[1].output', undefined, [{ id: 'files', kind: 'run' }]), undefined)
   const bad = (t: string) => check(parse(t, 'x').workflow)
   assert.ok(bad(EACH('true', kid('one', 'each: {{x}}') + '    ## two\n')).some(p => /can't run inside another/.test(p)) || bad(EACH('true', kid('one', 'each: {{x}}'))).some(p => /can't run inside another/.test(p)))
   assert.ok(bad(EACH('true', kid('one', 'run: x')).replace('each: {{steps.list.output}}', 'each:')).some(p => /which items\?/.test(p)))

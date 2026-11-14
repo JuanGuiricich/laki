@@ -1032,7 +1032,7 @@ export function jsonFill(t: string, vars: Record<string, string | undefined>) {
   let out = ''
   let str = false // inside a "string"
   for (let i = 0; i < t.length; ) {
-    const m = t[i] === '{' && t[i + 1] === '{' ? /^\{\{\s*([\w.?-]+)\s*\}\}/.exec(t.slice(i, i + 200)) : null
+    const m = t[i] === '{' && t[i + 1] === '{' ? /^\{\{\s*([\w.?[\]-]+)\s*\}\}/.exec(t.slice(i, i + 200)) : null
     if (m) {
       const v = vars[m[1]]
       let json = false
@@ -1051,7 +1051,7 @@ export function jsonFill(t: string, vars: Record<string, string | undefined>) {
 }
 
 // {{name}} from a run's variables; an unknown one stays as it is
-export const fill = (text: string, vars: Record<string, string | undefined>) => String(text ?? '').replace(/\{\{\s*([\w.?-]+)\s*\}\}/g, (m, k: string) => vars[k] ?? m)
+export const fill = (text: string, vars: Record<string, string | undefined>) => String(text ?? '').replace(/\{\{\s*([\w.?[\]-]+)\s*\}\}/g, (m, k: string) => vars[k] ?? m)
 
 // W1: a variable from outside Laki, and whose: an event's fields when GitHub (issue.labeled), a webhook's sender or an
 // extension or agent (custom.*) sent it, the agent's own words in Laki's own events (a turn's last answer, its
@@ -1062,6 +1062,9 @@ export const outsideOn = (on?: string) => on === 'issue.labeled' || on === 'webh
 export function outsideVar(k: string, on: string | undefined, blocks: Pick<Block, 'id' | 'kind' | 'as'>[]): string | undefined {
   if (blocks.some(x => x.kind === 'each' && (k === (x.as || 'item') || k.startsWith(`${x.as || 'item'}.`)))) return 'an item of a for-each block’s list'
   if (k.startsWith('event.')) return on === 'issue.labeled' ? 'from GitHub, where anyone can write it' : on === 'webhook' ? "from a webhook's sender" : outsideOn(on) ? 'from an extension or an agent' : AGENT_WORDS.includes(k) ? "an agent's own words" : undefined
+  // a for-each block's items' outputs (steps.<id>.items[n].*): a command's, a webhook's or the item's own words
+  const it = /^steps\.(.+?)\.items\[\d+\]\./.exec(k)
+  if (it && blocks.some(x => x.id === it[1] && x.kind === 'each')) return "a for-each block's item's output"
   const m = /^steps\.(.+)\.(output|log)$/.exec(k)
   if (!m) return
   if (m[2] === 'log') return "a CI log, the PR's own code's output"
@@ -1072,7 +1075,7 @@ export function outsideVar(k: string, on: string | undefined, blocks: Pick<Block
 // variable's value fenced under a line that says whose it is and that it's data, the fence longer than any backticks in
 // it (so nothing inside closes it), cut at max; one plain word (a number, a branch, a URL) inline
 export const fillData = (text: string, vars: Record<string, string | undefined>, whose: (k: string) => string | undefined, max: number) =>
-  String(text ?? '').replace(/\{\{\s*([\w.?-]+)\s*\}\}/g, (m, k: string) => {
+  String(text ?? '').replace(/\{\{\s*([\w.?[\]-]+)\s*\}\}/g, (m, k: string) => {
     const v = vars[k]
     if (v === undefined) return m
     const w = whose(k)
@@ -1089,7 +1092,7 @@ export function hints(wf: Workflow, presets: (Pick<Preset, 'name' | 'perm'> & { 
   const blind = unmetered(wf, presets)
   if (wf.budget?.usd && blind.length) out.push(`budget: ${dollars(wf.budget.usd)} leaves out ${blind.join(', ')}'s turns: Laki can't read what ${blind.length > 1 ? 'they' : 'it'} cost`)
   for (const b of wf.blocks.filter(x => x.kind === 'agent' && ['auto', 'acceptEdits', 'bypassPermissions'].includes(permOf(wf, x) ?? presets.find(p => p.name === (x.agent || 'claude'))?.perm ?? ''))) {
-    const used = [...new Set([...(b.text ?? '').matchAll(/\{\{\s*([\w.?-]+)\s*\}\}/g)].map(m => m[1]).filter(k => outsideVar(k, wf.on, wf.blocks)))]
+    const used = [...new Set([...(b.text ?? '').matchAll(/\{\{\s*([\w.?[\]-]+)\s*\}\}/g)].map(m => m[1]).filter(k => outsideVar(k, wf.on, wf.blocks)))]
     if (used.length) out.push(`${blockName(b)}: {{${used[0]}}}${used.length > 1 ? ` and ${used.length - 1} more` : ''}: this text comes from outside: the agent is told it is data`)
   }
   return out
@@ -1102,7 +1105,7 @@ export function shellFill(cmd: string, vars: Record<string, string | undefined>)
   const env: Record<string, string> = {}
   const single: string[] = []
   const names = new Map<string, string>()
-  const PH = /\{\{\s*([\w.?-]+)\s*\}\}/y
+  const PH = /\{\{\s*([\w.?[\]-]+)\s*\}\}/y
   let out = ''
   let quote = ''
   for (let i = 0; i < cmd.length; ) {
@@ -1261,8 +1264,8 @@ export function barsOf(r: Pick<FlowRun, 'spans' | 'started' | 'ended' | 'cost'>,
 // each block's visits so far, what each would have been sent (the newest SIM_SENT), its steps (SIM_STEPS at most)
 export type FlowSim = { from?: string; answers?: Record<string, string | string[]>; n: Record<string, number>; sent: { block: string; n: number; what: string }[]; steps?: number }
 export const SHOWN_MAX = 512 << 10 // a Show you's body
-export type FlowView = Omit<FlowRun, 'flow' | 'log' | 'decisions' | 'vars' | 'tabs' | 'resume' | 'shown' | 'inner' | 'calls' | 'par' | 'spans'> & { name: string; block?: string; decisions: number; last?: Decision; steps?: number } // the view's: the details come from flowGet; steps: its blocks (U15: the Dock's progress)
-export const flowView = ({ flow, log, decisions, vars, tabs, resume, shown, inner, calls: _c, par: _p, spans: _s, ...r }: FlowRun): FlowView => {
+export type FlowView = Omit<FlowRun, 'flow' | 'log' | 'decisions' | 'vars' | 'tabs' | 'resume' | 'shown' | 'inner' | 'calls' | 'par' | 'spans' | 'each'> & { name: string; block?: string; decisions: number; last?: Decision; steps?: number } // the view's: the details come from flowGet; steps: its blocks (U15: the Dock's progress)
+export const flowView = ({ flow, log, decisions, vars, tabs, resume, shown, inner, calls: _c, par: _p, spans: _s, each: _e, ...r }: FlowRun): FlowView => {
   const b = flow.blocks.find(x => x.id === r.cur) ?? inner?.find(x => x.id === r.cur) ?? [...flow.blocks, ...(inner ?? [])].flatMap(x => (x.kind === 'each' ? (x.children ?? []) : [])).find(x => x.id === r.cur)
   const wait = r.wait && 'show' in r.wait ? { ...r.wait, show: undefined } : r.wait // an agent's whole answer: flowGet has it
   return { ...r, wait, name: flow.name, steps: flow.blocks.length, block: b && blockName(b), decisions: decisions.length, last: decisions.at(-1), ...(r.sim && { sim: { ...r.sim, sent: [] } }) } // a simulation's sent: flowGet's
