@@ -3,7 +3,7 @@
 version it builds, with the date. A version's first three lines are its What's new card after an update (U13): put
 the biggest first, and end a line with `[Try it](laki://…)` to give it a Try button there. -->
 
-## Next
+## 0.52.0 · Nov 14, 2026
 
 - Ship looks for secrets before it commits: an API key, a private key or a password in a URL in the lines it would add stops it, each shown by file and line, masked. Untick the file, or say *Not a secret* (remembered for that workspace). `laki ship` exits 1 unless `--allow-secrets`; an agent can't pass it.
 - Confirm risky actions with Touch ID (Settings › General, off until you turn it on): starting remote access, pairing a device, Bypass permissions, a webhook's secret and Reset the interface ask for your finger first, and only Laki's window can do them then. [Try it](laki://settings/general?spot=Confirm%20risky%20actions%20with%20Touch%20ID)
