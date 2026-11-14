@@ -567,7 +567,7 @@ drives it (Electron); `pageChanges` and `browseSays` are tested in `test/units-m
   and its `aka` (the game's or film's words), which Settings' theme finder also matches. `--accent-ink` is the accent as text (every `color:`
   of it; fills and borders keep `--accent`): `readable` darkens it (lightens, on a dark theme) to 4.5:1 on the theme's
   background and panels, so a light theme's bright accent stays bright where it fills; the selection is the accent at `--sel-a` (`::selection`;
-  `selAlpha`: `SEL_A`, 32%, less where its text wouldn't read 4.5:1, 7:1 in High contrast, on those same backgrounds;
+  `selAlpha`: `SEL_A`, 30%, a light theme's `SEL_A_LIGHT`, 24%, less where its text wouldn't read 4.5:1, 7:1 in High contrast, on those same backgrounds;
   `test/contrast.test.ts`), grey while the window isn't in use (`html.away`), and every field's caret is the accent
   (`:where(input, textarea, [contenteditable])`, a rule's own winning: a PIN's boxes); `--on-waiting`/`--on-error` are
   labels on those fills (`onAccent`). `test/contrast.test.ts` holds every theme to WCAG ratios (text 4.5; hints, status

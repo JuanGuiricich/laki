@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { MATERIAL, SEL_A, SURFACE, THEMES, contrast as ratio, materialInk, readable, selAlpha, surfaceAlpha } from '../src/renderer/src/themes.ts'
+import { MATERIAL, SEL_A, SEL_A_LIGHT, SURFACE, THEMES, contrast as ratio, materialInk, readable, selAlpha, surfaceAlpha } from '../src/renderer/src/themes.ts'
 
 // what sits on what, and how much it needs: 4.5 for text, hints and status words alike (3.5 for a hint on the selection;
 // 2.5 for a status mark there: its shape tells it too); a selection, a hovered row and a line need only to show
@@ -116,7 +116,7 @@ test("contrast: readable keeps a color that reads, else darkens it on light (lig
 })
 
 // 9c: the selection is the accent at --sel-a (themes.ts selAlpha) over the background, the panels and the sidebar: its
-// text reads (4.5:1) in every theme, at SEL_A where that's enough
+// text reads (4.5:1) in every theme, at SEL_A (a light one's SEL_A_LIGHT) where that's enough
 test('contrast: selected text reads over the accent selection in every theme', () => {
   const root = readFileSync(new URL('../src/renderer/src/styles.css', import.meta.url), 'utf8').match(/:root\s*{([^}]*)}/)![1]
   const v = (k: string) => root.match(new RegExp(`--${k}:\\s*(#[0-9a-fA-F]+)`))![1]
@@ -127,8 +127,8 @@ test('contrast: selected text reads over the accent selection in every theme', (
     const c = (t.c ?? { bg: v('bg'), panel: v('panel'), side: v('side'), fg: v('fg'), accent: v('accent') }) as Record<string, string>
     const ends = t.grad ? [...t.grad] : [c.bg]
     const bgs = [...ends, c.panel, ...ends.map(e => over(c.side, e))]
-    const a = selAlpha(c.accent, bgs, c.fg)
-    if (a === SEL_A) full++
+    const a = selAlpha(c.accent, bgs, c.fg, 4.5, t.light ? SEL_A_LIGHT : SEL_A)
+    if (a === (t.light ? SEL_A_LIGHT : SEL_A)) full++
     for (const b of bgs) {
       const r = ratio(c.fg, over(c.accent + pct(a), b))
       if (r < 4.5) bad.push(`${t.name}: selected text on ${b} at ${a}% is ${r.toFixed(2)}`)
