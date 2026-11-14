@@ -2,6 +2,8 @@ node_modules/
 out/
 dist/
 *.log
+# npm test's timings (scripts/test-history.ts): this checkout's own
+.test-history.jsonl
 .DS_Store
 
 # signing and notarizing (scripts/release.sh): your own, never committed

@@ -934,3 +934,33 @@ test("launcherOurs: Laki's launcher is this bundle's for this data dir (an updat
   assert.equal(launcherOurs(text('/Applications/Laki.app/Contents/MacOS/Laki'), app, "'LAKI_HOME=/elsewhere'"), false, "another data dir's")
   assert.equal(launcherOurs(text('/Applications/Laki 2.app/Contents/MacOS/Laki').replace(/Laki\.app\/Contents\/Resources/, 'Laki 2.app/Contents/Resources'), app, home), false, 'Laki 2.app')
 })
+
+test('test:report: medians over the last 20 runs, the flaky rule, the 5,000-line cap, npm test\'s end lines', async () => {
+  const { capped, median, parse, report, runEnd } = await import('../scripts/test-report.ts')
+  assert.equal(median([3, 1, 2]), 2)
+  assert.equal(median([4, 1, 3, 2]), 2.5)
+  assert.equal(median([]), 0)
+  const run = (file: string, ms: number, pass = true, sha = 'a1', failed?: string[]) => ({ date: '2026-11-14T00:00:00Z', sha, file, ms, pass, ...(failed && { failed }) })
+  // the median of the last 20 only: an old slow run is forgotten; over 60 s is said
+  const runs = [run('test/big.test.ts', 999_999), ...Array.from({ length: 20 }, (_, i) => run('test/big.test.ts', 61_000 + i)), run('test/small.test.ts', 100), run('test/small.test.ts', 300)]
+  const r = report(runs)
+  assert.deepEqual(r.slow.map(x => [x.file, x.median, x.runs, x.over]), [['test/big.test.ts', 61_010, 20, true], ['test/small.test.ts', 200, 2, false]])
+  assert.deepEqual(r.flaky, [])
+  // passed and failed on one sha: flaky, its test named; a file that fails every time isn't
+  const f = report([run('test/pr.test.ts', 1, true, 'b2'), run('test/pr.test.ts', 1, false, 'b2', ['merge when green']), run('test/bad.test.ts', 1, false, 'b2', ['x']), run('test/bad.test.ts', 1, false, 'c3', ['x'])])
+  assert.deepEqual(f.flaky, [{ file: 'test/pr.test.ts', runs: 2, fails: 1, shas: ['b2'], tests: [{ name: 'merge when green', fails: 1, sameSha: true }] }])
+  // failed in fewer than a third of the last 20, on different shas: flaky too; a third or more: not
+  const rare = Array.from({ length: 20 }, (_, i) => run('test/ui.test.ts', 1, i !== 7, `s${i}`, i === 7 ? ['click'] : undefined))
+  assert.deepEqual(report(rare).flaky.map(x => [x.file, x.fails, x.shas]), [['test/ui.test.ts', 1, undefined]])
+  const often = Array.from({ length: 20 }, (_, i) => run('test/ui.test.ts', 1, i % 3 !== 0, `s${i}`))
+  assert.deepEqual(report(often).flaky, [])
+  // the history keeps its newest 5,000 lines; a line that isn't one is skipped
+  const lines = Array.from({ length: 5003 }, (_, i) => JSON.stringify(run(`test/f${i}.test.ts`, i)))
+  const kept = capped(lines)
+  assert.equal(kept.length, 5000)
+  assert.equal(parse(kept.join('\n'))[0].file, 'test/f3.test.ts')
+  assert.deepEqual(parse('{"no":1}\nnot json\n'), [])
+  // npm test's last lines: the slowest file, and one that failed now but passed on this sha before
+  assert.deepEqual(runEnd([run('test/a.test.ts', 2000), run('test/b.test.ts', 9000, false)], [run('test/b.test.ts', 1, true)]), ['slowest file: test/b.test.ts (9.0 s)', 'likely flaky: re-run with npm run test:one -- test/b.test.ts'])
+  assert.deepEqual(runEnd([run('test/b.test.ts', 10, false)], [run('test/b.test.ts', 1, true, 'other')]), ['slowest file: test/b.test.ts (0.0 s)'])
+})
