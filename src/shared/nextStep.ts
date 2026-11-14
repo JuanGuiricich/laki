@@ -3,7 +3,7 @@
 // the toolbar's button (⌘G) and a chip on its sidebar row. busy: nothing for you yet (an agent works, CI runs), the
 // button says so and the row shows no chip. The palette's *For <workspace>* lists every one that applies; this picks one.
 import { planNow } from './todos.ts'
-import type { TabView, WorkspaceView } from './types.ts'
+import { type TabView, type View, veiled, type WorkspaceView } from './types.ts'
 
 export type StepId = 'continue' | 'answer' | 'plan' | 'check' | 'conflict' | 'ci' | 'review' | 'merge' | 'archive' | 'look' | 'ship' | 'working' | 'wait'
 export type Step = { id: StepId; label: string; tip?: string; tab?: string; busy?: boolean; tone?: 'ask' | 'bad' | 'go' }
@@ -36,20 +36,26 @@ export function nextStep(w: WorkspaceView, tabs: TabView[], o: { merge?: boolean
   if (w.kind === 'worktree' && changed) return { id: 'ship', label: 'Ship', tip: 'Commit, push, open a PR', tone: 'go' }
 }
 
+// the edge glow (settings.edgeGlow): an ask or a secret request waits in a tab that isn't the focused one, the window
+// in use (focused), not in Do not disturb; Recording mode's hidden workspaces aside (veiled), a muted tab or workspace and
+// an archived one too, as Needs you counts. Reduced motion, a flat look and the phone: styles.css' and App's
+export function waitsElsewhere(v: Pick<View, 'workspaces' | 'tabs' | 'projects' | 'settings' | 'dnd'>, focusedTab: string | null | undefined, focused: boolean) {
+  if (!focused || v.dnd) return false
+  const w = veiled(v as View)
+  const live = new Set(w.workspaces.filter(x => !x.muted && !x.archived).map(x => x.id))
+  return w.tabs.some(t => (t.status === 'waiting' || !!t.secret) && t.id !== focusedTab && !t.muted && live.has(t.workspace))
+}
+// the remote page's icon badge (navigator.setAppBadge: the page's, and Web Push's payload for its service worker): what
+// Needs you counts, as the Dock's: Recording mode's hidden workspaces (veiled), a muted tab, a muted or archived workspace
+// and one not in the view aside
+export function badgeOf(v: Pick<View, 'workspaces' | 'tabs' | 'projects' | 'settings'>) {
+  const w = veiled(v as View)
+  const live = new Set(w.workspaces.filter(x => !x.muted && !x.archived).map(x => x.id))
+  return w.tabs.filter(t => needsTab(t) && !t.muted && live.has(t.workspace)).length
+}
 // U5: the Board's columns, from the same rules: what the sidebar's Needs you counts (needsTab) is always in Answer, Review
 // or Fix, never in Working, Merge or Done. setup: its setup script runs
-// the edge glow (settings.edgeGlow): an agent waits for you in a workspace that isn't the one on screen (shown), its
-// tab and its workspace not muted, the workspace not archived. Reduced motion, a flat look, a small window and a phone:
-// styles.css' and App's, not here
-export const waitsElsewhere = (wss: WorkspaceView[], tabs: TabView[], shown?: string | null) =>
-  tabs.some(t => t.status === 'waiting' && !t.muted && t.workspace !== shown && (w => !!w && !w.muted && !w.archived)(wss.find(w => w.id === t.workspace)))
 export const needsTab = (t: TabView) => t.status === 'waiting' || !!t.secret || !!t.failed || (!!t.done && t.status === 'idle')
-// the remote page's icon badge (navigator.setAppBadge: the page's, and Web Push's payload for its service worker): what
-// Needs you counts, a muted tab, a muted or archived workspace and one not in the view aside, as the Dock's count
-export function badgeOf(v: { workspaces: WorkspaceView[]; tabs: TabView[] }) {
-  const live = new Set(v.workspaces.filter(w => !w.muted && !w.archived).map(w => w.id))
-  return v.tabs.filter(t => needsTab(t) && !t.muted && live.has(t.workspace)).length
-}
 export const BOARD = [['working', 'Working'], ['answer', 'Answer'], ['review', 'Review'], ['fix', 'Fix'], ['merge', 'Merge'], ['done', 'Done']] as const
 export type BoardCol = (typeof BOARD)[number][0]
 export function boardCol(w: WorkspaceView, tabs: TabView[], o: { merge?: boolean; git?: boolean } = {}): BoardCol {

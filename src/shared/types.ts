@@ -557,7 +557,7 @@ export type Settings = {
   simpleRow?: boolean // B4: Appearance › Sidebar rows › Simple row (off unless true): a row is its name and one next-step chip, the other marks on hover
   rowMarks?: Partial<Record<'step' | 'author' | 'conflict' | 'ci' | 'radar' | 'plan' | 'ticket', boolean>> // a sidebar row's other marks, each on unless false (step: off unless true; conflict, ci: unset, as prIcon)
   notifyOn?: Partial<Record<NotifyKind, boolean>> // which turns notify (unset: all)
-  edgeGlow?: boolean // the window's edges glow while an agent waits for you in another workspace (unset: on; nextStep.ts waitsElsewhere)
+  edgeGlow?: boolean // the window's edge glows while an ask waits in another tab (on only if true: a new install's, core.ts NEW_DEFAULTS; nextStep.ts waitsElsewhere)
   dockBounce?: boolean // U15: the Dock icon bounces once as a workspace starts waiting on you, Laki not in front (unset: on)
   usageAt?: number // a plan limit's % that notifies (notifyOn.usage): 75, 90, 95 (unset: USAGE_AT, 90)
   scheduleMaxMinutes?: number // T8: a scheduled run's time limit, its agent's working time, for a task that sets none (unset: 60; 0: none)
@@ -698,7 +698,7 @@ export type Settings = {
   floaterVoiceTo?: 'pick' | 'new' // the voice prompt goes to: an agent you pick each time, or always a new session (unset: pick)
   floaterMax?: number // the bubbles at most (unset: 12)
   floaterCards?: boolean // a bubble's card on hover (unset: on)
-  hideFloats?: boolean // 10c: the bubbles, their cards, the cards on screen and the Inbox kept out of screen recording and screenshots (off unless true; Recording mode does it too)
+  hideFloats?: boolean // 10c: the floating windows kept out of screen recording and screenshots (on only if true: a new install's, NEW_DEFAULTS; Recording mode does it too)
   floaterDone?: boolean // a finished agent you haven't seen: a green, pulsing bubble until a click or a look (unset: on)
   floaterAt?: 'edge' | 'notch' // where the bubbles go: the screen's edge (unset), or an island at the top, in the notch or under the menu bar, that opens into a card when an agent asks or finishes
   floaterNew?: boolean // the bubbles' +: New task, Say it, Screenshot area, Whole screen (unset: on)

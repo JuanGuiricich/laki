@@ -132,9 +132,10 @@ const readState = (p: string): State => {
 
 // U10: a new install's defaults (an install from before keeps what it had): the base fetched from origin before a
 // worktree, the row's next-step chip, memory compaction off until you turn it on (it sends text to Laki AI's model),
-// and no macOS notification as a turn finishes (asks still notify; finishes are in Needs you). On a Mac its window is
+// and no macOS notification as a turn finishes (asks still notify; finishes are in Needs you); the edge glow while an
+// agent waits, the floating windows kept out of screen recording. On a Mac its window is
 // the Frosted design (Settings › Layout › Design: macOS's glass), set where the theme pair is
-const NEW_DEFAULTS = { syncBase: 'origin', rowMarks: { step: true }, memoryCompact: { on: false }, notifyOn: { done: false }, wsTint: true } as const // wsTint: a new install starts on Laki's theme (and Frosted on a Mac), where it's made to show
+const NEW_DEFAULTS = { syncBase: 'origin', rowMarks: { step: true }, memoryCompact: { on: false }, notifyOn: { done: false }, wsTint: true, edgeGlow: true, hideFloats: true } as const // wsTint: a new install starts on Laki's theme (and Frosted on a Mac), where it's made to show
 // R7: the state's schema number, stamped as it's saved. One a newer Laki wrote (a higher v) is copied aside as
 // state.json.v<N> before this one's first save, and the view says so (newerData): its fields this build doesn't know
 // may not survive

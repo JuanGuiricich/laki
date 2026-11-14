@@ -152,7 +152,7 @@ export type AppSettings = Paint & {
   sideLook?: SideLook // the sidebar's lines, rows and button labels
   notifyOn?: Partial<Record<NotifyKind, boolean>> // which turns notify (unset: all)
   dockBounce?: boolean // U15: the Dock icon bounces as a workspace starts waiting (unset: on)
-  edgeGlow?: boolean // the window's edges glow while an agent waits in another workspace (unset: on)
+  edgeGlow?: boolean // the window's edge glows while an ask waits in another tab (on only if true)
   usageAt?: number // a plan limit's % that notifies: 75, 90, 95 (unset: 90)
   notifySound?: string // a macOS sound, 'none', or unset: the default
   longTurn?: number // minutes: a turn working that long notifies (unset, 0: off)
@@ -1491,8 +1491,8 @@ export function SettingsPage(p: {
                     </label>
                   </>
                 )}
-                <Switch className="switch-row" on={s.edgeGlow !== false} onChange={v => set({ edgeGlow: v })}>
-                  <Says title="Glow while an agent waits" hint="The window's edges glow while an agent in another workspace waits for you. Not with reduced motion, a flat look, a small window or on a phone." />
+                <Switch className="switch-row" on={s.edgeGlow === true} onChange={v => set({ edgeGlow: v })}>
+                  <Says title="Glow the window's edge when an agent waits" hint="While an agent in another tab waits for you and Laki is in use. A thin line instead with reduced motion; none in a flat look or on a phone." />
                 </Switch>
                 {bridge?.bounce && (
                   <Switch className="switch-row" on={s.dockBounce !== false} onChange={v => set({ dockBounce: v })}>

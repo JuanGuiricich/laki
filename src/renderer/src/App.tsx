@@ -448,12 +448,13 @@ export function App() {
   }
   // no status bar (settings.statusBar false): minimized to a small AI pill in the button's corner instead, no flight
   const dock = (on: boolean) => (on && viewRef.current?.settings.statusBar !== false && !matchMedia('(prefers-reduced-motion: reduce)').matches ? (setFly('down'), setTimeout(() => docked(true), DOCK_MS - 20)) : docked(on))
+  const [front, setFront] = useState(true) // the window in use (the edge glow's)
   // another app in front: the window's animations (spinners, lines, a look's effects) stop where they are, so a window
   // in sight but not in use draws only what changes (styles.css' html.away); the bubbles say who's at work meanwhile
   useEffect(() => {
     // main says when another app is in front (a click into a Browsers page or the preview blurs the window, but Laki is
     // still in front); a browser: the page's focus, read once it has moved (into one of its frames: still focused)
-    const away = (on: boolean) => void document.documentElement.classList.toggle('away', on)
+    const away = (on: boolean) => (document.documentElement.classList.toggle('away', on), setFront(!on))
     away(!document.hasFocus())
     if (bridge?.onFront) return void bridge.onFront(on => away(!on))
     const f = () => void setTimeout(() => away(!document.hasFocus()))
@@ -943,7 +944,18 @@ export function App() {
   useEffect(() => bridge?.badge?.(trayItems.length, trayItems, view?.settings.menuBar !== false, !!view?.settings.recording, trayInfo, dockBar, inboxItems), [trayKey])
   // the remote page installed as an app: its icon's badge, the same count (its service worker sets it as a push comes)
   const pageBadge = !bridge && view ? badgeOf(view) : 0
-  useEffect(() => void (!bridge && 'setAppBadge' in navigator && (pageBadge ? navigator.setAppBadge(pageBadge) : navigator.clearAppBadge()).catch(() => {})), [pageBadge])
+  useEffect(() => {
+    if (bridge || !('setAppBadge' in navigator)) return
+    const set = () => {
+      try {
+        void (pageBadge ? navigator.setAppBadge(pageBadge) : navigator.clearAppBadge()).catch(() => {})
+      } catch {}
+    }
+    set()
+    const shown = () => document.visibilityState === 'visible' && set() // back in sight: a push's count may be stale
+    document.addEventListener('visibilitychange', shown)
+    return () => document.removeEventListener('visibilitychange', shown)
+  }, [pageBadge])
   // U15: a workspace that starts waiting on you while Laki isn't in front: the Dock bounces once (tray.ts bounceOf)
   const waitedWs = useRef<Set<string> | null>(null)
   useEffect(() => {
@@ -3799,7 +3811,7 @@ export function App() {
   const { wsMenu, tabMenu, fileMenu, applyLayout, peekCard } = app
   keys.current = (e, force, fixed) => onKey(app, e, force, fixed)
   return (
-    <div style={{ ...(rail && { '--rail-w': `${railW}px` }), '--page-zoom': (fontSize / FONT_SIZE) * pageZoom, '--page-own': own } as CSSProperties /* the list pages' size (styles.css), as Settings'; the open page's own */} className={`app ${sideOpen || railUp ? '' : 'side-closed'} ${rail ? 'rail-on' : ''} ${listOff || (railUp && !sideOpen) ? 'list-off' : ''} ${narrow ? 'narrow' : ''} ${bridge && /Mac/.test(navigator.userAgent) ? 'electron' : ''} ${settings.dimPanes !== false ? 'dim-panes' : ''} ${full ? 'full' : ''} ${wideBar ? 'wide-status' : ''} ${strip ? `strip-${strip}` : ''} ${fromSnap.current ? 'from-snap' : ''}`} data-pad={settings.termPad} data-inset={settings.paneInset ? '' : undefined} data-glow={settings.edgeGlow !== false && !narrow && waitsElsewhere(view.workspaces, view.tabs, ws?.id) ? '' : undefined} {...(dz => dz && !narrow && !full && { 'data-design': settings.design, 'data-dz': dz })(designTraits(settings.design)) /* Appearance › Design: none on a phone or in full screen */}>
+    <div style={{ ...(rail && { '--rail-w': `${railW}px` }), '--page-zoom': (fontSize / FONT_SIZE) * pageZoom, '--page-own': own } as CSSProperties /* the list pages' size (styles.css), as Settings'; the open page's own */} className={`app ${sideOpen || railUp ? '' : 'side-closed'} ${rail ? 'rail-on' : ''} ${listOff || (railUp && !sideOpen) ? 'list-off' : ''} ${narrow ? 'narrow' : ''} ${bridge && /Mac/.test(navigator.userAgent) ? 'electron' : ''} ${settings.dimPanes !== false ? 'dim-panes' : ''} ${full ? 'full' : ''} ${wideBar ? 'wide-status' : ''} ${strip ? `strip-${strip}` : ''} ${fromSnap.current ? 'from-snap' : ''}`} data-pad={settings.termPad} data-inset={settings.paneInset ? '' : undefined} data-glow={settings.edgeGlow === true && !narrow && waitsElsewhere(view, tab?.id, front) ? '' : undefined} {...(dz => dz && !narrow && !full && { 'data-design': settings.design, 'data-dz': dz })(designTraits(settings.design)) /* Appearance › Design: none on a phone or in full screen */}>
       {railBar}
       {(sideOpen || video) && <Sidebar app={app} /> /* hidden, not gone, while a video plays */}
       {strip === 'left' && stripBar}

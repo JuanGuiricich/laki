@@ -986,13 +986,15 @@ test('proofMd: the last Done check in a PR body: pass, fail, the verdict, what i
   assert.match(proofMd({ ...p, checks: [{ ...p.checks[0], name: 'a`b' }] }), /`a'b`/) // a backtick can't end the code span
 })
 
-test("badgeOf: the remote page's icon count is what Needs you counts, muted and archived aside", async () => {
+test("badgeOf: the remote page's icon count is what Needs you counts, muted, archived and Recording mode's hidden aside", async () => {
   const { badgeOf } = await import('../src/shared/nextStep.ts')
-  const w = (id: string, o: object = {}) => ({ id, kind: 'worktree', ...o }) as never
+  const w = (id: string, o: object = {}) => ({ id, kind: 'worktree', project: 'p', ...o }) as never
   const t = (id: string, ws: string, o: object) => ({ id, workspace: ws, name: id, kind: 'agent', status: 'idle', ...o }) as never
-  const v = { workspaces: [w('a'), w('b', { muted: true }), w('c', { archived: true })], tabs: [t('1', 'a', { status: 'waiting' }), t('2', 'a', { done: true }), t('3', 'a', { status: 'running' }), t('4', 'a', { status: 'waiting', muted: true }), t('5', 'b', { status: 'waiting' }), t('6', 'c', { status: 'waiting' }), t('7', 'gone', { status: 'waiting' })] }
-  assert.equal(badgeOf(v), 2)
-  assert.equal(badgeOf({ workspaces: [], tabs: [] }), 0)
+  const v = { projects: [{ id: 'p' }] as never, settings: {}, workspaces: [w('a'), w('b', { muted: true }), w('c', { archived: true }), w('s', { private: true })], tabs: [t('1', 'a', { status: 'waiting' }), t('2', 'a', { done: true }), t('3', 'a', { status: 'running' }), t('4', 'a', { status: 'waiting', muted: true }), t('5', 'b', { status: 'waiting' }), t('6', 'c', { status: 'waiting' }), t('7', 'gone', { status: 'waiting' }), t('8', 's', { status: 'waiting' })] }
+  assert.equal(badgeOf(v), 3, 'a private workspace counts outside Recording mode')
+  assert.equal(badgeOf({ ...v, settings: { recording: true } }), 2, "Recording mode: the hidden one doesn't")
+  assert.equal(badgeOf({ ...v, settings: { recording: true }, projects: [{ id: 'p', private: true }] as never }), 0, 'a private project hides them all')
+  assert.equal(badgeOf({ projects: [], settings: {}, workspaces: [], tabs: [] }), 0)
 })
 
 test("shortcutOf: the remote page's icon shortcuts as laki:// links; no shortcut, nothing", async () => {

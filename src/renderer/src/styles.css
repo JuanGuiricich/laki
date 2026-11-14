@@ -227,10 +227,12 @@ html.away :is(.pin-card, .pin-card > *, .pin-ring > span) { animation-play-state
 @media (prefers-reduced-motion: reduce) { .pin-card, .pin-card > *, .pin-ring > span, .pin-box.full, .pin-card > .pin-boxes.shake, .pin-boxes:focus-within .pin-box.at::after { animation: none; } .pin-fill { transition: none; } }
 
 .app { display: flex; height: 100%; position: relative; }
-.app[data-glow]::after { content: ''; position: absolute; inset: 0; z-index: var(--z-tip); pointer-events: none; border-radius: inherit; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--waiting) 70%, transparent), inset 0 0 28px color-mix(in srgb, var(--waiting) 32%, transparent); animation: edge-glow 2.4s ease-in-out infinite alternate; } /* an agent waits in another workspace (nextStep.ts waitsElsewhere) */
-@keyframes edge-glow { from { opacity: 0.4; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce), (max-width: 900px), (max-height: 520px), (pointer: coarse) { .app[data-glow]::after { display: none; } }
-:root[data-motion='none'] .app[data-glow]::after, :root.opaque .app[data-glow]::after { display: none; }
+.app[data-glow]::after { content: ''; position: fixed; inset: 0; z-index: calc(var(--z-dialog) - 1); pointer-events: none; border-radius: var(--r-window); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--waiting) 45%, transparent), inset 0 0 24px color-mix(in srgb, var(--waiting) 22%, transparent); will-change: opacity; animation: edge-glow 2.6s var(--ease) infinite alternate; } /* an ask waits in another tab (nextStep.ts waitsElsewhere): one composited layer, only its opacity moves */
+@keyframes edge-glow { from { opacity: 0.35; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .app[data-glow]::after { animation: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--waiting) 35%, transparent); } } /* still: a thin line */
+:root[data-motion='none'] .app[data-glow]::after { animation: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--waiting) 35%, transparent); }
+:root.opaque .app[data-glow]::after { display: none; } /* a flat look */
+@media (pointer: coarse) { .app[data-glow]::after { display: none; } } /* a phone */
 .sidebar { width: 240px; flex: none; background: var(--side); border-right: 1px solid var(--line); display: flex; flex-direction: column; }
 .sidebar[hidden] { display: none !important; } /* hidden, not unmounted: its video plays on */
 /* a rail page (Board, Schedule…) or a strip in its place: hidden but still laid out where it was (Sidebar.tsx' margin
