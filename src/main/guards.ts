@@ -98,9 +98,10 @@ export function menuModelOk(m: unknown): NativeItem[] | undefined {
   return list(m, 1)
 }
 
-// 10c: the floating windows macOS's screen recording and screenshots leave out (setContentProtection): the bubbles' bar,
-// card, + menu and voice window, the cards on screen (ask.html), the menu bar's Inbox and the talk pill; on with Settings'
-// Hide bubbles and cards from screen recording (hide), or while Recording mode is on (private workspaces hidden: their
-// asks and answers might be on one). Never the app's own window: that's what you'd share
-export const FLOAT_KINDS = ['bar', 'card', 'menu', 'voice', 'ask', 'inbox', 'talk'] as const
-export const protectedKind = (kind: string, s: { hide?: boolean }, recording: boolean) => (FLOAT_KINDS as readonly string[]).includes(kind) && (s.hide === true || recording)
+// 10c: the windows that float over other apps, kept out of screen recording, sharing and screenshots
+// (setContentProtection): the bubbles' bar (the notch island too: the same window), its card, + menu and voice window,
+// the cards on screen (ask.html), the menu bar's Inbox, the quick bar and the talk pill. With Settings' Hide bubbles and
+// cards from screen recording (hideFloats: true, a new install's), or while Recording mode is on, whatever it says. Never
+// the app's window, the annotate editor or a floated tab: you may want to show those
+export const FLOAT_KINDS = ['bar', 'card', 'menu', 'voice', 'ask', 'inbox', 'quick', 'talk'] as const
+export const protectedKind = (kind: string, s: { hideFloats?: boolean }, recording: boolean) => (FLOAT_KINDS as readonly string[]).includes(kind) && (s.hideFloats === true || recording)

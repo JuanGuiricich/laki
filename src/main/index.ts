@@ -1461,9 +1461,9 @@ const beside = (w: number, h: number, along: number) => {
 }
 // 10c: each floating window kept out of screen recording and screenshots (guards.ts protectedKind), as each is made and
 // as the setting or Recording mode changes
-const guardFloat = (kind: string, w: BrowserWindow | null) => w && !w.isDestroyed() && w.setContentProtection(protectedKind(kind, floats, recording))
+const guardFloat = (kind: string, w: BrowserWindow | null) => w && !w.isDestroyed() && w.setContentProtection(protectedKind(kind, { hideFloats: floats.hide }, recording))
 function protectFloats() {
-  for (const [k, w] of [['bar', floater], ['card', card], ['menu', menu], ['voice', voice], ['ask', cardWin], ['inbox', inboxWin], ['talk', talkW]] as const) guardFloat(k, w)
+  for (const [k, w] of [['bar', floater], ['card', card], ['menu', menu], ['voice', voice], ['ask', cardWin], ['inbox', inboxWin], ['quick', quickW], ['talk', talkW]] as const) guardFloat(k, w)
 }
 const floatOpts = (width: number, height: number, focusable = true): BrowserWindowConstructorOptions => ({
   ...barAt,
@@ -1962,6 +1962,7 @@ function quickWin(prompt?: string) {
   }
   quickReady = false
   const w = (quickW = panelWin({ window: 'quick', ...(prompt && { prompt }) }, 640, 132, { minWidth: 440, minHeight: 112, resizable: false }, 0.16))
+  guardFloat('quick', w)
   w.webContents.on('did-navigate', () => quickW === w && (quickReady = false)) // a reload: it listens again as it's up
   w.on('closed', () => quickW === w && ((quickW = null), (quickReady = false), (tellPng = null)))
 }

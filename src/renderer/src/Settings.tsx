@@ -2282,7 +2282,7 @@ export function SettingsPage(p: {
                       <Says title="Card on hover" hint="Its name, project and what it asked or last said, beside the drop" />
                     </Switch>
                     <Switch className="switch-row" on={s.hideFloats === true} onChange={v => set({ hideFloats: v })}>
-                      <Says title="Hide bubbles and cards from screen recording" hint="Screen sharing, recordings and screenshots leave out the bubbles, their cards, the cards on screen and the Inbox. Recording mode does it too." />
+                      <Says title="Hide bubbles and cards from screen recording" hint="Screen sharing, recordings and screenshots leave out the bubbles, the cards on screen, the quick bar and the Inbox. Recording mode does it too. Some capture tools ignore this." />
                     </Switch>
                     <Switch className="switch-row" on={s.floaterNew !== false} onChange={v => set({ floaterNew: v })}>
                       <Says title="+ button" hint="A + under the bubbles: New task, Say it, a screenshot" />

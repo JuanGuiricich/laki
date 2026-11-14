@@ -1,5 +1,6 @@
 // E3: Electron main's checks (src/main/guards.ts), on plain node: who may send IPC, which URLs get through
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { appFile, appPage, BROWSER, confirmAsk, externalOf, fromApp, handoffUrl, fromTokenPage, local, MENU_DEPTH, MENU_ITEMS, menuModelOk, pageIs, PREVIEW, tokenPage, webviewOk } from '../src/main/guards.ts'
 
@@ -133,13 +134,17 @@ test("Touch ID's confirm IPC: the app window's own page, for one of CONFIRM's ac
   for (const w of ['wsRm', 'constructor', '', undefined, 42, { what: 'remoteStart' }]) assert.equal(confirmAsk(win, true, w), false, String(w))
 })
 
-test('10c: protectedKind keeps the floating windows out of screen recording with the setting or in Recording mode, never the app', async () => {
+test('10c: protectedKind keeps the floating windows out of screen recording: yes for a new install, Recording mode forces it, never the app', async () => {
   const { FLOAT_KINDS, protectedKind } = await import('../src/main/guards.ts')
+  // a new install's settings have hideFloats: true (core.ts NEW_DEFAULTS); one from before has it unset
+  const core = readFileSync(new URL('../src/daemon/core.ts', import.meta.url), 'utf8')
+  assert.match(/const NEW_DEFAULTS = \{[^\n]*\}/.exec(core)![0], /hideFloats: true/)
   for (const k of FLOAT_KINDS) {
-    assert.equal(protectedKind(k, {}, false), false, `${k}: off by default`)
-    assert.equal(protectedKind(k, { hide: true }, false), true, `${k}: the setting`)
-    assert.equal(protectedKind(k, {}, true), true, `${k}: Recording mode`)
+    assert.equal(protectedKind(k, { hideFloats: true }, false), true, `${k}: a new install`)
+    assert.equal(protectedKind(k, {}, false), false, `${k}: an install from before`)
+    assert.equal(protectedKind(k, { hideFloats: false }, true), true, `${k}: Recording mode, whatever the setting`)
   }
-  for (const k of ['app', 'new', 'annotate', '']) assert.equal(protectedKind(k, { hide: true }, true), false, `${k || '(none)'}: never`)
-  assert.equal(protectedKind('bar', { hide: 'yes' } as never, false), false, 'only true')
+  assert.deepEqual([...FLOAT_KINDS].sort(), ['ask', 'bar', 'card', 'inbox', 'menu', 'quick', 'talk', 'voice'])
+  for (const k of ['app', 'main', 'annotate', 'tab', 'new', '']) assert.equal(protectedKind(k, { hideFloats: true }, true), false, `${k || '(none)'}: never`)
+  assert.equal(protectedKind('bar', { hideFloats: 'yes' } as never, false), false, 'only true')
 })
