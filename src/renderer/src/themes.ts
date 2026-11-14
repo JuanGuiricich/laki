@@ -1186,6 +1186,14 @@ export function surfaceAlpha(panel: string, bg: string, side: string, fg: string
   }
   return 100
 }
+// the selection (styles.css ::selection, --sel-a): the accent at SEL_A% over what text sits on, less where the text over
+// it wouldn't read (min:1), 8% at the least
+export const SEL_A = 32
+export function selAlpha(accent: string, bgs: string[], fg: string, min = 4.5) {
+  if (![accent, fg, ...bgs].every(c => /^#[\da-f]{6}$/i.test(c))) return SEL_A
+  for (let a = SEL_A; a > 8; a -= 4) if (bgs.every(b => contrast(fg, flat(alpha(accent, a), b)) >= min)) return a
+  return 8
+}
 // looks that draw solid things (paper, print, a bitmap screen): their floats stay solid (html.opaque)
 export const OPAQUE_LOOKS = new Set(['brutal', 'blueprint', 'classic', 'retro', 'eink', 'receipt', 'gazette', 'greenbar', 'notebook', 'manuscript', 'kraft', 'riso', 'comic', 'chalk', 'pellet', 'overworld', 'bauhaus'])
 // text on an accent: black or white, whichever reads better
@@ -1349,6 +1357,10 @@ export function applyTheme(p: string | Paint = '', solid = false) {
   // and on the sidebar (a project's name in some looks), see-through over the window's background
   const bgs = [...ends, t.c?.panel ?? rootVar('--panel'), ...(/^#[\da-f]{6}([\da-f]{2})?$/i.test(side) ? ends.map(e => flat(side, e)) : [])]
   if (/^#[\da-f]{6}$/i.test(accent) && bgs.every(b => /^#[\da-f]{6}$/i.test(b))) st.setProperty('--accent-ink', readable(accent, bgs, o.highContrast ? 7 : 4.5))
+  {
+    const a = selAlpha(accent, bgs, t.c?.fg ?? rootVar('--fg'), o.highContrast ? 7 : 4.5) // the selection's strength: its text reads
+    if (a !== SEL_A) st.setProperty('--sel-a', `${a}%`)
+  }
   // V8: the floating surface's strength, where its text needs more than 72% (a light theme's panel over a dark terminal)
   {
     const cv = (k: keyof Colors, css: string) => t.c?.[k] ?? rootVar(css)

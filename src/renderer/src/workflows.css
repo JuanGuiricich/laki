@@ -120,7 +120,7 @@
   font: 12.5px/1.5 var(--mono) !important; letter-spacing: normal; tab-size: 4; text-transform: none;
   white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; overflow: auto; scrollbar-gutter: stable; }
 .wf-code > pre { color: var(--fg); pointer-events: none; overflow: hidden; }
-.wf-code > textarea { color: transparent; caret-color: var(--fg); resize: none; }
+.wf-code > textarea { color: transparent; resize: none; } /* its caret: the accent, as every field's (styles.css) */
 .narrow .wf-code > :is(pre, textarea) { font-size: var(--fs-4) !important; }
 .wf-format { color: var(--muted); font-size: var(--fs-3); max-height: 40%; overflow: auto; }
 .wf-format summary { cursor: pointer; }

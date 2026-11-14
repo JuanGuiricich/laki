@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { MATERIAL, SURFACE, THEMES, contrast as ratio, materialInk, readable, surfaceAlpha } from '../src/renderer/src/themes.ts'
+import { MATERIAL, SEL_A, SURFACE, THEMES, contrast as ratio, materialInk, readable, selAlpha, surfaceAlpha } from '../src/renderer/src/themes.ts'
 
 // what sits on what, and how much it needs: 4.5 for text, hints and status words alike (3.5 for a hint on the selection;
 // 2.5 for a status mark there: its shape tells it too); a selection, a hovered row and a line need only to show
@@ -113,4 +113,29 @@ test("contrast: readable keeps a color that reads, else darkens it on light (lig
   assert.ok(ratio(readable('#202040', ['#000000']), '#000000') >= 4.5)
   const across = readable('#808080', ['#202020', '#f0f0f0'], 3) // a gradient over both sides of it
   assert.ok(ratio(across, '#202020') >= 3 && ratio(across, '#f0f0f0') >= 3, across)
+})
+
+// 9c: the selection is the accent at --sel-a (themes.ts selAlpha) over the background, the panels and the sidebar: its
+// text reads (4.5:1) in every theme, at SEL_A where that's enough
+test('contrast: selected text reads over the accent selection in every theme', () => {
+  const root = readFileSync(new URL('../src/renderer/src/styles.css', import.meta.url), 'utf8').match(/:root\s*{([^}]*)}/)![1]
+  const v = (k: string) => root.match(new RegExp(`--${k}:\\s*(#[0-9a-fA-F]+)`))![1]
+  const pct = (a: number) => Math.round((a / 100) * 255).toString(16).padStart(2, '0')
+  const bad: string[] = []
+  let full = 0
+  for (const t of THEMES) {
+    const c = (t.c ?? { bg: v('bg'), panel: v('panel'), side: v('side'), fg: v('fg'), accent: v('accent') }) as Record<string, string>
+    const ends = t.grad ? [...t.grad] : [c.bg]
+    const bgs = [...ends, c.panel, ...ends.map(e => over(c.side, e))]
+    const a = selAlpha(c.accent, bgs, c.fg)
+    if (a === SEL_A) full++
+    for (const b of bgs) {
+      const r = ratio(c.fg, over(c.accent + pct(a), b))
+      if (r < 4.5) bad.push(`${t.name}: selected text on ${b} at ${a}% is ${r.toFixed(2)}`)
+    }
+  }
+  assert.deepEqual(bad, [])
+  assert.ok(full > THEMES.length / 2, 'most themes keep the full strength')
+  assert.equal(selAlpha('#ffffff', ['#000000'], '#000000'), 8, 'none reads: the least')
+  assert.equal(selAlpha('var(--x)', ['#000000'], '#ffffff'), SEL_A, 'not hex: as the stylesheet says')
 })

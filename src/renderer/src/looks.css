@@ -841,7 +841,7 @@
 [data-look='zeroday'] :is(.buttons button, button.primary)::after { content: ']'; margin-left: 6px; opacity: 0.6; }
 [data-look='zeroday'] button.primary { border: 1px solid var(--accent); border-radius: 0; background: rgba(0, 255, 102, 0.12); color: var(--accent-ink); text-shadow: var(--matrix); }
 [data-look='zeroday'] button.primary:hover { background: var(--accent); color: #000; text-shadow: none; }
-[data-look='zeroday'] :is(input:not([type='radio'], [type='checkbox'], [type='range']), select, textarea) { border-radius: 0; border-color: var(--line); background: #000; caret-color: var(--accent); }
+[data-look='zeroday'] :is(input:not([type='radio'], [type='checkbox'], [type='range']), select, textarea) { border-radius: 0; border-color: var(--line); background: #000; }
 [data-look='zeroday'] :is(.menu, .modal, .tunnel-pop, .toast) { border: 1px solid var(--accent); border-radius: 0; background: #000; box-shadow: 0 0 18px rgba(0, 255, 102, 0.18), 0 16px 40px rgba(0, 0, 0, 0.7); }
 [data-look='zeroday'] .menu-item { border-radius: 0; }
 [data-look='zeroday'] .menu-item:hover { background: var(--accent); color: #000; }

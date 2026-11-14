@@ -45,6 +45,7 @@
   --h-s: 22px; --h-m: 28px; --h-l: 34px;
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); /* Glass › Grain: a tile of grey noise */
   --grain-a: 0.07; /* and how much of it shows */
+  --sel-a: 32%; /* the selection's strength (themes.ts SEL_A, selAlpha per theme) */
   --cmap-w: 10px; /* the change map's strip (Diff.tsx ChangeMap) */
   --z-dialog: 10; --z-toast: 20; --z-page: 30; --z-ask: 40; --z-pop: 50; --z-drag: 100; --z-tip: 200; --z-top: 9997; /* a dialog, a toast, a page over the work, a yes/no, a menu, a drag, a tooltip, the element picker; under 10: within a part */
   --mono: 'JetBrains Mono', 'SF Mono', Menlo, Monaco, monospace;
@@ -130,7 +131,9 @@ textarea { resize: vertical; font-family: inherit; }
    !important: some looks set the whole background (classic, notebook), which would drop it */
 select:not([multiple], [size]) { appearance: none; padding-right: 26px; background-image: linear-gradient(45deg, transparent calc(50% - 0.8px), var(--muted) calc(50% - 0.8px) calc(50% + 0.8px), transparent calc(50% + 0.8px)), linear-gradient(-45deg, transparent calc(50% - 0.8px), var(--muted) calc(50% - 0.8px) calc(50% + 0.8px), transparent calc(50% + 0.8px)) !important; background-position: right 14px center, right 9px center !important; background-size: 5px 5px !important; background-repeat: no-repeat !important; }
 select:not([multiple], [size], :disabled):hover { --muted: var(--fg); }
-::selection { background: color-mix(in srgb, var(--accent) 32%, transparent); }
+::selection { background: color-mix(in srgb, var(--accent) var(--sel-a), transparent); } /* --sel-a: themes.ts selAlpha, less where its text wouldn't read */
+html.away ::selection { background: color-mix(in srgb, var(--fg) 16%, transparent); } /* the window not in use: grey */
+:where(input, textarea, [contenteditable]) { caret-color: var(--accent); } /* the caret follows the accent everywhere (a rule's own wins: a PIN's boxes) */
 .spacer, .grow { flex: 1; }
 .muted { color: var(--muted); }
 .small { font-size: var(--fs-2); }
@@ -2237,7 +2240,7 @@ input.color-pick { width: 44px; height: 31px; padding: var(--sp-1) var(--sp-2); 
 @keyframes ai-dot { 0%, 80%, 100% { opacity: 0.25; transform: none; } 40% { opacity: 1; transform: translateY(-3px); } }
 .ai-dock { flex: none; padding: var(--sp-4) 20px var(--sp-5); }
 .ai-dock > * { max-width: 740px; margin-left: auto; margin-right: auto; }
-.ai-composer textarea { min-height: 48px; max-height: 40vh; resize: none; field-sizing: content; caret-color: var(--accent); } /* it grows with what's typed */
+.ai-composer textarea { min-height: 48px; max-height: 40vh; resize: none; field-sizing: content; } /* it grows with what's typed */
 .nw-composer.ai-composer { box-shadow: var(--lift-2); transition: border-color 0.15s, box-shadow 0.25s; }
 .nw-composer.ai-composer:focus-within { box-shadow: 0 10px 30px -14px color-mix(in srgb, var(--accent) 55%, transparent); }
 .ai-composer.off { opacity: 0.55; }
