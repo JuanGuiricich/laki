@@ -26,6 +26,13 @@ test('no * or :not() under a :has() in our stylesheets', () => {
   assert.ok(under.test('.page-body:has(.bn-container) :is(.notes-side > *'))
 })
 
+// a pseudo-element inherits its element's drag and, last in tree order, drags over its no-drag buttons: Grain's ::after
+// made the rail's buttons a window drag in Electron (no click, no pointer)
+test('no pseudo-element is a drag region', () => {
+  const css = readFileSync(new URL('../src/renderer/src/styles.css', import.meta.url), 'utf8')
+  assert.match(css, /^::before, ::after \{ -webkit-app-region: none; \}$/m)
+})
+
 // B1: the type scale. A size in px is one of --fs-1…5; its own only under 10px (badges) or over 22px (display numbers);
 // em, rem, inherit, a setting's variable and a calc() are relative to something else
 test('every font-size is a step of the type scale', () => {

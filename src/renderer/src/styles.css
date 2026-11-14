@@ -149,6 +149,9 @@ html.away ::selection { background: color-mix(in srgb, var(--fg) 16%, transparen
 .pad { padding: var(--sp-4) var(--sp-5); }
 .drag { -webkit-app-region: drag; }
 .nodrag, .drag button, .drag input { -webkit-app-region: no-drag; }
+/* a decoration takes no part: a pseudo-element inherits its element's drag and, last in tree order, drags over its no-drag
+   buttons (Grain's ::after over the rail made every rail button a window drag in Electron: no click, no pointer) */
+::before, ::after { -webkit-app-region: none; }
 
 .splash { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-4); }
 /* the start-up snapshot (panels.tsx SnapSkeleton): the last layout, dimmed, until the first view; the real one fades in */
