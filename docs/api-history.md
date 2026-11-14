@@ -188,3 +188,4 @@ needs no bump: `settingsSet` keeps any field.
 180: `mergeQueueStart`, `mergeQueueStop`, the view's `mergeQueues` and a PR's `behind` (the merge queue; the `merge.queue` cap).
 181: `chatSearch` (Search chats: every chat Laki knows, what was said, newest first; the `chat.search` cap).
 182: no method: the daemon runs on Laki Node (conn.ts `NODE_API`): a build with Laki Node restarts one under it as it opens (main's `daemon()`), as one from 0.50.0 or earlier sends hooks to Laki Hook.app and node to the app's binary.
+183: `agentLog` (what a workspace's agents did through Laki, newest first; the `agent.log` cap); `ship`'s `allowSecrets` and its `{ secrets }` result, `shipDraft`'s `secrets` (Ship's secret check).

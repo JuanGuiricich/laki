@@ -2,7 +2,7 @@
 // switches that send failing CI or new review comments to the agent. App.tsx maps a
 // workspace to WsInfo.
 import { type CSSProperties, type MouseEvent, type ReactNode, useEffect, useRef, useState } from 'react'
-import { jobOf, MERGE_METHODS, type MergeMethod, type PRLabel, type PRPerm } from '../../shared/types'
+import { type AgentDid, jobOf, MERGE_METHODS, type MergeMethod, type PRLabel, type PRPerm } from '../../shared/types'
 import { Folded } from './MarkdownView'
 import { prName, prNo, shortPath } from './text'
 import { type Tunnel } from './Tunnel'
@@ -544,6 +544,8 @@ export function InfoTab(p: {
   onLabel?: LabelApi // its PR's labels
   sees?: ('claude' | 'codex')[] // F6: its agents' What it sees (their rules and MCP servers)
   onSees?: (agent: 'claude' | 'codex') => void
+  agentLog?: () => Promise<AgentDid[]> // What its agents did (agentLog), newest first
+  tabName?: (id: string) => string
 }) {
   const { w } = p
   return (
@@ -650,6 +652,33 @@ export function InfoTab(p: {
         </section>
 
         <PRSection w={w} onOpen={p.onOpen} onToggle={p.onToggle} onFix={p.onFix} onLog={p.onLog} onAct={p.onAct} onAttach={p.onAttach} onDetach={p.onDetach} onLabel={p.onLabel} />
+        {p.agentLog && <AgentLog key={w.id} load={p.agentLog} tabName={p.tabName} />}
       </div>
+  )
+}
+
+// What its agents did through Laki (agentLog.ts), newest first: the first 20, then all of them; a refused one marked
+function AgentLog({ load, tabName }: { load: () => Promise<AgentDid[]>; tabName?: (id: string) => string }) {
+  const [l, setL] = useState<AgentDid[] | null>(null)
+  const [all, setAll] = useState(false)
+  useEffect(() => void load().then(setL, () => setL([])), [])
+  if (!l?.length) return null
+  return (
+    <section className="info-agentlog">
+      <h4 className="small muted">What its agents did</h4>
+      {(all ? l : l.slice(0, 20)).map((e, i) => (
+        <div key={i} className={`agentlog-row small${e.refused ? ' refused' : ''}`} title={`${new Date(e.at).toLocaleString()}${e.refused ? ` · refused: ${e.refused}` : ''}`}>
+          <span className="muted">{ago(e.at)}</span>
+          <span className="mono">{e.method}</span>
+          <span className="agentlog-what">{[tabName?.(e.tab) ?? e.tab, e.what].filter(Boolean).join(' · ')}</span>
+          {e.refused && <span className="warn">refused</span>}
+        </div>
+      ))}
+      {!all && l.length > 20 && (
+        <button type="button" className="link small" onClick={() => setAll(true)}>
+          Show all {l.length}
+        </button>
+      )}
+    </section>
   )
 }

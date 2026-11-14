@@ -303,6 +303,13 @@ async function main() {
     case 'serve':
       if (inTab()) throw new Error(NO_START) // S4: a daemon in this process
       return serve(rest)
+    case 'agent': {
+      // what a workspace's agents did through Laki, newest first: when, which tab, what, refused ones with why
+      if (rest[0] !== 'log' || !rest[1]) throw new Error('usage: laki agent log <ws> [--json]')
+      const l = await rpc<{ at: number; tab: string; method: string; what?: string; refused?: string }[]>('agentLog', { ws: rest[1], from: caller() })
+      const tabs = new Map((await rpc<View>('state').catch(() => undefined))?.tabs.map(t => [t.id, t.name]) ?? [])
+      return out(l, l.length ? l.map(e => `${new Date(e.at).toLocaleString()}  ${tabs.get(e.tab) ?? e.tab}  ${e.method}${e.what ? ` (${e.what})` : ''}${e.refused ? `  refused: ${e.refused}` : ''}`).join('\n') : 'its agents did nothing through Laki yet')
+    }
     case 'remote': {
       // laki remote [stop]: remote access's link (and PIN) now, as Settings shows it; a headless server's way to it
       if (rest[0] === 'stop') return rpc('remoteStop').then(() => out({ ok: true }, 'stopped'))

@@ -24,6 +24,7 @@ import { FLOW_ENDED, flowView } from '../shared/workflow.ts'
 import { dir, inRig } from './dir.ts'
 import { accountEnv, accountFor, accountIds, accountNamed, accounts, claudeVersion, effortsSaid, homeDir, loginCmd, modelNeedsView, modelRefused } from './accounts.ts'
 import { findSecrets, redact, transcriptOf } from './share.ts'
+import { agentLogDrop } from './agentLog.ts'
 import * as cs from './codespace.ts'
 import * as gitlab from './gitlab.ts'
 import { limitReset } from './limits.ts'
@@ -3210,6 +3211,7 @@ function dropWs(ws: Workspace) {
   prs.delete(ws.id)
   if (ws.codespace !== undefined) csGone(ws)
   if (/^[\w.-]+$/.test(ws.id)) rmSync(notesFile(ws.id), { force: true }) // R10: its unsent review comments
+  agentLogDrop(ws.id) // what its agents did (agentLog.ts)
 }
 
 // wsRm kills its tabs, runs teardown and removes the worktree; the branch stays.

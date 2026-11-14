@@ -124,6 +124,7 @@ export const USAGE = `laki: coding agents in parallel git worktrees
                                               --domain: at <name>.<your named tunnel's domain> (laki.…), a stable address, with a PIN;
                                               its link opens once, its PIN prints on a terminal only (else laki remote)
   laki remote [stop|log]                      remote access's link and PIN now | stop it | what was done over it
+  laki agent log <ws> [--json]                what its agents did through Laki, newest first (refused ones marked); not from an agent's tab
   --json prints machine-readable output; an option the command doesn't have is refused (did you mean…?);
   after -- every word is text: laki send ws -- --not-an-option`
 
@@ -187,6 +188,13 @@ export function completionWords(usage = USAGE) {
 // each command's details and examples, after its lines of USAGE: laki help <command>, laki <command> --help. Written
 // for agents (the skill points here): what it prints, what to pass, what to run next
 const HELP: Record<string, string> = {
+  agent: `log: what the workspace's agents did through Laki's API, newest first: when, which tab, the method and the names
+and ids it was about (never a prompt's text, a file's contents or env), and whether it went through or was refused, with
+why. Reads (laki ls, laki screen, a diff) aren't listed unless refused. The newest 500 per workspace, gone with it.
+Yours only: refused from an agent's tab.
+
+  laki agent log fix-login
+  laki agent log fix-login --json | jq '.[] | select(.refused)'`,
   ls: `Prints every project, its workspaces and their tabs (✓ done, ● unseen, the status). --json is what to read in a
 script: projects (id, path), workspaces (id, branch, path, port, pr, tabs: a | b side by side, a / b stacked) and tabs
 (id, workspace, kind, status: running, waiting, idle, exited).

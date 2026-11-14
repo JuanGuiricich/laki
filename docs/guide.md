@@ -1095,7 +1095,9 @@ review decision, size, checks (each links to its run) and description, as in *Re
 when *failing CI* or *conflicts* gave up (turn it off and on to try again), and *Send now* beside one when there's
 something to send to the agent now. Its ⋯ has *Not this workspace's PR*: it moves to *related*; a linked one
 (another branch's) gives way to the branch's own PR, once there is one; the branch's own is kept off until you attach
-it again.
+it again. Under it, *What its agents did*: each change its agents made through Laki (a workspace started, a message
+sent, a PR drafted), newest first, and each thing they tried and Laki refused, marked *refused* with why on hover; names
+and ids only, never a prompt or a file's text. `laki agent log <ws>` prints the same.
 
 **PRs.** Laki finds the PR of each workspace's branch with `gh` (logged in) every minute (Settings › *Pull requests*:
 1 to 30 minutes), and a couple of seconds after an agent's turn ends (its workspace's, at most every 20 seconds), so a
@@ -2790,6 +2792,7 @@ laki daemon                                             # run the daemon in the 
 laki serve --tailscale                                  # headless: the daemon and remote access (headless.md)
 laki remote | remote stop                               # remote access's link (and PIN) | stop it
 laki remote log                                         # what was done over remote access, newest first
+laki agent log <ws> [--json]                            # what its agents did through Laki, newest first (refused ones marked)
 ```
 
 `laki screen` shot and windows work on this Mac (an app's window needs Screen Recording for Laki: System Settings ›

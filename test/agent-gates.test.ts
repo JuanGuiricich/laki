@@ -344,3 +344,41 @@ test("F14: an agent can't add an auto-answer rule; a matching ask is answered, a
   }
   assert.equal((await now()).allowed.length, 1)
 })
+
+test("What its agents did: an agent's wsNew and a refused merge are logged with names and ids only; the log is yours; the newest 500 kept", async t => {
+  const rig = await fresh(t)
+  const p = await rig.rpc('projectAdd', { path: rig.repo })
+  const one = await rig.rpc('wsNew', { project: p.id, preset: 'claude', name: 'one' })
+  const tab = (await until(() => rig.tab(one.id))).id
+  const from = { ws: one.id, tab }
+  const made = await rig.rpc('wsNew', { project: p.id, preset: 'claude', name: 'helper', prompt: 'PROMPT-WORDS-NOT-LOGGED', from })
+  await assert.rejects(rig.rpc('prAct', { ws: one.id, act: 'merge', from }), /an agent can't merge a PR as you/)
+  await rig.rpc('screen', { target: tab, from }) // a read: not listed
+  await rig.rpc('wsSet', { id: one.id, color: 'red' }) // yours: not listed
+  let l = await rig.rpc('agentLog', { ws: one.id })
+  assert.deepEqual(l.map((e: any) => [e.method, e.tab, e.ws, e.refused ?? 'ok']), [
+    ['prAct', tab, one.id, "an agent can't merge a PR as you (turn on Merge when green yourself): it's the user's (ask them)"],
+    ['wsNew', tab, one.id, 'ok'],
+  ])
+  assert.equal(l[0].what, `ws ${one.id}, act merge`)
+  assert.equal(l[1].what, `project ${p.id}, preset claude, name helper`)
+  assert.equal(JSON.stringify(l).includes('PROMPT-WORDS'), false, "a prompt's text isn't in it")
+  assert.equal(readFileSync(join(rig.data, 'agent-log', `${one.id}.jsonl`), 'utf8').includes('PROMPT-WORDS'), false)
+  assert.deepEqual(await rig.rpc('agentLog', { ws: made.id }), [])
+  // the user's to read: an agent's own call is refused, and that's logged too
+  await assert.rejects(rig.rpc('agentLog', { ws: one.id, from }), /an agent can't read what agents did/)
+  const cli = await rig.cli('agent', 'log', 'one')
+  assert.equal(cli.code, 0, cli.err)
+  assert.match(cli.out, /prAct \(ws .*, act merge\) {2}refused: an agent can't merge/)
+  // the newest 500, in memory and on disk, across a restart
+  for (let i = 0; i < 520; i++) await rig.rpc('tabMode', { tab, mode: 'plan', from }).catch(() => {})
+  l = await rig.rpc('agentLog', { ws: one.id })
+  assert.equal(l.length, 500)
+  assert.ok(readFileSync(join(rig.data, 'agent-log', `${one.id}.jsonl`), 'utf8').trim().split('\n').length <= 600)
+  await rig.stop()
+  await rig.start()
+  assert.equal((await rig.rpc('agentLog', { ws: one.id })).length, 500)
+  // gone with the workspace
+  await rig.rpc('wsRm', { id: one.id })
+  assert.equal(existsSync(join(rig.data, 'agent-log', `${one.id}.jsonl`)), false)
+})

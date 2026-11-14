@@ -28,6 +28,7 @@ import * as filesMod from './files.ts'
 import * as remoteMod from './remote.ts'
 import * as e2e from './e2e.ts'
 import { activity, activityList, clip80 } from './remoteLog.ts'
+import { agentDid, agentLogOf } from './agentLog.ts'
 import * as resourcesMod from './resources.ts'
 import * as artifactsMod from './artifacts.ts'
 import * as metersMod from './meters.ts'
@@ -584,6 +585,7 @@ const api: Record<string, Handler> = {
   remoteCheck: () => remoteMod.remoteCheck(), // D8: Settings' Check: its address reached from outside now (Tailscale: tailscale status)
   screenLock: p => remoteMod.screenLock(p), // D9: the app's powerMonitor: the Mac locked (true) or unlocked; remote access follows it (settings.remoteWhen)
   remoteLog: p => activityList(Math.min(1000, Math.max(1, Number(p?.n) || 200))), // D9: what was done remotely, newest first
+  agentLog: p => agentLogOf(core.findWs(String(p?.ws ?? '')).id), // what its agents did through Laki, newest first (agentLog.ts)
   remotePair: () => remoteMod.remotePair(), // D3: Add a device
   remoteDeviceRm: p => remoteMod.remoteDeviceRm(p), // Revoke, Revoke all, Forget devices
   remoteDeviceSet: p => remoteMod.remoteDeviceSet(p), // D7: a device's Answer only
@@ -733,7 +735,7 @@ const remoteNo = (method: string, p: any) =>
 // double fork out of its tab, launchctl submit): only the app's token (appToken), a terminal of yours or the daemon's
 // own children are you (core.tabOfPeer); an agent tab's token is that agent whatever its tree (S12: LAKI_TAB_TOKEN).
 // FROM: from is the caller ({ ws, tab }); CALLER: caller is
-const FROM = new Set(['events', 'chatSearch', 'mergeQueueStart', 'mergeQueueStop', 'aiShot', 'aiOpenApp', 'reviewMark', 'reviewNotesGet', 'reviewNotesSet', 'archivedKeep', 'termAnswer', 'screenLock', 'remoteLog', 'diagnostics', 'agentContext', 'agentContextOpen', 'stateOwn', 'aiState', 'aiNew', 'aiStop', 'aiChats', 'aiOpen', 'aiChatRm', 'aiUnqueue', 'aiContinue', 'studioChatRm', 'voiceText', 'projectClone', 'wsUpdate', 'stopAll', 'dndSet', 'longStop', 'limits', 'tabDraft', 'tabMode', 'accountRm', 'tabAccount', 'imageRead', 'tabReopen', 'hookAdd', 'hookRm', 'hookSecret', 'hookExpose', 'alertShow', 'noticeShow', 'alertAnswer', 'flowFirst', 'flowHold', 'wsSet', 'prompts', 'sideAsk', 'chatList', 'chatImport', 'turnUndo', 'turnRewind', 'turnFork', 'tabHandover', 'secretAsk', 'secretGive', 'show', 'linkRm', 'tabSet', 'presetSave', 'wsArchive', 'prAct', 'prDraft', 'ship', 'shipDraft', 'send', 'screen', 'scheduleSet', 'scheduleRun', 'scheduleRelease', 'flowAnswer', 'widgetSet', 'widgetCheck', 'widgetRun', 'widgetAction', 'widgetDev', 'widgetEmit', 'widgetToolCall', 'widgetNew', 'widgetRestore', 'widgetToolAnswer', 'aiAnswer', 'answer', 'input', 'attach', 'widgetFileSave', 'remoteStart', 'settingsSet', 'memoryCompact', 'projectSet', 'projectTrust', 'memoryAdd', 'queueClear', 'queueSet', 'queueNow', 'queueResume', 'tunnelStart', 'prReview', 'prComment', 'prSay', 'prThreads', 'prTalk', 'widgetWrite', 'widgetUndo', 'aiAsk', 'chatRead', 'shutdown', 'checkAgain', 'checkStop', 'proofShot', 'worktreeImport', 'bgSet', 'sideNew', 'uiReset', 'projectArchive', 'projectAdd', 'wsBase', 'bgOutput', 'mcpAppCall', 'agentUpdate', 'wsRm', 'projectRm', 'scheduleRm', 'shareStart', 'fileWrite', 'fileNew', 'fileUndo', 'hunkUndo', 'hunkRedo', 'tabClose', 'openIn', 'gateRestart', 'aiKey', 'aiEndpointKey', 'aiEndpointTest', 'cliInstall', 'cliRemove', 'remoteStop', 'remotePair', 'remoteDeviceRm', 'remoteDeviceSet', 'webhookTest', 'resourceStop', 'flowTest', 'prAttach', 'prDetach', 'prLabel', 'portKill', 'quickNew', 'planRm', 'noteRm', 'widgetRm', 'noteList', 'noteGet', 'noteFile', 'noteNew', 'noteSave', 'noteUpload', 'todoListGet', 'todoListSave', 'sampleNew', 'sampleRm', 'hookTick', 'memoryTick', 'reminderTick', 'storageTidy', 'secretsTidy', 'phoneTick', 'aiTick', 'sleepTick', 'spareTick', 'archiveIdleTick', 'longTurnTick', 'watchLimits', 'scheduleTick', 'eventTick', 'pendingTick', 'remoteTick', 'archivedTidy', 'shareTick', 'tunnelTick', 'widgetTick', 'factsTick', 'widgetTrashTidy', 'flowTrashTidy', 'flowTick', 'prViewed', 'aiImage', 'sideState', 'studioChats', 'skillSet', 'accountAdd', 'accountLogin', 'accountSet', 'tabSleep', 'passkeyOptions', 'passkeyRegister', 'passkeyChallenge', 'passkeyUnlock', 'passkeyPin'])
+const FROM = new Set(['events', 'agentLog', 'chatSearch', 'mergeQueueStart', 'mergeQueueStop', 'aiShot', 'aiOpenApp', 'reviewMark', 'reviewNotesGet', 'reviewNotesSet', 'archivedKeep', 'termAnswer', 'screenLock', 'remoteLog', 'diagnostics', 'agentContext', 'agentContextOpen', 'stateOwn', 'aiState', 'aiNew', 'aiStop', 'aiChats', 'aiOpen', 'aiChatRm', 'aiUnqueue', 'aiContinue', 'studioChatRm', 'voiceText', 'projectClone', 'wsUpdate', 'stopAll', 'dndSet', 'longStop', 'limits', 'tabDraft', 'tabMode', 'accountRm', 'tabAccount', 'imageRead', 'tabReopen', 'hookAdd', 'hookRm', 'hookSecret', 'hookExpose', 'alertShow', 'noticeShow', 'alertAnswer', 'flowFirst', 'flowHold', 'wsSet', 'prompts', 'sideAsk', 'chatList', 'chatImport', 'turnUndo', 'turnRewind', 'turnFork', 'tabHandover', 'secretAsk', 'secretGive', 'show', 'linkRm', 'tabSet', 'presetSave', 'wsArchive', 'prAct', 'prDraft', 'ship', 'shipDraft', 'send', 'screen', 'scheduleSet', 'scheduleRun', 'scheduleRelease', 'flowAnswer', 'widgetSet', 'widgetCheck', 'widgetRun', 'widgetAction', 'widgetDev', 'widgetEmit', 'widgetToolCall', 'widgetNew', 'widgetRestore', 'widgetToolAnswer', 'aiAnswer', 'answer', 'input', 'attach', 'widgetFileSave', 'remoteStart', 'settingsSet', 'memoryCompact', 'projectSet', 'projectTrust', 'memoryAdd', 'queueClear', 'queueSet', 'queueNow', 'queueResume', 'tunnelStart', 'prReview', 'prComment', 'prSay', 'prThreads', 'prTalk', 'widgetWrite', 'widgetUndo', 'aiAsk', 'chatRead', 'shutdown', 'checkAgain', 'checkStop', 'proofShot', 'worktreeImport', 'bgSet', 'sideNew', 'uiReset', 'projectArchive', 'projectAdd', 'wsBase', 'bgOutput', 'mcpAppCall', 'agentUpdate', 'wsRm', 'projectRm', 'scheduleRm', 'shareStart', 'fileWrite', 'fileNew', 'fileUndo', 'hunkUndo', 'hunkRedo', 'tabClose', 'openIn', 'gateRestart', 'aiKey', 'aiEndpointKey', 'aiEndpointTest', 'cliInstall', 'cliRemove', 'remoteStop', 'remotePair', 'remoteDeviceRm', 'remoteDeviceSet', 'webhookTest', 'resourceStop', 'flowTest', 'prAttach', 'prDetach', 'prLabel', 'portKill', 'quickNew', 'planRm', 'noteRm', 'widgetRm', 'noteList', 'noteGet', 'noteFile', 'noteNew', 'noteSave', 'noteUpload', 'todoListGet', 'todoListSave', 'sampleNew', 'sampleRm', 'hookTick', 'memoryTick', 'reminderTick', 'storageTidy', 'secretsTidy', 'phoneTick', 'aiTick', 'sleepTick', 'spareTick', 'archiveIdleTick', 'longTurnTick', 'watchLimits', 'scheduleTick', 'eventTick', 'pendingTick', 'remoteTick', 'archivedTidy', 'shareTick', 'tunnelTick', 'widgetTick', 'factsTick', 'widgetTrashTidy', 'flowTrashTidy', 'flowTick', 'prViewed', 'aiImage', 'sideState', 'studioChats', 'skillSet', 'accountAdd', 'accountLogin', 'accountSet', 'tabSleep', 'passkeyOptions', 'passkeyRegister', 'passkeyChallenge', 'passkeyUnlock', 'passkeyPin'])
 const CALLER = new Set(['updateIdle', 'tabNew', 'wsNew', 'wsFan', 'run', 'flowSave', 'flowStart', 'flowEvent', 'flowTrust', 'flowPause', 'flowRevert', 'flowRm', 'flowRestore'])
 // S5: OPEN: what any caller may call, as it is (reads of the view and of a workspace's own facts, the ticks tests move,
 // a connection's own view and size, the hook: hookWho's). Every method of api is in FROM, CALLER or OPEN, checked as
@@ -816,7 +818,12 @@ const asAgent = (from: any) => (method: string, params: any) => {
   const me = { ws: from.ws, tab: from.tab }
   const o = params && typeof params === 'object' ? params : {}
   const p = takesFrom(method) ? { ...o, from: { ...(o.from && typeof o.from === 'object' ? o.from : {}), ...me } } : CALLER.has(method) ? { ...o, caller: me } : o
-  agentNo(method, p)
+  try {
+    agentNo(method, p)
+  } catch (e) {
+    agentLine(method, p, e)
+    throw e
+  }
   return call(method, p) as Promise<any>
 }
 function byAgent<T extends { text?: string; queue?: boolean }>(from: any, p: T): T {
@@ -940,6 +947,7 @@ const sendOk = (p: any) => {
 const WS_SET = new Set(['id', 'name', 'color', 'pinned', 'railPin', 'from', 'asked'])
 const ANSWER: Record<string, true | ((p: any) => string)> = {
   reviewMark: true, // R11: a review sent from the phone marks it too
+  agentLog: true, // what its agents did, read from the phone too
   reviewNotesGet: true, // R10: the Review tab's comments, read and kept from the phone too
   reviewNotesSet: true,
   ...Object.fromEntries('voiceModels ping state agentModels projectFile branches csMachines wsPeek overlapCheck wsStat doctor hooksSeen unread seen showDone tabFocus uiDo memoryCompactLog cliState storageInfo apps bgGet prLog logs scriptLogs progress turnDiff turnList sideState prList prRefresh meme aiState aiChats aiImage worktreeList diff baseBranches files fileRead sourceGuess artifactList skills agentCommands issueList usageDays commits commitDiff prLabels ghCard prThreads prTalk blame fileWeb prDiff prFile prFiles cloudflared usage limits accounts resources screen view resize detach widgetRender widgetLogs widgetFull widgetWhat studioChats widgetFiles widgetEvents widgetTools widgetRuns planList planGet planFile noteList noteGet noteFile todoListGet chatRead chatSearch bgOutput flowList flowGet flowHistory prompts chatList hookList passkeyOptions passkeyRegister passkeyChallenge passkeyUnlock passkeyPin imageSave failDismiss answer aiAnswer alertAnswer widgetToolAnswer flowAnswer secretGive aiAsk aiNew aiStop aiUnqueue aiOpen aiContinue timer reminderAdd reminderSet reminderRm tabDraft'.split(' ').map(k => [k, true] as const)),
@@ -1192,7 +1200,7 @@ const TEST_CLOCK = inRig() && process.env.LAKI_TEST_CLOCK !== '0' // 0: a test's
 // ANSWER table's reads (and the passkey's steps: remote.ts logs an unlock itself); what a full-level page does beyond
 // ANSWER is a change. A line names the workspace and tab and what was done: a message's or prompt's first 80
 // characters, never a secret's value; a terminal's keys once a minute per tab ('input')
-const READS = new Set('voiceModels ping state agentModels projectFile branches csMachines wsPeek overlapCheck wsStat doctor hooksSeen unread seen showDone tabFocus uiDo memoryCompactLog cliState storageInfo apps bgGet prLog logs scriptLogs progress turnDiff turnList sideState prList prRefresh meme aiState aiChats aiImage worktreeList diff baseBranches files fileRead sourceGuess artifactList skills agentCommands issueList usageDays commits commitDiff prLabels ghCard prThreads prTalk blame fileWeb prDiff prFile prFiles cloudflared usage limits accounts resources screen view resize detach widgetRender widgetLogs widgetFull widgetWhat studioChats widgetFiles widgetEvents widgetTools widgetRuns planList planGet planFile noteList noteGet noteFile todoListGet chatRead chatSearch bgOutput flowList flowGet flowHistory prompts chatList hookList passkeyOptions passkeyRegister passkeyChallenge passkeyUnlock passkeyPin failDismiss'.split(' '))
+const READS = new Set('agentLog voiceModels ping state agentModels projectFile branches csMachines wsPeek overlapCheck wsStat doctor hooksSeen unread seen showDone tabFocus uiDo memoryCompactLog cliState storageInfo apps bgGet prLog logs scriptLogs progress turnDiff turnList sideState prList prRefresh meme aiState aiChats aiImage worktreeList diff baseBranches files fileRead sourceGuess artifactList skills agentCommands issueList usageDays commits commitDiff prLabels ghCard prThreads prTalk blame fileWeb prDiff prFile prFiles cloudflared usage limits accounts resources screen view resize detach widgetRender widgetLogs widgetFull widgetWhat studioChats widgetFiles widgetEvents widgetTools widgetRuns planList planGet planFile noteList noteGet noteFile todoListGet chatRead chatSearch bgOutput flowList flowGet flowHistory prompts chatList hookList passkeyOptions passkeyRegister passkeyChallenge passkeyUnlock passkeyPin failDismiss'.split(' '))
 for (const k of READS) if (!Object.hasOwn(ANSWER, k)) throw new Error(`READS' ${k} isn't one of ANSWER's (D7): D9 logs what it doesn't call a read`)
 const tabWords = (id: unknown) => {
   try {
@@ -1221,6 +1229,29 @@ function remoteLine(method: string, p: any): string | undefined {
   return `${method}${typeof where === 'string' && where ? ` (${where.slice(0, 60)})` : ''}`
 }
 const deviceName = (id?: string) => (id && core.state.remoteDevices?.find(d => d.id === id)?.name) || 'the link’s page'
+
+// agentLog.ts: an agent's tab's call (its from, else its caller: whoCalls' own) that changed something (not one of READS,
+// nor its own hooks, its events or an attach), or was refused, with why. agentWhat: the call's names and ids only, a
+// value of AGENT_WHAT's keys that is a short plain string or a number; never a prompt, a message, a file's text or env
+const AGENT_QUIET = new Set(['hook', 'events', 'attach'])
+const AGENT_WHAT = ['ws', 'id', 'tab', 'target', 'project', 'preset', 'name', 'act', 'kind', 'mode', 'path', 'file', 'branch', 'base', 'pr', 'script', 'widget', 'action', 'event', 'flow', 'port']
+type Who = { ws?: unknown; tab?: unknown }
+const agentWhat = (p: Record<string, unknown>) =>
+  AGENT_WHAT.flatMap(k => (v => ((typeof v === 'string' && v && v.length <= 120 && !/[\n\r\0]/.test(v)) || (typeof v === 'number' && Number.isFinite(v)) ? [`${k} ${v}`] : []))(p[k])).join(', ') || undefined
+const agentKeys = new Map<string, number>() // input: once a minute per tab, as remote access's log
+function agentLine(method: string, params: unknown, e?: unknown) {
+  try {
+    const p = (params && typeof params === 'object' ? params : {}) as Record<string, unknown> & { from?: Who; caller?: Who }
+    const by = core.agentCaller(p.from) ? p.from : core.agentCaller(p.caller) ? p.caller : undefined
+    if (!by || (e === undefined && (READS.has(method) || AGENT_QUIET.has(method)))) return
+    const tab = String(by.tab)
+    if (method === 'input' && e === undefined) {
+      if (Date.now() - (agentKeys.get(tab) ?? 0) < 60_000) return
+      agentKeys.set(tab, Date.now())
+    }
+    agentDid({ at: Date.now(), tab, ws: core.agentCaller(by)!, method, what: agentWhat(p), ...(e !== undefined && { refused: core.firstLine(e).slice(0, 200) }) })
+  } catch {}
+}
 
 // known: the agent's tab a call's token is of (S12, /rpc only); app: the call came with the app's token (S1)
 // a blocked event loop (a hung daemon: main pings it, the window says so): a tick more than 2 s late is one line in the
@@ -1266,18 +1297,24 @@ async function call(method: string, params: any, c?: core.Conn, remote = !!c?.re
   if (remote && remoteMod.levelOf(c?.device) === 'answer') answerNo(method, params) // D7
   if (method === 'termAnswer' && !app) throw new Error("only Laki's window allows a terminal") // before whoCalls: an unapproved terminal's would ask about itself
   if (sock) params = await whoCalls(sock, method, params, known, app)
-  if (sock) agentNo(method, params ?? {})
-  if (sock && method === 'hook') await hookWho(sock, params ?? {}, known, app)
-  running.push(method)
-  begun.add(method)
   let r
   try {
-    if (process.env.LAKI_TEST_BUSY === method) for (const end = Date.now() + 3000; Date.now() < end; ); // a test's blocked event loop (restart.test.ts)
-    const cid = (method === 'send' || method === 'answer') && typeof params?.cid === 'string' && params.cid ? params.cid.slice(0, 64) : undefined
-    r = cid ? await once(c, cid, async () => h(params ?? {}, c)) : await h(params ?? {}, c)
-  } finally {
-    running.splice(running.lastIndexOf(method), 1)
+    if (sock) agentNo(method, params ?? {})
+    if (sock && method === 'hook') await hookWho(sock, params ?? {}, known, app)
+    running.push(method)
+    begun.add(method)
+    try {
+      if (process.env.LAKI_TEST_BUSY === method) for (const end = Date.now() + 3000; Date.now() < end; ); // a test's blocked event loop (restart.test.ts)
+      const cid = (method === 'send' || method === 'answer') && typeof params?.cid === 'string' && params.cid ? params.cid.slice(0, 64) : undefined
+      r = cid ? await once(c, cid, async () => h(params ?? {}, c)) : await h(params ?? {}, c)
+    } finally {
+      running.splice(running.lastIndexOf(method), 1)
+    }
+  } catch (e) {
+    agentLine(method, params, e)
+    throw e
   }
+  agentLine(method, params)
   if (remote && !READS.has(method)) (line => line && activity({ device: deviceName(c?.device), method, line }))(remoteLine(method, params ?? {})) // D9
   // S3: the settings these answer with, whole only to you (your window, your own CLI call): an agent's, remote access's
   // and Laki AI's get them as the view has them

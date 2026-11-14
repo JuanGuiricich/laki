@@ -16,6 +16,15 @@ a daemon without caps (before 150) the API number `CAP_SINCE` gives. The rendere
 only when the last view's caps list its namespace, else the old one; the CLI's `rpc` (conn.ts) sends it, and on
 `unknown method <it>` once more by the old name, by that one from then on. Achievements match by the old name.
 
+What its agents did (`agentLog.ts`): `call()` (and `asAgent`, Laki AI asked by an agent) records an agent's tab's call
+(its `from`, else its `caller`: whoCalls' own) once it went through, unless it is one of `READS` or `AGENT_QUIET`
+(`hook`, `events`, `attach`; `input` once a minute per tab), and every one refused (`agentNo`'s, the handler's error):
+`{ at, tab, ws, method, what, refused }`, `what` from `agentWhat` (the values of `AGENT_WHAT`'s keys that are a short
+plain string or a number: ids, names, a path, a mode; never a prompt, a message, a file's text or env). Per workspace:
+the newest 500 in memory and in `<data>/agent-log/<ws>.jsonl` (0600; rewritten to them once it holds 100 more),
+removed with the workspace (`dropWs`). `agentLog` (`ws`: newest first; AGENT_NO, a phone's too: REMOTE_OK and ANSWER)
+reads it: the Info tab's *What its agents did*, `laki agent log`.
+
 - when everything is done (`settings.whenDone`: sleep, lock, shutdown; unset or off: nothing; Settings › Git &
   worktrees' *When everything is done*): core.ts `whenDone` at each view, beside `keepAwake`: armed by something going
   (an agent running or waiting, a live workflow run, a scheduled task or a workspace's late start due within the hour),

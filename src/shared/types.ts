@@ -1156,6 +1156,9 @@ export type Gate = (typeof GATES)[number]
 export type GateHeld = { widget: string; name: string; gate: Gate; why: string; fix?: string; icon?: string }
 // Ship's secret check (core.ts shipSecrets): a token-shaped string in a line it would commit: masked, never itself; hash
 // names it for "Not a secret" (ship's allowSecrets, remembered for that workspace)
+// what an agent did through Laki's API (daemon agentLog.ts): when, its tab and workspace, the method, names and ids only
+// (what), refused: why it wasn't done
+export type AgentDid = { at: number; tab: string; ws: string; method: string; what?: string; refused?: string }
 export type SecretFound = { file: string; line: number; kind: string; masked: string; hash: string }
 // events of your own (laki widget emit): custom.<name>; "custom.*" in on: answers every one
 export const CUSTOM_EVENT = /^custom\.[a-z0-9][a-z0-9._-]{0,40}$/
@@ -1269,7 +1272,7 @@ export type PlanPin = { project: string; kind: PlanKind; slug: string; title: st
 export const RAIL_PINS = 5 // the rail's quick access: workspaces, terminals or browsers pinned there
 // a file's blame (the daemon's blame): its commits, and each line's (lines[n - 1]: line n's index into commits; -1: none)
 export type Blame = { commits: { sha: string; author: string; at: number; summary: string }[]; lines: number[] }
-export const API = 182
+export const API = 183
 export const REPO = 'https://github.com/igorkasyanchuk/laki' // About's and Help's links, the widget schema's raw URL
 
 // the agent browser's open, click or fill (main's browse): what it caused. nav: the page it moved to; errors: the

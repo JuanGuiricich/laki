@@ -134,7 +134,7 @@ for the part you change, and keep it up to date with the change.
 
 - [docs/dev/api.md](docs/dev/api.md): the daemon's API (`src/daemon/main.ts` `api`): each method over `/rpc` and the
   WebSocket, its events and the view; `laki mcp`, the MCP server.
-- [docs/api-history.md](docs/api-history.md): what each `API` number added, 1 to 182. Bump `API` (`src/shared/types.ts`)
+- [docs/api-history.md](docs/api-history.md): what each `API` number added, 1 to 183. Bump `API` (`src/shared/types.ts`)
   when the renderer starts relying on a new method or daemon behavior (a setting needs no bump); the next one goes at its end.
 - [docs/dev/agents.md](docs/dev/agents.md): profiles and accounts, layouts, agent variables, turns, asks, sessions, sleep,
   terminal queries, agents and their hooks, projects and their trust, presets, interrupts, resume after a restart.
@@ -190,6 +190,7 @@ for the part you change, and keep it up to date with the change.
 | `src/daemon/gitlab.ts` | GitLab through glab: `forgeOf` (a project's origin), its MR as a `PR` (`forge: 'gitlab'`), pipeline jobs as checks, the MR actions, issues, Ship's `shipMr` |
 | `src/daemon/files.ts` | the diff against the base and its size, Changes' revert and redo, the side panel's files |
 | `src/daemon/remote.ts` | tunnels (cloudflared, tailscale), shared tabs, remote access |
+| `src/daemon/agentLog.ts` | what agents did through Laki's API, per workspace (main.ts call's `agentLine`): kept and capped, `agentLog` reads it |
 | `src/daemon/e2e.ts` | S14, remote access end to end: HKDF-SHA-256 keys, AES-256-GCM frames with per-direction counters (`channel`, `first`), a device key wrapped by its cookie (`wrap`, `unwrap`); the page's half is `src/renderer/src/e2e.ts` (WebCrypto, IndexedDB) |
 | `src/daemon/resources.ts` | listening ports, memory and CPU by tab, process groups, sleep and wake |
 | `src/daemon/artifacts.ts` | a storage folder's artifacts and the published links, kept in its `.laki-links.json` (`.url` files moved in) |
