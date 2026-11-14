@@ -11,6 +11,7 @@ import { archivedTidy, bgTell, changed, CLONE_DIRS, findTab, findWs, log, ports,
 import { syncBranches } from './pr.ts'
 import { Session } from './session.ts'
 import { widgetEvent } from './widgets.ts'
+import type { turnsDrop, turnsKept } from './turns.ts'
 
 // what an agent runs without a shell between (its browser bridge, an MCP server, the browser that one drives), any
 // browser and an Android emulator (its console, adb, gRPC and netsimd's ports: none is the workspace's server) listen
@@ -369,12 +370,16 @@ const gitUse = (repo: string, ...refs: string[]) =>
       () => undefined,
     ),
   )
+// turns.ts' kept turns, set by main.ts as it loads: imported here, turns.ts would load inside core's import cycle (it reads
+// core's as it loads); a dynamic import() splits core into a chunk of its own in the build, where its import.meta.url
+// paths (cliPath) are wrong and the packaged daemon dies as it starts (test/load-order.test.ts)
+export const turnsOf: { kept?: typeof turnsKept; drop?: typeof turnsDrop } = {}
 export function diskUsage(o: { again?: boolean } = {}): Promise<DiskUsage> {
   if (disk && !o.again && Date.now() - disk.at < DISK_KEEP) return Promise.resolve(disk.data)
   return (diskNow ??= diskScan().then(d => ((disk = { at: d.at, data: d }), d)).finally(() => (diskNow = undefined)))
 }
 export async function diskScan(): Promise<DiskUsage> {
-  const { turnsKept } = await import('./turns.ts') // not at load: turns.ts reads core's as it loads, and core imports this one
+  const turnsKept = turnsOf.kept ?? (() => ({ turns: [] as { ended: number }[] }))
   const wsOf = async (w: (typeof state.workspaces)[number]): Promise<DiskWs> => {
     const repo = state.projects.find(p => p.id === w.project)?.path ?? ''
     const parts: DiskPart[] = []
@@ -420,7 +425,8 @@ export async function diskTidy(o: { what?: unknown; days?: unknown; dry?: unknow
   const days = Math.max(0, Math.floor(Number(o.days ?? 7)))
   if (!Number.isFinite(days)) throw new Error('days: a number')
   const dry = o.dry === true
-  const { turnsDrop, turnsKept } = await import('./turns.ts')
+  const { kept: turnsKept, drop: turnsDrop } = turnsOf
+  if (!turnsKept || !turnsDrop) throw new Error("kept turns aren't loaded")
   const now = typeof o.now === 'number' && Number.isFinite(o.now) ? o.now : Date.now() // a test's clock (main.ts drops it otherwise)
   const before = now - days * 86400e3
   const named = (w: { name?: string; id: string }) => w.name ?? w.id

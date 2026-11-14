@@ -3,7 +3,7 @@
 // imported first, in a process of its own, finds such a read in at least one order.
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -27,4 +27,11 @@ test('every daemon module loads first without reading another before it is there
   const fails: string[] = []
   for (let i = 0; i < mods.length; i += AT_ONCE) fails.push(...(await Promise.all(mods.slice(i, i + AT_ONCE).map(f => load(f, env)))))
   assert.deepEqual(fails.filter(Boolean), [])
+})
+
+// a dynamic import() of a daemon module splits core into a chunk of the build (out/main/chunks/), where core's
+// import.meta.url paths (cliPath, hookPath) are wrong: the packaged daemon died as it started (0.52's first build)
+test('no daemon module imports another with import()', () => {
+  const dyn = readdirSync(daemon).filter(f => f.endsWith('.ts') && /\bimport\(\s*['"`]\.{1,2}\//.test(readFileSync(join(daemon, f), 'utf8')))
+  assert.deepEqual(dyn, [])
 })

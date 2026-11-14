@@ -47,7 +47,7 @@ import { chatWithApps, mcpAppCall, mcpPage } from './mcpApps.ts'
 import { planFile, planGet, planList, planNew, planPage, planRm, planSave, planUpload, planWrite } from './plans.ts'
 import { noteFile, noteGet, noteList, noteNew, noteRestore, noteRm, noteSave, noteTrashTidy, noteUpload, todoListGet, todoListSave } from './notes.ts'
 import { checkAgain, checkStop, checkTidy, proofShot } from './verify.ts'
-import { reviewDiff, reviewMark, longStop, longTurnTick, sideAsk, sideNew, sideState, tabHandover, turnDiff, turnFork, turnList, turnRewind, turnsTidy, turnUndo } from './turns.ts' // turnStarts, turnEnds: each turn's changes, the next prompt
+import { reviewDiff, reviewMark, longStop, longTurnTick, sideAsk, sideNew, sideState, tabHandover, turnDiff, turnFork, turnList, turnRewind, turnsDrop, turnsKept, turnsTidy, turnUndo } from './turns.ts' // turnStarts, turnEnds: each turn's changes, the next prompt
 import { alertAnswer, alertShow, alertsSeen, noticesTo } from './alerts.ts'
 import { secretAsk, secretGive, secretsTidy } from './secrets.ts'
 import { flowAnswer, flowEvent, flowTest, flowForget, flowGet, flowHistory, flowList, flowPause, flowRestore, flowResume, flowRevert, flowRm, flowSave, flowStart, flowStop, flowHold, flowFirst, flowStopAll, flowTick, flowTrash, flowTrashTidy, flowTrust } from './workflow.ts'
@@ -1686,6 +1686,7 @@ void remoteMod
   .then(() => (remoteMod.remoteBack(), remoteMod.tunnelsBack())) // then the ones state.json kept (remote access first: My domain's on the tunnels' connector): after them, so none of theirs is stopped
   .catch(e => log('tunnelsBack', e))
 // R8: an archived workspace deleted within a day: a notice in Laki's window (kept until answered), Keep postpones it
+Object.assign(resourcesMod.turnsOf, { kept: turnsKept, drop: turnsDrop }) // Disk's kept turns (resources.ts turnsOf: no import of turns.ts there)
 core.soonSay.fn = ws => {
   const what = ws.soon?.what ?? []
   const text = `It was archived ${core.state.settings?.archivedDays} days ago and goes tomorrow${what.length ? `: ${what.join(' and ')} go to the trash` : ' (its branch stays)'}.`
