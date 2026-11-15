@@ -3,7 +3,7 @@
 version it builds, with the date. A version's first three lines are its What's new card after an update (U13): put
 the biggest first, and end a line with `[Try it](laki://…)` to give it a Try button there. -->
 
-## Next
+## 0.54.0 · Nov 15, 2026
 
 - Charts in extensions show a point's exact number on hover, can draw round-numbered ticks, axis labels and dashed threshold lines, place a line's points by their time, and run an action on a click on a point.
 - The UI kit draws diagrams (`diagram`: mermaid's flowcharts, sequences and Gantt charts, in the theme's colors) and QR codes (`qr`: a link to open on a phone).
