@@ -30,14 +30,15 @@ export const filesIn = (d: string) => {
     return []
   }
 }
+const FILE_MAX = 256 << 10 // a file the inspector shows and saves: laki.d.ts, the kit's every element, is 64 KB and growing
 export function widgetFiles(o: { id: string }) {
   const w = find(o.id)
   const hash = filesHash(w, true) // before they're read: a change in between gives a hash widgetSet's seen won't take
   const files: Record<string, string> = {}
   for (const n of (w.file ? [w.file] : [...filesIn(w.dir), ...fixturesOf(w).map(f => `fixtures/${f}.json`)]).slice(0, 20)) {
     const p = join(w.dir, n)
-    const buf = statSync(p).size > 64 << 10 ? null : readFileSync(p)
-    files[n] = !buf ? '(over 64 KB: not shown)' : buf.includes(0) ? '(binary: not shown)' : buf.toString('utf8')
+    const buf = statSync(p).size > FILE_MAX ? null : readFileSync(p)
+    files[n] = !buf ? '(over 256 KB: not shown)' : buf.includes(0) ? '(binary: not shown)' : buf.toString('utf8')
   }
   return { id: w.id, files, hash }
 }
@@ -50,12 +51,12 @@ export function widgetFileSave(o: { id: string; path: string; text: string; was?
   if (w.project) throw new Error(repoSays(w, 'change it'))
   const names = w.file ? [w.file] : [...filesIn(w.dir), ...fixturesOf(w).map(f => `fixtures/${f}.json`)]
   if (typeof o.path !== 'string' || !names.includes(o.path)) throw new Error(`${o.path}: not one of its files`)
-  if (typeof o.text !== 'string' || Buffer.byteLength(o.text) > 64 << 10) throw new Error('its text, up to 64 KB (more: open its folder)') // widgetFiles shows no more
+  if (typeof o.text !== 'string' || Buffer.byteLength(o.text) > FILE_MAX) throw new Error('its text, up to 256 KB (more: open its folder)') // widgetFiles shows no more
   if (o.path.startsWith('fixtures/') && !statOf(join(w.dir, 'fixtures'))?.isDirectory()) throw new Error('fixtures is a link there')
   const p = join(w.dir, o.path)
   if (!statOf(p)?.isFile()) throw new Error(`${o.path} is a link or a folder there`)
   const buf = readFileSync(p)
-  if (buf.length > 64 << 10 || buf.includes(0)) throw new Error(`${o.path} is over 64 KB or not text: open its folder to edit it`)
+  if (buf.length > FILE_MAX || buf.includes(0)) throw new Error(`${o.path} is over 256 KB or not text: open its folder to edit it`)
   if (!o.force && typeof o.was === 'string' && buf.toString('utf8') !== o.was) throw new Error(`${o.path} changed since you opened it`)
   if (/\.json$/i.test(o.path)) {
     let j: unknown

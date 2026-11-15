@@ -932,6 +932,9 @@
           "$ref": "#/definitions/diff"
         },
         {
+          "$ref": "#/definitions/diagram"
+        },
+        {
           "$ref": "#/definitions/json"
         },
         {
@@ -1044,6 +1047,9 @@
         },
         {
           "$ref": "#/definitions/image"
+        },
+        {
+          "$ref": "#/definitions/qr"
         },
         {
           "$ref": "#/definitions/gallery"
@@ -3903,6 +3909,71 @@
             "string"
           ],
           "description": "Lines at most (a preview: as many as fit), then +N more"
+        }
+      }
+    },
+    "diagram": {
+      "type": "object",
+      "description": "diagram: A diagram in mermaid’s words: a flowchart, a sequence, a Gantt chart, a state machine. The app draws it in the theme’s colors; a JS page shows its code.",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "diagram"
+        },
+        "if": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "Show it only when this path or template is truthy (an empty list is false)"
+        },
+        "unless": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "Show it only when this path or template is falsy"
+        },
+        "each": {
+          "type": [
+            "string",
+            "array"
+          ],
+          "description": "Repeat it once per item of this list (or object); inside, the item’s fields, this and @index. A list, table, chart… takes its rows from it instead"
+        },
+        "tip": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "A tooltip"
+        },
+        "tone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          ],
+          "description": "good, bad, warn, accent or muted, or a map from its text to one: { \"failed\": \"bad\", \"live\": \"good\" }"
+        },
+        "code": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "The diagram: flowchart LR, A --> B"
         }
       }
     },
@@ -7633,6 +7704,78 @@
             "string"
           ],
           "description": "Its height in px"
+        }
+      }
+    },
+    "qr": {
+      "type": "object",
+      "description": "qr: A QR code to open on a phone: a link, a preview’s address, words.",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "qr"
+        },
+        "if": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "Show it only when this path or template is truthy (an empty list is false)"
+        },
+        "unless": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "Show it only when this path or template is falsy"
+        },
+        "each": {
+          "type": [
+            "string",
+            "array"
+          ],
+          "description": "Repeat it once per item of this list (or object); inside, the item’s fields, this and @index. A list, table, chart… takes its rows from it instead"
+        },
+        "tip": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "A tooltip"
+        },
+        "tone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          ],
+          "description": "good, bad, warn, accent or muted, or a map from its text to one: { \"failed\": \"bad\", \"live\": \"good\" }"
+        },
+        "value": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "What it holds: a URL or words (2,300 characters at most)"
+        },
+        "size": {
+          "type": [
+            "number",
+            "string"
+          ],
+          "description": "Its width in px (120)"
         }
       }
     },

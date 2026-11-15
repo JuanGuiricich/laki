@@ -1212,7 +1212,7 @@ function Examples({ w, cfg, files, onShown }: { w: WidgetView; cfg: WidgetsApi; 
 // stops), saved as it is (widgetFileSave: refused when the file changed meanwhile, Save anyway; a .json one must parse);
 // a repo's, or one too big to show, is read-only
 type Draft = { path: string; text: string; was: string }
-const UNSHOWN = /^\((over 64 KB|binary): not shown\)$/ // widgetFiles' words for one it doesn't give
+const UNSHOWN = /^\((over \d+ KB|binary): not shown\)$/ // widgetFiles' words for one it doesn't give
 function FileView({ w, cfg, files, sel, onSel, draft, setDraft, onSaved }: { w: WidgetView; cfg: WidgetsApi; files: Record<string, string>; sel: string; onSel: (f: string) => void; draft: Draft | null; setDraft: (d: Draft | null) => void; onSaved: () => void }) {
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)

@@ -14,6 +14,7 @@ import { ago, type SayModal, sayOf, uiBehave, WIDGET_CSS, type WidgetButton, typ
 import { DO, type UiDo, uiHtml, type UiSpec } from '../../shared/widgetUi'
 import { daemonBase } from './api'
 import { ask, escapes, Icon, IconButton, isIconName, type MenuItem, act as press } from './ui'
+import { diagramsIn } from './MarkdownView'
 
 export type WidgetApi = {
   render: (id: string, full: boolean, sample?: boolean | string, cells?: [number, number], ws?: string, turn?: TurnAt) => Promise<string | null> // turn (P5): a turn chip's data; sample: widget.json's made-up data (a name: fixtures/<name>.json's); cells: where it shows (the UI kit's size); ws: a per-workspace one's instance
@@ -115,7 +116,10 @@ export function KitBody({ spec, data, cells, ws }: { spec: UiSpec; data: unknown
     const style = document.createElement('style')
     style.textContent = WIDGET_CSS
     root.replaceChildren(style, clean(uiHtml(spec, { data, config: {}, at: Date.now() - 120_000, sample: true, ...(ws && { workspace: ws }) }, cells ? { cells } : { full: true })))
-    return uiBehave(root, () => undefined)
+    let live = true
+    diagramsIn(root, () => live)
+    const off = uiBehave(root, () => undefined)
+    return () => ((live = false), off())
   }, [JSON.stringify(spec), JSON.stringify(data), cells?.join(), JSON.stringify(ws)]) // by value: a chat's looks come in new objects at each update
   return <div ref={host} className="widget-body" />
 }
@@ -182,6 +186,7 @@ export function WidgetBody({ w, full, api, sample, cells, onSize, turn, still }:
         const style = document.createElement('style')
         style.textContent = WIDGET_CSS
         root.replaceChildren(style, clean(html ?? ''))
+        diagramsIn(root, () => live)
         const keys = sample || turn || !now.current.api.term ? [] : [...new Set([...root.querySelectorAll<HTMLElement>('.k-term[data-term]')].map(e => e.dataset.term!))]
         setTerms(t => (t.join() === keys.join() ? t : keys))
       },

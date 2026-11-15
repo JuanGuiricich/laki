@@ -3,7 +3,7 @@
 // one-time code); or, with a named tunnel set in Settings › Tunnels, at a permanent hostname of yours. The daemon runs
 // cloudflared (and starts it again when it drops); this is the status bar's button and its popup with a QR code.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { qr, qrPath } from './qr'
+import { qr, qrPath } from '../../shared/qr'
 import { MAIL_OK, parseMails, webmail } from './text'
 import { Icon, IconButton } from './ui'
 

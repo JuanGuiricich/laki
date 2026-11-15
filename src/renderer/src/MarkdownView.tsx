@@ -221,6 +221,48 @@ function Mermaid({ text }: { text: string }) {
   )
 }
 
+// K4: an extension's diagram elements (the UI kit's .k-diagram, its code in a <pre>, already sanitized), drawn as a
+// chart above in the theme's colors: its variables as mermaid's base theme (a directive before the code). One that
+// can't be drawn keeps its code, the error as its tip
+const hexOf = (x: CanvasRenderingContext2D, bg: string, c: string) => {
+  x.fillStyle = bg // over the background: a translucent --hover as it looks
+  x.fillRect(0, 0, 1, 1)
+  x.fillStyle = c
+  x.fillRect(0, 0, 1, 1)
+  return `#${[...x.getImageData(0, 0, 1, 1).data.slice(0, 3)].map(v => v.toString(16).padStart(2, '0')).join('')}` // mermaid's colors parse hex, not oklch or display-p3
+}
+function themeLine(dark: boolean) {
+  const cs = getComputedStyle(document.documentElement)
+  const v = (k: string, or: string) => cs.getPropertyValue(k).trim() || or
+  const x = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d', { willReadFrequently: true })
+  if (!x) return ''
+  const bg = v('--panel', dark ? '#161a21' : '#ffffff')
+  const c = (k: string, or: string) => hexOf(x, bg, v(k, or))
+  const fg = c('--fg', dark ? '#d5d9e3' : '#1f2328')
+  const vars = { darkMode: dark, background: c('--panel', bg), primaryColor: c('--hover', bg), primaryBorderColor: c('--accent', '#7aa2f7'), primaryTextColor: fg, secondaryColor: c('--sel', bg), tertiaryColor: c('--bg', bg), lineColor: c('--muted', '#7f8798'), textColor: fg, noteTextColor: fg, fontFamily: FONT }
+  return `%%{init: ${JSON.stringify({ theme: 'base', themeVariables: vars })}}%%\n`
+}
+export function diagramsIn(root: ParentNode, live: () => boolean) {
+  const els = [...root.querySelectorAll<HTMLElement>('.k-diagram')]
+  if (!els.length) return
+  const dark = document.documentElement.style.colorScheme !== 'light'
+  const head = themeLine(dark)
+  for (const el of els) {
+    const code = el.querySelector('code')?.textContent?.trim()
+    if (!code) continue
+    const text = head + code
+    draw(`${dark ? 'd' : 'l'}${text}`, text, dark, live).then(
+      p => {
+        if (!live() || !el.isConnected) return
+        const img = Object.assign(new Image(), { src: p.src, alt: `A ${code.split(/\s/)[0]} diagram` })
+        if (p.w) img.width = p.w
+        el.replaceChildren(img)
+      },
+      e => e !== GONE && (el.title = `Mermaid can't draw it: ${String(e?.message ?? e).split('\n')[0]}`),
+    )
+  }
+}
+
 function mdBlock(b: Block, k: number): React.ReactNode {
   switch (b.t) {
     case 'h': {

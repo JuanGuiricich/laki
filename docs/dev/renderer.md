@@ -889,7 +889,7 @@ false), Approve, then GitHub and ⋯ (checks, files, *Close pull request…*) sq
   named rows under it (chips on a phone); *The full guide* (`GUIDE`, from panels.tsx' `REPO`). Sections and named
   rows have stable ids, `help-<id>`, for a `laki://help#<id>` later. Keep it in step with the guide's keys and CLI
   recipes.
-- **`qr.ts`**: a QR encoder (byte mode, level M, versions 1–40, best mask), for the tunnel's link. Its test
+- **`src/shared/qr.ts`**: a QR encoder (byte mode, level M, versions 1–40, best mask), for the tunnel's link and the UI kit's `qr`. Its test
   compares a code with macOS CoreImage's (`test/qr.test.ts`).
 - **`panels.tsx`**: the new-workspace page (ui.tsx's `Page`: over the main area, like Settings), laid out as paseo's:
   `.nw-top`, a row of `.nw-pick` menus over the prompt: project and `place` in one menu (each sep indented under its

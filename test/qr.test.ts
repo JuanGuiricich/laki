@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { qr, qrPath } from '../src/renderer/src/qr.ts'
+import { qr, qrPath } from '../src/shared/qr.ts'
 
 test('a URL gives the same QR code as macOS CoreImage (level M); sizes grow with the text', () => {
   // CIQRCodeGenerator, inputCorrectionLevel M, for this URL (each code here was also decoded by Vision)

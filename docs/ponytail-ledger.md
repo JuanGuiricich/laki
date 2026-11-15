@@ -391,7 +391,7 @@ risk, the limit as the code has it, the way up, the proposal.
 | `src/renderer/src/MarkdownView.tsx:139` | polish | drawn diagrams: the newest 200 kept | none needed | fine as it is |
 | `src/renderer/src/PromptInput.tsx:93` | polish | a template's agent variables go in as written | none needed | fine as it is |
 | `src/renderer/src/PromptInput.tsx:202` | polish | prompt history's filter reads a prompt's first 120 characters | none needed | fine as it is |
-| `src/renderer/src/qr.ts:3` | polish | QR: byte mode and level M only | none needed | fine as it is |
+| `src/shared/qr.ts:3` | polish | QR: byte mode and level M only | none needed | fine as it is |
 | `src/renderer/src/SidePanel.tsx:1245` | polish | an action's tip: 600 characters | none needed | fine as it is |
 | `src/renderer/src/SidePanel.tsx:1259` | polish | a CSV shows 2,000 rows | virtualise it | fine as it is |
 | `src/renderer/src/SpecEditor.tsx:68` | polish | a redrawn diagram's old PNG stays in files/ | delete the old one on save | fine as it is |

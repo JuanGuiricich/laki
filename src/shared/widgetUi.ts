@@ -6,6 +6,7 @@
 import { ICONS as ICON_WORDS, iconSvg, type IconName, isIconName } from './icons.ts'
 import { neverAsks } from './types.ts'
 import { markdownHtml } from './markdown.ts'
+import { qr, qrPath } from './qr.ts'
 import { ago, date, esc, fill, num, spark, truthy, UI_CSS, valueAt } from './widget.ts'
 
 export { UI_CSS }
@@ -137,6 +138,7 @@ export const UI = {
   code: { group: 'Code', blurb: 'A block of code, with Copy.', props: { value: p('text', 'The code'), copy: p('bool', 'A copy button') } },
   snippet: { group: 'Code', blurb: 'A command or code with Copy, in tabs: npm, pnpm, yarn and bun; curl and httpie; a file each.', rows: true, props: { items: p('items', 'The tabs: [{ "label", "value" }] (none: one block of value)'), label: p('text', 'With each: a tab’s name'), value: p('text', 'The code (with each: a tab’s)'), title: p('text', 'A file name or title over one block'), prompt: p('bool', 'A $ before each line: commands to type'), copy: p('bool', 'A copy button: on by default') } },
   diff: { group: 'Code', blurb: 'A diff, git’s: added lines green, removed red, hunks and files marked, how many of each.', props: { value: p('text', 'The unified diff (git diff’s, a patch)'), limit: p('number', 'Lines at most (a preview: as many as fit), then +N more') } },
+  diagram: { group: 'Code', blurb: 'A diagram in mermaid’s words: a flowchart, a sequence, a Gantt chart, a state machine. The app draws it in the theme’s colors; a JS page shows its code.', props: { code: p('text', 'The diagram: flowchart LR, A --> B') } },
   json: { group: 'Code', blurb: 'Any value as JSON that folds: what a fetch printed, an API’s answer.', props: { value: p('path', 'What to show: a path (data, data.items); data by default'), open: p('number', 'Levels open at first (1)') } },
   term: { group: 'Code', blurb: 'A live terminal running a command: a cell shows it, the full view types into it. The app’s only: a JS page shows the command.', props: { run: p('text', 'The command (sh -c), as written: never filled from data'), cwd: p('text', 'Where it runs: relative to its workspace (per workspace) or its folder'), rows: p('number', 'Its height in lines (10; 24 in the full view)') } },
   log: { group: 'Code', blurb: 'Log lines in the monospace font, the newest last, errors red and warnings yellow.', rows: true, props: { value: p('text', 'The whole log as text, a line each (instead of each)'), text: p('text', 'With each: a line ({{text}} by default)'), time: p('text', 'With each: when (an ISO date or ms: shown as 09:10:03)'), level: p('text', 'With each: error, warn, info or debug (default: read off the line)'), limit: p('number', 'Lines at most, the newest (a preview: as many as fit), then +N more'), wrap: p('bool', 'Wrap long lines') } },
@@ -225,6 +227,7 @@ export const UI = {
   tags: { group: 'Lists', blurb: 'Pills: labels, states.', rows: true, props: { items: p('items', 'Each one: a word, or { "tag", "tone", "color" }'), tag: p('text', 'With each: a pill’s words'), color: p('text', 'A palette name, or a hex (d73a4a): its border and dot, a GitHub label’s') } },
   filter: { group: 'Lists', blurb: 'Chips over elements: a click shows only the rows whose words have it. All · Failing · Passing over a list or a table.', props: { options: p('items', 'The chips: words, or [{ "value", "label" }]: a chip keeps the rows whose words have its value'), all: p('text', 'The first chip, every row (All); "" for none: a chip clicked again lets go'), children: p('children', 'The elements whose rows it filters: a list, a table, status…') } },
   image: { group: 'Media', blurb: 'A picture: a data: image or an https one.', props: { src: p('text', 'A data:image/… or https:// URL'), alt: p('text', 'What it shows'), height: p('number', 'Its height in px') } },
+  qr: { group: 'Media', blurb: 'A QR code to open on a phone: a link, a preview’s address, words.', props: { value: p('text', 'What it holds: a URL or words (2,300 characters at most)'), size: p('number', 'Its width in px (120)') } },
   gallery: { group: 'Media', blurb: 'Pictures in a row that scrolls, a caption under each: screenshots, designs, a carousel.', rows: true, props: { src: p('text', 'A picture: data: or https ({{src}} by default)'), caption: p('text', 'Words under it'), href: p('text', 'A link a click opens'), height: p('number', 'Their height in px (default: as the cell fits; 160 in the full view)'), empty: p('text', 'What it says with no pictures') } },
   card: { group: 'Media', blurb: 'A box with a picture, a title, words and a tag: a link to open.', rows: true, props: { title: p('text', 'Its title'), text: p('text', 'Its words'), image: p('text', 'A picture: data: or https'), icon: p('icon', 'Or an icon or emoji'), tag: p('text', 'A pill by its title'), href: p('text', 'A link a click opens') } },
   compare: { group: 'Media', blurb: 'Two pictures, one over the other, a divider to drag between them: before and after, a design and the build.', props: { before: p('text', 'The picture before: data: or https'), after: p('text', 'The picture after'), labels: p('items', 'Words on each side: ["Before", "After"]'), height: p('number', 'Its height in px (default: as the cell fits; 260 in the full view)') } },
@@ -1033,6 +1036,19 @@ const R: Record<UiType, (e: El, s: S) => string> = {
       .filter(Boolean)
     return pics.length ? `<div${at({ tip: e.tip }, s, 'k-gallery')}>${pics.join('')}</div>` : empty(e, s, 0)
   },
+  // K4: dark modules on white, whatever the theme (a phone's camera reads that best), a 4-module quiet zone
+  qr: (e, s) => {
+    const v = txt(e.value, s)
+    if (!v) return ''
+    let m: boolean[][]
+    try {
+      m = qr(v)
+    } catch (err) {
+      return `<span${at({ tip: e.tip }, s, 'k-qr-no muted')}>${esc((err as Error).message)}</span>`
+    }
+    const px = s.line ? 18 : Math.min(1000, Math.max(16, Math.round(n(e.size, s) ?? 120))) // a line: a mark the height of its words
+    return `<svg${at({ tip: e.tip }, s, 'k-qr')} viewBox="0 0 ${m.length + 8} ${m.length + 8}" width="${px}" height="${px}" shape-rendering="crispEdges" role="img" aria-label="QR code: ${esc(v)}"><rect width="100%" height="100%" fill="#fff"/><path d="${qrPath(m)}" fill="#000"/></svg>`
+  },
   image: (e, s) => (u => (imageOk(u) ? `<img${at(e, s, 'k-img')} src="${esc(u)}" alt="${h(e.alt, s)}"${(x => (x ? ` style="height:${Math.min(2000, x)}px"` : ''))(n(e.height, s))}>` : ''))(txt(e.src, s).trim()),
   steps: (e, s) => {
     const items = listAt(e.each ?? e.items, s)
@@ -1118,6 +1134,9 @@ const R: Record<UiType, (e: El, s: S) => string> = {
     const rows = Math.min(60, Math.max(2, Math.round(n(e.rows, s) ?? (s.full ? 24 : 10))))
     return `<div${at({ tip: e.tip }, s, 'k-term')} data-term="${k}" style="height:${rows * 17 + 12}px"><slot name="term-${k}"><pre class="k-term-cmd"><code>$ ${esc(run)}</code></pre></slot></div>`
   },
+  // K4: the app draws it (MarkdownView's diagramsIn: mermaid's SVG as a picture, in the theme's colors); anywhere else
+  // (a JS page, the daemon's HTML) its code shows
+  diagram: (e, s) => `<div${at(e, s, 'k-diagram')} data-diagram><pre class="k-diagram-code"><code>${esc(txt(e.code, s).trim())}</code></pre></div>`,
   json: (e, s) => (v => (s.line ? `<span${at({ tip: e.tip }, s, 'k-json mono')}>${esc((JSON.stringify(v) ?? 'null').slice(0, 300))}</span>` : `<div${at({ tip: e.tip }, s, 'k-json')}>${jsonHtml(v, Math.max(0, Math.round(n(e.open, s) ?? 1)))}</div>`))(valueAt(e.value ?? 'data', s.scopes)),
   rating: (e, s) => {
     const max = Math.min(10, Math.max(1, Math.round(n(e.max, s) ?? 5)))
@@ -1844,6 +1863,9 @@ export function uiCheck(spec: unknown, data?: unknown, o: { actions?: string[] }
     if (['button', 'toggle', 'segmented', 'stepper', 'range', 'select', 'input', 'swap', 'pagination', 'menu', 'command', 'combobox', 'datepicker', 'split', 'radio'].includes(type)) runs(el, here, true)
     if (type === 'textarea') runs({ ...el, prompt: '', ...(typeof el.do === 'string' && !['new', 'send', 'ai'].includes(el.do) && { do: undefined }) }, here, true) // what's typed is its prompt; a wrong do: its kind says it
     if (type === 'term' && (typeof el.run !== 'string' || !el.run.trim())) say('error', here, 'term: its run, the command it runs')
+    if (type === 'diagram' && (typeof el.code !== 'string' || !el.code.trim())) say('error', here, 'diagram: its code, mermaid’s words (flowchart LR; A --> B)')
+    if (type === 'qr' && (typeof el.value !== 'string' || !el.value)) say('error', here, 'qr: its value, what the code holds')
+    if (type === 'qr' && typeof el.value === 'string' && !el.value.includes('{{') && new TextEncoder().encode(el.value).length > 2331) say('error', here, 'qr: value is too long for a QR code (2,331 bytes at most)')
     if (type === 'term' && typeof el.run === 'string' && el.run.includes('{{')) say('warn', here, 'term: run is used as written, {{…}} isn’t filled')
     if ((type === 'menu' || type === 'command') && Array.isArray(el.items)) el.items.forEach((b, i) => runs(b, `${here}.items[${i}]`))
     if (type === 'swap' && Array.isArray(el.icons)) for (const v of el.icons) if (!iconOk(v)) say('warn', here, noIcon(v))
@@ -1973,6 +1995,7 @@ const SAMPLES: Record<UiType, { spec: UiElement; data?: unknown }> = {
   timeline: { spec: { type: 'timeline', each: 'events', time: '{{at}}', title: '{{what}}', text: '{{who}}', tone: { 'Deploy failed': 'bad', Deployed: 'good' } }, data: { events: [{ at: '2026-10-17T09:10:00Z', what: 'Deployed', who: 'v2.4.0 by octocat' }, { at: '2026-10-17T08:40:00Z', what: 'Deploy failed', who: 'v2.4.0-rc1' }, { at: '2026-10-16T17:00:00Z', what: 'Merged #418', who: 'hubot' }] } },
   card: { spec: { type: 'card', each: 'posts', title: '{{title}}', text: '{{blurb}}', icon: '{{icon}}', tag: '{{tag}}', href: '{{url}}', tone: { new: 'accent' } }, data: { posts: [{ title: 'Search, 30% faster', blurb: 'How we cut p95 by moving to the new index.', icon: '⚡', tag: 'new', url: 'https://example.com/blog/search' }, { title: 'Dark mode', blurb: 'The dashboard follows your system now.', icon: '🌙', tag: 'ui', url: 'https://example.com/blog/dark' }] } },
   gallery: { spec: { type: 'gallery', each: 'repos', src: 'https://opengraph.githubassets.com/laki/{{name}}', caption: '{{name}}', href: 'https://github.com/{{name}}' }, data: { repos: [{ name: 'microsoft/vscode' }, { name: 'vercel/next.js' }, { name: 'electron/electron' }, { name: 'vitejs/vite' }] } },
+  qr: { spec: { type: 'qr', value: '{{url}}', size: 120 }, data: { url: 'http://192.168.1.20:5173' } },
   image: { spec: { type: 'image', src: 'https://avatars.githubusercontent.com/{{login}}?s=80', alt: '{{login}}', height: 40 }, data: { login: 'octocat' } },
   steps: { spec: { type: 'steps', each: 'stages', label: '{{name}}', state: '{{state}}', text: '{{took}}' }, data: { stages: [{ name: 'Build', state: 'done', took: '1m 12s' }, { name: 'Test', state: 'done', took: '3m 40s' }, { name: 'Deploy', state: 'running', took: 'now' }, { name: 'Smoke', state: 'todo', took: '' }] } },
   meter: { spec: { type: 'meter', each: 'disk', label: '{{name}}', value: '{{gb}}', color: '{{color}}', max: 512, unit: ' GB', title: 'Disk' }, data: { disk: [{ name: 'Apps', gb: 120, color: 'blue' }, { name: 'Docker', gb: 96, color: 'purple' }, { name: 'Photos', gb: 74, color: 'orange' }, { name: 'System', gb: 38, color: 'gray' }] } },
@@ -1983,6 +2006,7 @@ const SAMPLES: Record<UiType, { spec: UiElement; data?: unknown }> = {
   tree: { spec: { type: 'tree', each: 'files', label: '{{name}}', text: '{{size}}', icon: '{{#if children}}folder{{else}}file{{/if}}' }, data: { files: [{ name: 'src', size: '', children: [{ name: 'main.ts', size: '4 KB' }, { name: 'ui', size: '', children: [{ name: 'App.tsx', size: '12 KB' }, { name: 'theme.css', size: '3 KB' }] }] }, { name: 'package.json', size: '1 KB' }, { name: 'README.md', size: '2 KB' }] } },
   log: { spec: { type: 'log', each: 'lines', text: '{{text}}', time: '{{at}}', level: '{{level}}' }, data: { lines: LOG } },
   term: { spec: { type: 'term', run: 'top -o cpu -n 8 -s 3 -stats pid,command,cpu,mem', rows: 12 }, data: {} },
+  diagram: { spec: { type: 'diagram', code: 'flowchart LR\n  push[Push] --> ci{CI}\n  ci -->|green| review[Review]\n  ci -->|red| fix[Fix]\n  fix --> push\n  review --> merge[Merge]' }, data: {} },
   json: { spec: { type: 'json', value: 'data', open: 2 }, data: { repo: 'acme/web', open: 6, ci: { passing: true, took: 412 }, labels: ['bug', 'docs'], owner: null } },
   toggle: {
     spec: { type: 'stack', children: [{ type: 'toggle', label: 'Maintenance mode', text: 'Shows the banner on {{site}}', on: 'maintenance', run: 'maintenance', confirm: 'Turn maintenance mode {{#if maintenance}}off{{else}}on{{/if}}?' }, { type: 'toggle', label: 'Deploys', text: 'Merges to main ship at once', on: 'deploys', run: 'deploys' }] },

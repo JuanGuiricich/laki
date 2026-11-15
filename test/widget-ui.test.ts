@@ -10,7 +10,7 @@ import { fresh, until } from './helpers.ts'
 const at = Date.parse('2026-10-17T10:00:00Z')
 
 test('UI kit: every element has a sample, and every sample draws at a 1×1 preview, a bar and in full', () => {
-  assert.equal(UI_TYPES.length, 101)
+  assert.equal(UI_TYPES.length, 103)
   assert.deepEqual(UI_SAMPLES.map(s => s.type), UI_TYPES, 'a sample per element, in order')
   assert.deepEqual([...new Set(UI_SAMPLES.map(s => s.group))], Object.keys(UI_GROUPS), 'the table by group: each has elements, together, in order')
   for (const s of UI_SAMPLES) {
