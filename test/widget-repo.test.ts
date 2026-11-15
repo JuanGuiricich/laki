@@ -273,7 +273,9 @@ test("a repo's extension is trusted as every file in its folder but its state: w
   for (let i = 0; i < 2; i++) assert.equal((await rig.rpc('widgetRun', { id: `${pp.id}.z` })).error, undefined)
   assert.ok(existsSync(join(z, '.state')))
   writeFileSync(join(z, 'extra.sh'), 'echo extra\n')
-  assert.match((await rig.rpc('widgetRun', { id: `${pp.id}.z` })).error ?? '', /changed in .*'s repo/)
+  // off by this run, or by the watch's scan before it (a second after the change: a slow call under load)
+  assert.match((await rig.rpc('widgetRun', { id: `${pp.id}.z` })).error ?? '', /changed in .*'s repo|is off: turn it on first/)
+  await until(async () => (await find(`${pp.id}.z`)).changed, 'off: extra.sh is new')
 })
 
 // #4: git's listing missed code a repo's extension runs: a submodule's files (one gitlink line) and an ignored file a

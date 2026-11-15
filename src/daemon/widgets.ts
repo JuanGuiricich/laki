@@ -1352,7 +1352,7 @@ export async function widgetRun(o: { id: string; reason?: string; why?: string; 
   const meta = metaOf(w, x?.id)
   const reason = typeof o.reason === 'string' && (RUN_REASONS.includes(o.reason) || /^(action|event):[\w.-]{1,40}$/.test(o.reason)) ? o.reason : 'manual'
   const once = o.once === true && !onOf(w)
-  if (!onOf(w) && (guarded(w) || (!once && !(force && w.s.by !== 'ai')))) return { ok: false, error: guarded(w) ? (w.s.changed ? `${w.m.name || w.id} changed ${where(w)}: off until you look` : `${OFF(w)}: it ${whence(w)}, look at what it runs (laki widget what ${w.id})`) : OFF(w) } // a repo's: never once, unlooked; turned off by the watch's scan, it says why as trusted() would
+  if (!onOf(w) && (guarded(w) || (!once && !(force && w.s.by !== 'ai')))) return { ok: false, error: guarded(w) ? `${OFF(w)}: it ${whence(w)}, look at what it runs (laki widget what ${w.id})` : OFF(w) } // a repo's: never once, unlooked
   if (!fetches(w)) return { ok: false, error: `${w.id} has no fetch or script: give it a source (static, file or url)` }
   const src = sourceOf(w)
   if (once && streaming(w)) return { ok: false, error: 'a stream runs only while it is on' }
