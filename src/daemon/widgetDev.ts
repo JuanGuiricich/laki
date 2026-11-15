@@ -3,13 +3,14 @@
 
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
+import { homedir } from 'node:os'
 import { type WidgetRuns } from '../shared/types.ts'
 import { actionCmd, binsIn, manifestCheck, needsOf, SECRET, toolOf } from '../shared/widgetSchema.ts'
-import { STARTER_KINDS, type StarterKind, STARTERS } from '../shared/widgetStarters.ts'
+import { LINES_MAX, shapeOf, STARTER_KINDS, type StarterKind, STARTERS, uiFor } from '../shared/widgetStarters.ts'
 import { reservedIn, uiCheck, type UiProblem } from '../shared/widgetUi.ts'
 import { agentRoots, binOn, configOf, dataOf, devRoots, type Entry, envOf, fetchable, find, foldersIn, guarded, home, htmlOf, idOf, isObj, keep, keyOf, type Manifest, manifestOf, metaOf, oneFile, onOf, optionsOf, pathOf, readStore, refetch, repoRoots, runs, RUNS, scanWidgets, scoped, type Source, sourceOf, sourceOk, stopAgents, storePath, templatesError, typedOf, under, whence, widgetHome, widgetRun, widgets, wLog, writeStore, wsEnv, wsOf } from './widgets.ts'
 import { stopStream, streaming, streamOf, streamSync } from './widgetEvents.ts'
-import { agentCaller, changed, settingsSet } from './core.ts'
+import { agentCaller, changed, sessions, settingsSet, shellCwd, state } from './core.ts'
 import { filesIn, statOf } from './widgetFiles.ts'
 import { ungrant } from './widgetTools.ts'
 import { dir } from './dir.ts'
@@ -114,7 +115,8 @@ export function widgetDev(o: { folder?: string; off?: string; list?: boolean; fr
 // laki widget new (Settings › Extensions › New ▾): a starter (widgetStarters.ts) in its own folder, <data>/widgets/<id>
 // (dir: another, empty or new, which laki widget dev then links; a one-file one goes in the folder itself), the id from
 // its name, made unique. The user's own (not by: 'ai'): on, and fetched at once; an agent's (N10): off, nothing run
-export async function widgetNew(o: { kind?: string; name?: string; dir?: string; from?: { ws?: string; tab?: string } }) {
+// made: its files instead of a starter's (C1's, never over RPC: a function), and off (the user looks first)
+export async function widgetNew(o: { kind?: string; name?: string; dir?: string; from?: { ws?: string; tab?: string } }, made?: { files: (id: string, name: string) => Record<string, string>; off?: boolean }) {
   const agent = !!agentCaller(o.from)
   const kind = String(o.kind ?? 'list') as StarterKind
   if (!STARTER_KINDS.includes(kind)) throw new Error(`a kind: ${STARTER_KINDS.join(', ')}`)
@@ -125,7 +127,7 @@ export async function widgetNew(o: { kind?: string; name?: string; dir?: string;
   const taken = (id: string) => widgets.has(id) || existsSync(storePath(id)) || (own && (existsSync(join(widgetHome(), id)) || filesIn(widgetHome()).some(n => n.startsWith(`${id}.`))))
   let id = slug
   for (let n = 2; taken(id); n++) id = `${slug}-${n}`
-  const files = STARTERS[kind].files(id, name)
+  const files = made ? made.files(id, name) : STARTERS[kind].files(id, name)
   const folder = own ? (kind === 'onefile' ? widgetHome() : join(widgetHome(), id)) : resolve(home(String(o.dir).trim()))
   const there = statOf(folder)
   if (!own && there && (!there.isDirectory() || (kind !== 'onefile' && readdirSync(folder).length))) throw new Error(`${folder} isn't an empty folder: a new one, or one with nothing in it`)
@@ -138,14 +140,55 @@ export async function widgetNew(o: { kind?: string; name?: string; dir?: string;
   }
   const real = (d: string) => (statOf(d) ? realpathSync(d) : d)
   const repo = repoRoots().some(r => under(real(folder), real(r.root))) // in a repo's .laki/extensions: the repo's, off until you look
-  if (!repo) writeStore(id, { on: !agent }) // yours, on
+  if (!repo) writeStore(id, { on: !agent && !made?.off }) // yours, on (C1's: off)
   scanWidgets()
   const at = kind === 'onefile' ? join(folder, Object.keys(files)[0]) : folder
   const w = [...widgets.values()].find(x => pathOf(x) === at || (repo && real(pathOf(x)) === real(at))) // in a folder of your own: once laki widget dev links it; a repo's: <project>.<id>
-  wLog({ id: w?.id ?? id }, `made from the ${kind} starter in ${folder}`)
+  wLog({ id: w?.id ?? id }, made ? `made from a terminal's command in ${folder}` : `made from the ${kind} starter in ${folder}`)
   if (w && !repo && !agent && scoped(w)) refetch(w, 'manual', 'made')
   else if (w && !repo && !agent && fetchable(w)) await widgetRun({ id: w.id, reason: 'manual', why: 'made' })
   return { id: w?.id ?? id, dir: at, files: Object.keys(files), found: !!w, ...(repo && { repo }), ...(agent && !repo && { note: 'made off: only the user turns it on (Settings › Extensions)' }) }
+}
+
+// C1: Make a tile from this command (a shell tab's right click): the selection (its first line the command, the rest
+// what it printed), else the tab's last command by its OSC 133 marks. Its script runs the command in the folder it ran
+// in and returns JSON (what it printed, when that's JSON; else { lines }); the sample is the output read the same way;
+// its ui by the data's shape: rows of objects a table of their keys, one number a stat, lines a list. Made off: its page
+// shows it on the sample until you try it and turn it on
+const PROMPT = /^(?:\S+@\S+(?:\s+\S+){0,2}\s*)?[$%#❯➜»]\s+/ // a prompt copied with it: $, %, ❯, user@host dir %
+export async function widgetFromTerm(o: { tab?: string; text?: string; name?: string }) {
+  const tab = state.tabs.find(t => t.id === o.tab && t.kind === 'shell')
+  if (!tab) throw new Error('a terminal tab')
+  const sel = typeof o.text === 'string' ? o.text.replace(/\r/g, '').trim() : ''
+  const run = sel ? { cmd: sel.split('\n')[0], out: sel.split('\n').slice(1).join('\n') } : sessions.get(tab.id)?.lastRun
+  if (!run) throw new Error('select the command and what it printed (its first line the command): this terminal marks no commands')
+  const cmd = run.cmd.replace(PROMPT, '').trim().slice(0, 4000)
+  if (!cmd || /[\n\0]/.test(cmd)) throw new Error('no command: its first line is the command')
+  const cwd = (await shellCwd(tab.workspace, tab.id).catch(() => undefined)) ?? homedir()
+  const sample = shapeOf(run.out)
+  const name = String(o.name ?? '').trim() || cmd.split(/\s+/).slice(0, 3).join(' ').slice(0, 60)
+  const bins = binsIn(cmd)
+  const r = await widgetNew({ name }, {
+    off: true,
+    files: (_id, n) => ({
+      'widget.json': `${JSON.stringify({ name: n, description: `From a terminal: ${cmd.slice(0, 200)}`, script: 'fetch.mjs', every: 5, sample, ui: uiFor(sample, n), ...(bins.length && { needs: { bins } }) }, null, 2)}\n`,
+      'fetch.mjs': `// Made by Laki from a terminal's command: it runs the command where it ran, and returns what it printed as JSON
+// (JSON as it is, else its lines). Edit COMMAND, or the shape below, as you like
+import { execFileSync } from 'node:child_process'
+const COMMAND = ${JSON.stringify(cmd)}
+const CWD = ${JSON.stringify(cwd)}
+export default () => {
+  const out = execFileSync('/bin/sh', ['-c', COMMAND], { cwd: CWD, encoding: 'utf8', maxBuffer: 16 << 20, stdio: ['ignore', 'pipe', 'inherit'] })
+  try {
+    return JSON.parse(out.trim())
+  } catch {
+    return { lines: out.split('\\n').map(l => l.trimEnd()).filter(Boolean).slice(0, ${LINES_MAX}) }
+  }
+}
+`,
+    }),
+  })
+  return { ...r, cmd }
 }
 
 // laki widget check (the inspector's Check, MCP's laki_extension_check): what's wrong with an extension, by its id or a

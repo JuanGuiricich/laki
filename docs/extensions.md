@@ -718,6 +718,15 @@ click that does something.
 }
 ```
 
+## From a terminal command
+
+Right click a terminal tab › *Make a tile from this command*: select the command and what it printed first (the first
+line is the command), or, in a shell with shell integration (OSC 133 marks), it takes the last command. Laki writes an
+extension whose script runs that command in the same folder and keeps what it prints as its data (JSON as it is, else
+`{ "lines": […] }`), with what you selected as its sample and a look by its shape: a table for rows of objects, a stat
+for one number, a list for lines. It's made off and opens on its page; with Laki AI on, *Improve with AI* there gives it
+a look of its own.
+
 ## Starters
 
 ```sh

@@ -192,3 +192,4 @@ needs no bump: `settingsSet` keeps any field.
 184: `ticketMint` (main's own, after Touch ID) and a call's `touchTicket`: with `settings.touchId` on, shared/confirm.ts' actions are refused without a live ticket for them (the `touch.id` cap).
 185: `noteRestore` (`note.restore`): a deleted note back from the trash (`noteRm` moves it to `<data>/trash/notes/`, kept 30 days; the `note.restore` cap).
 186: `diskUsage` and `diskTidy` (Settings › Resources › Disk: what each workspace takes on disk, and three ways to make room; the `disk.usage` cap).
+187: `widgetFromTerm` (C1: a shell tab's *Make a tile from this command*: an extension, off, whose script runs the selected or last OSC 133-marked command; the `widget.term` cap).

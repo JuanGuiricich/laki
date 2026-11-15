@@ -249,6 +249,7 @@ const started = new WeakSet<object>() // a first ask sent: never again as its pa
 // Laki AI's chat about it (widget:<id>; '': a new one's, until its first ask names it): the thread (a turn's tools
 // folded, with Undo to here once something was written after it) and the box; empty: the starters, examples and where
 // you left off (a new one), or what to ask (one of yours; one that isn't: a copy of it to change)
+const IMPROVE = 'I made this from a terminal command. Make it a good extension: pick the UI kit elements that fit its data (titles for its columns, tones, a full view with more), give it a clear name and icon, keep its sample in the shape its script returns, and add an action where one would help.'
 function Chat({ chat, w, mine, ai, onAsk, undo, err, start, cfg }: { chat: string; w?: WidgetView; mine: boolean; ai: AiSettings; onAsk: (text: string, images?: string[], named?: string) => Promise<boolean>; undo: (after?: number) => void; err: string; start?: DeskAsk; cfg: WidgetsApi }) {
   const [d, setD] = useState<ChatData>()
   const [text, setText, images, setImages] = useDraft(chat || 'widget:') // widget: a new one's, before its first ask names it
@@ -329,6 +330,12 @@ function Chat({ chat, w, mine, ai, onAsk, undo, err, start, cfg }: { chat: strin
                   </button>
                 ))}
               </div>
+            )}
+            {w && mine && w.description?.startsWith('From a terminal') && (
+              // C1: made from a terminal's command: Laki AI gives it a look of its own
+              <button className="primary sm" disabled={busy} onClick={() => void go(IMPROVE)}>
+                <Icon name="ai" size={12} /> Improve with AI
+              </button>
             )}
             {hello.examples.map(e => (
               <button key={e} className="ext-ai-example" disabled={busy} onClick={() => void go(e)}>

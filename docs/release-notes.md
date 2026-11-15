@@ -5,6 +5,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
+- Right click a terminal tab › *Make a tile from this command*: the selected command (or the last one, with shell integration) becomes an extension that runs it, its output as a table, a number or a list. *Improve with AI* gives it a look of its own.
 - An extension can say what it needs (`"needs": { "bins": ["jq"], "laki": "0.54" }`): its cell says *Needs jq* when this Mac doesn't have it, the turn-on sheet ticks each, and *Check* asks for the programs its commands run.
 - An extension that fails says why in plain words with one fix: *Install* or *Sign in* opens a terminal with the command typed, *Retry*, or *Look*. Offline, it keeps its last data, *offline · 12 min old*, and isn't marked failing.
 

@@ -542,3 +542,29 @@ printf '{"msg": "%s · %s"}' "$WIDGET_GREETING" "$(date +%H:%M)"
     }),
   },
 }
+
+// C1: an extension from a terminal's command (daemon/widgetDev.ts widgetFromTerm): its output as data (JSON as it is,
+// else its lines) and a ui by its shape
+const obj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
+export const LINES_MAX = 500
+export const shapeOf = (out: string): unknown => {
+  const t = out.trim()
+  try {
+    return JSON.parse(t)
+  } catch {
+    return { lines: t.split('\n').map(l => l.trimEnd()).filter(Boolean).slice(0, LINES_MAX) }
+  }
+}
+const NAME = /^[A-Za-z_]\w*$/
+export function uiFor(data: unknown, label: string): unknown {
+  if (typeof data === 'number') return { type: 'stat', value: '{{data}}', label }
+  if (Array.isArray(data) && data.length && data.every(obj)) {
+    const keys = [...new Set(data.slice(0, 20).flatMap(r => Object.keys(r as object)))].filter(k => NAME.test(k)).slice(0, 6)
+    return { type: 'table', each: 'data', filter: true, columns: keys.map(k => ({ title: k, value: `{{${k}}}` })), empty: 'Nothing' }
+  }
+  if (Array.isArray(data)) return { type: 'list', each: 'data', title: '{{this}}', empty: 'Nothing' }
+  if (obj(data) && Array.isArray(data.lines)) return { type: 'list', each: 'lines', title: '{{this}}', filter: true, empty: 'It printed nothing' }
+  const nums = obj(data) ? Object.entries(data).filter(([k, v]) => typeof v === 'number' && NAME.test(k)) : []
+  if (obj(data) && nums.length === 1 && Object.keys(data).length === 1) return { type: 'stat', value: `{{${nums[0][0]}}}`, label: nums[0][0] }
+  return { type: 'json', value: 'data' }
+}

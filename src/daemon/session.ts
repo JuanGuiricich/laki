@@ -91,6 +91,36 @@ export class Session {
   private settle?: ReturnType<typeof setTimeout>
   tabToken = '' // S12: this start's token, LAKI_TAB_TOKEN in its env: a call with it is this tab's (core.ts tabOfToken)
   hookKey = '' // this start's key, LAKI_HOOK in its env: what its hooks carry (core.ts spawnTab, hookOk)
+  lastRun?: { cmd: string; out: string } // C1: OSC 133's last finished command (B to C: its line; C to D: what it printed), a shell's with shell integration
+  private mk: { b?: [number, number]; c?: number } = {}
+
+  // C1: OSC 133 B (the command starts after the prompt), C (it runs: its output starts), D (it ended): the last one's
+  // command and output as text, its wrapped lines joined. ponytail: 64 KB of output, the scrollback's lines only
+  private mark(k: string) {
+    const b = this.term.buffer.active
+    const y = b.baseY + b.cursorY
+    if (k === 'A') this.mk = {}
+    else if (k === 'B') this.mk = { b: [b.cursorX, y] }
+    else if (k === 'C' && this.mk.b) this.mk.c = y
+    else if (k === 'D' && this.mk.b && this.mk.c !== undefined) {
+      const text = (from: number, to: number) => {
+        const out: string[] = []
+        for (let i = from; i < to; i++) {
+          const l = b.getLine(i)
+          if (!l) continue
+          const t = l.translateToString(true)
+          if (l.isWrapped && out.length) out[out.length - 1] += t
+          else out.push(t)
+        }
+        return out
+      }
+      const [bx, by] = this.mk.b
+      const cmd = text(by, Math.max(by + 1, this.mk.c)).join(' ').slice(bx).trim()
+      const out = text(this.mk.c, b.cursorX ? y + 1 : y).join('\n').slice(-(64 << 10))
+      if (cmd) this.lastRun = { cmd, out }
+      this.mk = {}
+    }
+  }
 
   constructor(tab: string, file: string, args: string[], opts: { cwd: string; env: Record<string, string>; cols?: number; rows?: number; pty?: (o: PtyOpts) => Pty }) {
     this.tab = tab
@@ -102,7 +132,7 @@ export class Session {
     this.term.onTitleChange(t => (this.title = t))
     this.term.parser.registerOscHandler(7717, d => (this.muted || this.onHook(d), true))
     this.term.parser.registerOscHandler(7501, d => (this.programReport(d), true))
-    this.term.parser.registerOscHandler(133, d => (d.startsWith('A') && this.program.prompt(), false)) // a new prompt
+    this.term.parser.registerOscHandler(133, d => (d.startsWith('A') && this.program.prompt(), this.mark(d[0]), false)) // a new prompt; a command's marks
     this.term.parser.registerEscHandler({ final: 'c' }, () => (this.program.clear(), false)) // RIS
     // headless replies go to the PTY only while no client answers instead
     this.term.onData(d => {
