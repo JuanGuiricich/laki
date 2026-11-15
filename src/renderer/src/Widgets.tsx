@@ -7,7 +7,7 @@
 // run one of its actions.
 // Only what's on screen is rendered: a folded grid, or a closed dialog, holds nothing.
 import { type CSSProperties, type MouseEvent, useEffect, useRef, useState } from 'react'
-import { placesOf, type WidgetPlace, type WidgetView } from '../../shared/types'
+import { placesOf, RETRY_KINDS, type WidgetFail, type WidgetPlace, type WidgetView } from '../../shared/types'
 import { ago, type SayModal, sayOf, uiBehave, WIDGET_CSS, type WidgetButton, type WidgetSay } from '../../shared/widget'
 import { DO, type UiDo, uiHtml, type UiSpec } from '../../shared/widgetUi'
 import { daemonBase } from './api'
@@ -27,6 +27,23 @@ export type WidgetApi = {
   menu?: (w: WidgetView, e: MouseEvent) => void // its right click: items' in a menu
   items?: (w: WidgetView) => MenuItem[] // what its right click has anywhere: Fetch now, Inspect, Logs, Edit, on or off, places, size, Remix, Delete (the Desk's tiles add their own)
   log?: (id: string, text: string, ws?: string) => void // a JS page's laki.log: its log (widgetLog; nothing while off)
+  fix?: (w: WidgetView) => void // R1: a failure's fix: a terminal with its command typed (w.fail.cmd), else its page
+}
+
+// R1: an offline failure isn't the extension's: its last data shows, stale, and nothing marks it failing
+export const offline = (f?: WidgetFail) => f?.kind === 'offline'
+const oldText = (f: WidgetFail) => `offline${f.since ? ` · ${(m => (m < 60 ? `${m} min` : `${Math.round(m / 60)} h`))(Math.max(1, Math.round((Date.now() - f.since) / 60_000)))} old` : ''}`
+export const failed = (w: Pick<WidgetView, 'error' | 'fail'>) => !!w.error && !offline(w.fail) // marked failing: a red dot
+// a failure's one fix (R1): its command typed in a terminal, Retry, or its page (Look)
+export function FixButton({ w, api }: { w: WidgetView; api: WidgetApi }) {
+  const f = w.fail
+  if (!w.error || !f) return null
+  const retry = RETRY_KINDS.includes(f.kind)
+  return (
+    <button className="sm" title={f.cmd ? `A terminal with ${f.cmd} typed, not run` : undefined} onClick={() => (retry ? void api.run(w.id, wsOf(w)).catch(() => {}) : api.fix?.(w))}>
+      {f.cmd ? (f.kind === 'auth' ? 'Sign in' : 'Install') : retry ? 'Retry' : 'Look'}
+    </button>
+  )
 }
 
 // a box's Insert menu (show prompt): the actions of the ones on; a per-workspace one's only with a workspace (ws), a
@@ -104,7 +121,7 @@ export function KitBody({ spec, data, cells, ws }: { spec: UiSpec; data: unknown
 export const inWs = (w: WidgetView, ws: string | null | undefined): WidgetView => {
   if (!w.scope) return w
   const i = ws ? w.inst?.[ws] : undefined
-  return { ...w, here: ws ?? null, at: i?.at, error: i?.error, running: i?.running, mock: i?.mock, hidden: i?.hidden, fx: i?.fx, ...(i && { label: i.label, badge: i.badge, tip: i.tip }) }
+  return { ...w, here: ws ?? null, at: i?.at, error: i?.error, fail: i?.fail, running: i?.running, mock: i?.mock, hidden: i?.hidden, fx: i?.fx, ...(i && { label: i.label, badge: i.badge, tip: i.tip }) }
 }
 const wsOf = (w: WidgetView) => w.here ?? undefined
 const NO_WS = uiHtml({ type: 'empty', icon: 'folder', text: 'Select a workspace' }, {}, {})
@@ -121,6 +138,7 @@ function act(m: Record<string, unknown>, w: WidgetView, full: boolean, api: Widg
   if (laki === 'say') return (s => void (s && api.say(w.id, s, wsOf(w))))(sayOf(m))
   if (laki === 'do' && m.cmd && typeof m.cmd === 'object' && (DO as readonly string[]).includes(String((m.cmd as UiDo).do))) return api.do(w, m.cmd as UiDo, typeof label === 'string' ? label.slice(0, 60) : undefined) // true: done (a prompt box empties)
   if (laki === 'refresh') return void api.run(w.id, wsOf(w)).catch(() => {})
+  if (laki === 'fix') return api.fix?.(w)
   if (laki === 'full' && !full && w.full) api.full(w.id)
 }
 
@@ -200,7 +218,7 @@ export function WidgetBody({ w, full, api, sample, cells, onSize }: { w: WidgetV
 }
 
 // all: when it was fetched though the user hid it (its own page)
-export const status = (w: WidgetView, all = false) => (w.running ? 'fetching…' : w.error ? `failed: ${w.error}` : w.hide?.at && !all ? '' : w.at ? `fetched ${ago(w.at)}` : w.every ? 'not fetched yet' : '')
+export const status = (w: WidgetView, all = false) => (w.running ? 'fetching…' : w.error && w.fail && offline(w.fail) ? oldText(w.fail) : w.error ? `failed: ${w.fail?.hint ?? w.error}` : w.hide?.at && !all ? '' : w.at ? `fetched ${ago(w.at)}` : w.every ? 'not fetched yet' : '')
 
 // JS widgets stopped in Settings › Resources (laki-stop): unloaded until a click, wherever they show. Kept here, not in
 // a strip's state: the status bar's goes away on a Browsers page, and a stop meanwhile would be lost
@@ -250,7 +268,7 @@ export function CellButton({ w, api }: { w: WidgetView; api: WidgetApi }) {
 export function WidgetButtons({ widgets, api, places, look, words, colors }: { widgets: WidgetView[]; api: WidgetApi; places: WidgetPlace[]; look: 'rail' | 'foot'; words: boolean; colors?: Record<string, string> }) {
   const on = widgets.filter(w => w.on && placesOf(w).some(p => places.includes(p)))
   return on.map(w => {
-    const dot = w.running ? 'rail-dot' : w.error ? 'rail-dot bad' : ''
+    const dot = w.running ? 'rail-dot' : failed(w) ? 'rail-dot bad' : ''
     return look === 'rail' ? (
       <button key={`widget:${w.id}`} type="button" data-widget={w.id} data-view="button" className={`rail-kind nodrag ${w.here === null ? 'no-ws' : ''}`} aria-label={tipText(w)} data-tip={tipOf(w)} onClick={() => click(w, api)} onContextMenu={api.menu && (e => (e.stopPropagation(), api.menu!(w, e)))}>
         <span className={`rail-icon ${colors?.[`widget:${w.id}`] ? 'tinted' : ''}`} style={colors?.[`widget:${w.id}`] ? ({ '--tab-c': `var(--tc-${colors[`widget:${w.id}`]})` } as CSSProperties) : undefined}>
@@ -260,7 +278,7 @@ export function WidgetButtons({ widgets, api, places, look, words, colors }: { w
         {words && <span className="rail-label">{w.label ?? w.name}</span>}
       </button>
     ) : (
-      <button key={`widget:${w.id}`} type="button" data-widget={w.id} data-view="button" className={`ib widget-foot ${words ? 'labeled' : ''} ${w.error && !w.running ? 'dot' : ''} ${w.here === null ? 'no-ws' : ''}`} aria-label={tipText(w)} data-tip={tipOf(w)} onClick={() => click(w, api)} onContextMenu={api.menu && (e => (e.stopPropagation(), api.menu!(w, e)))}>
+      <button key={`widget:${w.id}`} type="button" data-widget={w.id} data-view="button" className={`ib widget-foot ${words ? 'labeled' : ''} ${failed(w) && !w.running ? 'dot' : ''} ${w.here === null ? 'no-ws' : ''}`} aria-label={tipText(w)} data-tip={tipOf(w)} onClick={() => click(w, api)} onContextMenu={api.menu && (e => (e.stopPropagation(), api.menu!(w, e)))}>
         <Glyph w={w} />
         {words && <span className="ib-label">{w.label ?? w.name}</span>}
         {w.badge && <span className="widget-badge">{w.badge}</span>}
@@ -292,8 +310,8 @@ function Cell({ w, api, parked, load, style, cells, fit }: { w: WidgetView; api:
       ) : (
         <WidgetBody w={w} full={false} api={api} cells={cells} onSize={setFw} />
       )}
-      {!w.missing?.length && (w.error || w.running || w.devError) && <span className={`widget-dot ${(w.error || w.devError) && !w.running ? 'bad' : ''}`} />}
-      {w.mock && <span className="widget-mock">Sample data</span>}
+      {!w.missing?.length && (failed(w) || w.running || w.devError) && <span className={`widget-dot ${(failed(w) || w.devError) && !w.running ? 'bad' : ''}`} />}
+      {w.mock ? <span className="widget-mock">Sample data</span> : w.error && offline(w.fail) && !w.running && <span className="widget-mock">{oldText(w.fail!)}</span>}
     </div>
   )
 }
@@ -304,7 +322,11 @@ export function WidgetPanel({ w, api }: { w: WidgetView; api: WidgetApi }) {
   return (
     <div className="widget-panel" onContextMenu={api.menu && (e => api.menu!(w, e))}>
       <WidgetBody w={w} full={w.full} api={api} cells={[3, 4]} />
-      {(w.error || w.mock) && <p className={`small ${w.error ? 'warn' : 'muted'}`}>{w.error ?? 'Sample data'}</p>}
+      {(w.error || w.mock) && (
+        <p className={`small ${failed(w) ? 'warn' : 'muted'}`}>
+          {w.error ? status(w) : 'Sample data'} <FixButton w={w} api={api} />
+        </p>
+      )}
     </div>
   )
 }
@@ -321,7 +343,7 @@ export function RowMarks({ widgets, ws, api }: { widgets: WidgetView[]; ws: stri
         const i = w.inst![ws]
         const go = w.click ? () => runClick(w, api, ws) : w.full ? () => api.full(w.id, ws) : undefined
         return (
-          <span key={w.id} className={`ws-ext ${i.error ? 'bad' : i.tone ? `t-${i.tone}` : ''}`} data-tip={w.hide?.tip && !i.error ? undefined : `${i.tip ?? w.name}${i.error ? ` · ${i.error}` : ''}`} {...press(go && ((e: React.MouseEvent) => (e.stopPropagation(), go())))}>
+          <span key={w.id} className={`ws-ext ${failed(i) ? 'bad' : i.tone ? `t-${i.tone}` : ''}`} data-tip={w.hide?.tip && !i.error ? undefined : `${i.tip ?? w.name}${i.error ? ` · ${i.fail?.hint ?? i.error}` : ''}`} {...press(go && ((e: React.MouseEvent) => (e.stopPropagation(), go())))}>
             <Glyph w={w} size={10} />
             {i.badge || i.label}
           </span>
@@ -376,7 +398,8 @@ export function WidgetDialog({ w, api, onClose }: { w: WidgetView; api: WidgetAp
       <div className={`modal widget-modal ${w.view ?? 'm'}`} role="dialog" aria-label={w.name}>
         <div className="widget-modal-head">
           <b>{w.name}</b>
-          <span className={`small ${w.error && !w.running ? 'warn' : 'muted'}`}>{status(w)}</span>
+          <span className={`small ${failed(w) && !w.running ? 'warn' : 'muted'}`}>{status(w)}</span>
+          {!w.running && <FixButton w={w} api={api} />}
           <span className="spacer" />
           {w.every !== undefined && !w.hide?.refresh && <IconButton icon="refresh" title="Fetch now" onClick={() => void api.run(w.id, wsOf(w)).catch(() => {})} />}
           <IconButton icon="settings" title="Edit: its settings, preview, Laki AI" onClick={() => api.settings(w.id)} />

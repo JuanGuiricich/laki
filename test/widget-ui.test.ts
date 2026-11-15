@@ -283,7 +283,9 @@ test('UI kit: charts in SVG, an empty series draws nothing', () => {
 
 test('UI kit: a failed fetch with no data, a bad template in one element', () => {
   const failed = uiHtml({ type: 'list', each: 'rows', title: '{{t}}' }, { data: undefined, error: 'gh: not signed in' })
-  assert.match(failed, /<div class="k-error"><b>Couldn’t fetch it<\/b><div class="k-sub">gh: not signed in<\/div><button type="button" class="k-btn sm" data-laki="refresh">Retry<\/button>/)
+  assert.match(failed, /<div class="k-error" title="gh: not signed in"><b>Couldn’t fetch it<\/b><div class="k-sub">gh: not signed in<\/div><button type="button" class="k-btn sm" data-laki="refresh">Retry<\/button>/)
+  const hinted = uiHtml({ type: 'stat', value: '{{n}}' }, { data: undefined, error: 'To get started… gh auth login' }, { fail: { hint: 'gh isn’t signed in', fix: 'fix', label: 'Sign in' } })
+  assert.match(hinted, /<div class="k-sub">gh isn’t signed in<\/div><button type="button" class="k-btn sm" data-laki="fix">Sign in<\/button>/, 'R1: the hint and its fix, the raw error in the title')
   const one = uiHtml({ type: 'stack', children: [{ type: 'text', value: '{{#if x}}open' }, { type: 'text', value: 'still here' }, { type: 'nope' }] }, { data: {} })
   assert.match(one, /class="k-chip-err" title="\{\{#if\}\} isn&#39;t closed">⚠/)
   assert.match(one, /still here/)

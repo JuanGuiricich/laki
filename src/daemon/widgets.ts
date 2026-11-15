@@ -10,7 +10,7 @@ import { existsSync, type FSWatcher, mkdirSync, readdirSync, readFileSync, realp
 import { readJson, writeAtomic } from '../shared/conn.ts'
 import { homedir, tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
-import { AI_SOURCE_EVERY, BUTTON_PLACES, type LogLevel, type Preset, WIDGET_SOURCES, type WidgetSource, type Workspace, type WidgetOption, type WidgetTool, type WidgetRun, type WidgetPlace, type WidgetSize, type WidgetView, type WidgetHide, type WidgetCtx, type ActionFile, WIDGET_PLACES } from '../shared/types.ts'
+import { AI_SOURCE_EVERY, BUTTON_PLACES, RETRY_KINDS, type LogLevel, type Preset, WIDGET_SOURCES, type WidgetSource, type Workspace, type WidgetOption, type WidgetTool, type WidgetRun, type WidgetPlace, type WidgetSize, type WidgetView, type WidgetHide, type WidgetCtx, type ActionFile, type WidgetFail, WIDGET_PLACES } from '../shared/types.ts'
 import { fill, hasFull, hasScript, openOk, pageOf, render, sayOf, templateError, viewOf, type WidgetSay } from '../shared/widget.ts'
 import { type Tone, TONES, uiHtml, uiTree } from '../shared/widgetUi.ts'
 import { actionCmd, actionMenu, aiActOf, type Fact, FACT_NAMES, gateOf, SAMPLE_FACTS, SIZES_ACROSS, toolOf } from '../shared/widgetSchema.ts'
@@ -50,13 +50,13 @@ export type Manifest = { name?: string; description?: string; size?: [number, nu
 // sample: made-up data in the shape its fetch prints (sampleConfig: settings for it), for a preview before it runs (widgetRender sample)
 // what's stored per widget: the user's choices over the manifest's (config: each setting as text), and the last fetch
 // (at: when it ran; error: why it failed); net: its page may reach https sites (the user's switch, never widget.json's)
-type Store = { fails?: number; log?: boolean; hours?: string; trusted?: string; files?: Record<string, string>; changed?: boolean; source?: WidgetSource; on?: boolean; size?: [number, number]; fit?: boolean; every?: number; view?: string; place?: WidgetPlace | WidgetPlace[]; net?: boolean; hide?: WidgetHide; config?: Record<string, string>; data?: unknown; at?: number; error?: string; by?: 'ai'; aiMay?: number; mock?: string; told?: string; allow?: string[]; allowFor?: string } // hours: its own working hours over Settings' (always: none) // allowFor: aiKey as allow was given // fit: in a bar, as wide as it needs (Auto) // trusted: a repo's extension's folder as it was when you turned it on (dirHash), files: each of its files' (eachHash); changed: off because it changed since; log: keep a log (its Settings card's Keep a log, the user's only); allow: claude tools its agent may use unasked (Always, when it asked: widgetPermission); told: what its notify last said (keep); by: Laki AI wrote it (widgetWrite); aiMay: when an ask in its page's chat let Laki AI rewrite the user's own, once (AI_MAY); mock: data put there by hand (widgetMock: a fixture's name, or edited), not fetched
+type Store = { fails?: number; fail?: WidgetFail; log?: boolean; hours?: string; trusted?: string; files?: Record<string, string>; changed?: boolean; source?: WidgetSource; on?: boolean; size?: [number, number]; fit?: boolean; every?: number; view?: string; place?: WidgetPlace | WidgetPlace[]; net?: boolean; hide?: WidgetHide; config?: Record<string, string>; data?: unknown; at?: number; error?: string; by?: 'ai'; aiMay?: number; mock?: string; told?: string; allow?: string[]; allowFor?: string } // hours: its own working hours over Settings' (always: none) // allowFor: aiKey as allow was given // fit: in a bar, as wide as it needs (Auto) // trusted: a repo's extension's folder as it was when you turned it on (dirHash), files: each of its files' (eachHash); changed: off because it changed since; log: keep a log (its Settings card's Keep a log, the user's only); allow: claude tools its agent may use unasked (Always, when it asked: widgetPermission); told: what its notify last said (keep); by: Laki AI wrote it (widgetWrite); aiMay: when an ask in its page's chat let Laki AI rewrite the user's own, once (AI_MAY); mock: data put there by hand (widgetMock: a fixture's name, or edited), not fetched
 // preview: widget.html has one; face: its button's words, filled from the last data (faceOf)
 type Face = { label?: string; badge?: string; tip?: string; tone?: Tone; hidden?: boolean } // tone: its data's own `tone`, one of the kit's (a row mark's color); hidden: its data's own `hidden: true`, shown nowhere until it isn't
 export type Entry = { id: string; dir: string; file?: string; project?: string; dev: boolean; devError?: string; agentDev?: boolean; m: Manifest; full: boolean; js: boolean; preview: boolean; face: Face; s: Omit<Store, 'data'>; inst: Map<string, InstMeta>; fixtures: string[] } // fixtures: fixtures/<name>.json at its scan, made-up data to preview it with // inst: a scope workspace one's instances (by workspace id), their last fetch // dev: in a folder laki widget dev linked; devError: why its files don't read now (the last good version runs on); agentDev: one an agent linked (settings.widgetDevAgent): trusted as a repo's
 // scope workspace: an instance per live workspace, its data in <data>/widget-data/<id>/ws/<wsId>.json (the settings stay
 // the store's, shared); in memory its last fetch and its button's words
-type Inst = { data?: unknown; at?: number; error?: string; mock?: string; told?: string; fails?: number } // fails: fetches failed in a row (due backs off)
+type Inst = { data?: unknown; at?: number; error?: string; fail?: WidgetFail; mock?: string; told?: string; fails?: number } // fails: fetches failed in a row (due backs off; an offline one's don't count); fail: the last one's kind and hint (R1)
 type InstMeta = Omit<Inst, 'data'> & { face: Face }
 type Run = WidgetRun // what each fetch and action did (widgetRuns, the inspector's Runs, laki widget dev's lines): the last RUNS, newest first
 
@@ -335,7 +335,7 @@ export function keep(w: Entry, ws: string | undefined, f: (s: Inst) => void) {
   f(s)
   // its notify, over data just kept (fetched, pushed, an action's: a new at; not sample data, nor a mock let go of):
   // said once each time it reads anew
-  if (!s.error) delete s.fails
+  if (!s.error) delete s.fails, delete s.fail
   const said = s.mock || !w.m.notify ? undefined : faceOf(w, s.data, ws, s, w.m.notify)
   if (said !== s.told && !s.mock && s.at !== at) {
     // told only once someone saw it: on, a window open (else said at its next fetch that has one); empty clears it
@@ -345,8 +345,8 @@ export function keep(w: Entry, ws: string | undefined, f: (s: Inst) => void) {
   if (ws) writeInst(w.id, ws, s)
   else writeStore(w.id, s as Store)
   const cur = widgets.get(w.id) ?? w
-  if (ws) cur.inst.set(ws, { at: s.at, error: s.error, mock: s.mock, fails: s.fails, face: faceOf(cur, s.data, ws, s) })
-  else (cur.s = { ...cur.s, at: s.at, error: s.error, mock: s.mock, fails: s.fails }), (cur.face = faceOf(cur, s.data))
+  if (ws) cur.inst.set(ws, { at: s.at, error: s.error, fail: s.fail, mock: s.mock, fails: s.fails, face: faceOf(cur, s.data, ws, s) })
+  else (cur.s = { ...cur.s, at: s.at, error: s.error, fail: s.fail, mock: s.mock, fails: s.fails }), (cur.face = faceOf(cur, s.data))
 }
 function instsOf(id: string, w?: Entry): Map<string, InstMeta> {
   const m = new Map<string, InstMeta>()
@@ -747,6 +747,7 @@ export const widgetsView = (): WidgetView[] =>
     ...(m => m.length && { missing: m })(optionsOf(w).filter(o => o.required && !(o.type === 'secret' ? k[o.key] : c[o.key]?.trim())).map(o => o.key)), // required ones still empty: Set <label>
     at: w.s.at,
     error: w.s.error,
+    fail: w.s.error ? w.s.fail : undefined,
     running: running.has(w.id) || undefined,
     agent: agents.has(w.id) || undefined,
     ...(scoped(w) && { scope: 'workspace' as const, inst: instView(w) }),
@@ -782,13 +783,13 @@ export const widgetsView = (): WidgetView[] =>
 // a scope workspace one's instances in the view: each live workspace's that has fetched (or fetches now), its last fetch
 // and its button's words
 function instView(w: Entry) {
-  const out: Record<string, { at?: number; error?: string; running?: boolean; mock?: string; fx?: number } & Face> = {}
+  const out: Record<string, { at?: number; error?: string; fail?: WidgetFail; running?: boolean; mock?: string; fx?: number } & Face> = {}
   for (const x of state.workspaces) {
     const m = w.inst.get(x.id)
     const run = running.has(keyOf(w.id, x.id))
     const fx = facts.get(keyOf(w.id, x.id))?.fx // its facts changed then: drawn again
     if (!instOk(x) || !inProj(w, x) || (!m?.at && !run && !fx)) continue
-    out[x.id] = { at: m?.at, error: m?.error, running: run || undefined, mock: m?.mock, fx, ...m?.face }
+    out[x.id] = { at: m?.at, error: m?.error, fail: m?.error ? m.fail : undefined, running: run || undefined, mock: m?.mock, fx, ...m?.face }
   }
   return out
 }
@@ -833,7 +834,8 @@ export function widgetRender(o: { id: string; full?: boolean; vars?: Record<stri
     : { data: s.data ?? typedData(w), config: typedOf(w), at: s.at, error: s.error, full: !!o.full, workspace, ...fx }
   const cells = Array.isArray(o.cells) ? (o.cells.map(Number) as [number, number]) : undefined
   const hide = w.s.hide // the user's switches: a template's at gone too ({{ago at}} empty, {{#if at}} not)
-  const body = fromUi ? uiHtml(w.m.ui, ctx, { full: !!o.full, cells: cells ?? (o.full ? undefined : sizeOf(w)), hide }) : render(own!, hide?.at ? { ...ctx, at: undefined } : ctx)
+  const fail = o.sample ? undefined : s.error ? s.fail : undefined // R1: the error block's words and its fix
+  const body = fromUi ? uiHtml(w.m.ui, ctx, { full: !!o.full, cells: cells ?? (o.full ? undefined : sizeOf(w)), hide, ...(fail && { fail: { hint: fail.hint, fix: RETRY_KINDS.includes(fail.kind) ? 'refresh' : 'fix', label: fixLabel(fail) } }) }) : render(own!, hide?.at ? { ...ctx, at: undefined } : ctx)
   return hasScript(file) ? pageOf(body, ctx, o.vars) : body // as the app shows it (js): a script in either view makes both pages
 }
 
@@ -1037,7 +1039,27 @@ export function envOf(w: Entry, extra: Record<string, string>) {
   return env
 }
 type Ran = { out: string; err: string; gh?: number } // gh: how many times it ran gh (ghShim)
-export type Failed = Error & { stderr?: string; stdout?: string; exit?: number; changed?: boolean; gh?: number } // changed: a guarded one's files moved (trusted)
+export type Failed = Error & { stderr?: string; stdout?: string; exit?: number; changed?: boolean; gh?: number; timedOut?: boolean; json?: boolean } // changed: a guarded one's files moved (trusted); timedOut: exec's timeout ended it; json: it printed no JSON
+// R1: a failure's kind (FAIL_KINDS) from its error, stderr and exit code, a line that says what to do and, when a
+// command fixes it, that command (typed in a terminal, never run: the app's termType). Read off what the programs say
+// (sh, curl, gh, glab, node's fetch), in English: ponytail, another locale's words read as exit
+const BIN = /([\w.+-]+): (?:command not found|not found)\b|env: ([\w.+-]+): No such file or directory/
+const OFFLINE = /ENOTFOUND|EAI_AGAIN|getaddrinfo|Could not resolve host|could not resolve|no route to host|network is unreachable|ENETUNREACH|EHOSTUNREACH|error connecting to|check your internet connection|not connected to the internet|offline/i
+const RATE = /rate.limit|HTTP 429|too many requests/i
+const AUTH = /\b(gh|glab) auth login\b|HTTP 40[13]\b|\b40[13] (?:Unauthorized|Forbidden)\b|Bad credentials|authentication (?:required|failed)|requires authentication|not logged in|not authenticated|unauthorized/i
+export function failOf(f: Failed): WidgetFail {
+  const said = `${f.message}\n${f.stderr ?? ''}`
+  if (f.timedOut || /timed out after|aborted due to timeout|TimeoutError/i.test(f.message)) return { kind: 'timeout', hint: 'It took too long: it tries again at its next fetch' }
+  if (f.json) return { kind: 'bad-json', hint: 'It printed something that isn’t JSON: its data shows what' }
+  const bin = (m => m?.[1] ?? m?.[2])(BIN.exec(said))
+  if (f.exit === 127 || /command not found/i.test(said)) return { kind: 'missing-bin', hint: bin ? `${bin} isn’t installed, or not on the PATH its commands get` : 'A program it runs isn’t installed', ...(bin && /^[\w.+-]+$/.test(bin) && { cmd: `brew install ${bin}` }) } // ponytail: Homebrew's name for it, edited before Enter
+  if (RATE.test(said)) return { kind: 'rate-limit', hint: /\bgh\b|github/i.test(said) || f.gh ? 'GitHub’s rate limit: it tries again later' : 'Rate limited: it tries again later' }
+  if (OFFLINE.test(said)) return { kind: 'offline', hint: 'Offline: it shows its last data and tries again' }
+  const who = /\bglab\b/.test(said) ? 'glab' : /\bgh\b/.test(said) ? 'gh' : undefined
+  if (AUTH.test(said)) return { kind: 'auth', hint: who ? `${who} isn’t signed in` : 'Not signed in, or not allowed', ...(who && { cmd: `${who} auth login` }) }
+  return { kind: 'exit', hint: f.exit ? `Its command failed (exit ${f.exit})` : 'It failed: its runs say why' }
+}
+export const fixLabel = (f: WidgetFail) => (f.cmd ? (f.kind === 'auth' ? 'Sign in' : 'Install') : RETRY_KINDS.includes(f.kind) ? 'Retry' : 'Look')
 // a run's gh calls, counted for its log: Laki's gh (<data>/gh-shim/gh) first on its PATH adds a byte to the run's own
 // file ($LAKI_GH_COUNT), then runs the gh its PATH has ($LAKI_GH). None when that PATH has no gh. Every gh of yours
 // shares GitHub's quota with Laki's PR scans (core.ts ghSaid)
@@ -1099,7 +1121,7 @@ export function exec(w: Entry, cmd: string, args: string[], extra: Record<string
       const mask = masker(w)
       if (!e) return ok({ out: stdout, err: mask(stderr), ...gh })
       const late = e.message === 'maxBuffer exceeded' ? `printed more than ${MAX_OUT >> 20} MB` : e.killed ? `timed out after ${t >= 60_000 ? `${t / 60_000} minutes` : `${t / 1000} s`}` : undefined
-      no(Object.assign(new Error(mask(late ?? (lastLine(stderr) || lastLine(stdout) || e.message))), { stderr: mask(stderr), stdout: mask(stdout), exit: typeof e.code === 'number' ? e.code : undefined, ...gh }))
+      no(Object.assign(new Error(mask(late ?? (lastLine(stderr) || lastLine(stdout) || e.message))), { stderr: mask(stderr), stdout: mask(stdout), exit: typeof e.code === 'number' ? e.code : undefined, timedOut: !!e.killed && e.message !== 'maxBuffer exceeded', ...gh }))
     })
     execs.add(p)
     own(p, `Extension · ${w.m.name || w.id}`)
@@ -1120,7 +1142,7 @@ export function ran(id: string, r: Run, stderr?: string) {
   if (!w || !logOn(w)) return
   const src = r.reason.startsWith('tool:') || r.reason.startsWith('gate:') ? r.reason : r.action ? `action:${r.action}` : ['stream', 'push'].includes(r.reason) ? r.reason : 'fetch'
   if (stderr?.trim()) xlog(w, 'info', src, stderr.length > LOG_RUN ? stderr.slice(-LOG_RUN) : stderr, ws)
-  xlog(w, r.ok ? 'info' : 'error', src, `${r.ok ? 'ran' : 'failed'} (${r.reason}${r.why ? `: ${r.why}` : ''}) in ${r.ms} ms, exit ${r.exit ?? 0}, ${r.bytes} B${r.gh ? `, gh ${r.gh}×` : ''}${r.error ? `: ${r.error}` : ''}`.replace(/\s+/g, ' '), ws, true)
+  xlog(w, r.ok ? 'info' : r.kind === 'offline' ? 'warn' : 'error', src, `${r.ok ? 'ran' : 'failed'} (${r.reason}${r.why ? `: ${r.why}` : ''}) in ${r.ms} ms, exit ${r.exit ?? 0}, ${r.bytes} B${r.gh ? `, gh ${r.gh}×` : ''}${r.kind ? `, ${r.kind}` : ''}${r.error ? `: ${r.error}` : ''}`.replace(/\s+/g, ' '), ws, true) // offline: a warning (Settings' red log tag is for errors)
   if (r.gh && /rate limit/i.test(`${r.error ?? ''}\n${stderr ?? ''}`)) xlog(w, 'warn', src, `GitHub's rate limit: one quota for every gh of yours. Laki's own gh calls: ${ghSaid()}`, ws, true)
 }
 
@@ -1197,30 +1219,37 @@ export async function widgetRun(o: { id: string; reason?: string; why?: string; 
       // a text, a file, a URL or an agent's answer: JSON, else { text }
       r = { out: await sourceText(w, src, x), err: '' }
       const p = parsed(r.out, src.kind)
-      if (p.error) throw new Error(p.error)
+      if (p.error) throw Object.assign(new Error(p.error), { json: true })
       data = p.data
     } else {
       // a script on Laki's own node (Electron's, as node, in the app)
       r = await exec(w, script ? process.execPath : '/bin/sh', script ? ['--input-type=module', '-e', RUN_JS, script] : ['-c', w.m.fetch!], { LAKI_REFRESH_REASON: reason, ...wsEnv(w, x), ...ev?.env, ...(script && process.versions.electron && { ELECTRON_RUN_AS_NODE: '1' }) }, ev?.stdin)
       try {
         data = JSON.parse(r.out)
-      } catch {
-        throw new Error(`fetch printed no JSON: ${lastLine(r.out) ?? 'nothing'}`)
+      } catch (e) {
+        // R1: where it stopped reading (V8's words, when they say) and the first 200 characters of what it printed
+        const at = /at position (\d+)/.exec((e as Error).message)?.[1] ?? (/end of JSON/i.test((e as Error).message) ? String(r.out.length) : undefined)
+        const head = r.out.trim().slice(0, 200).replace(/\s+/g, ' ')
+        throw Object.assign(new Error(head ? `fetch printed no JSON${at ? ` (at position ${at})` : ''}: ${head}` : 'fetch printed nothing: its command must print JSON'), { json: true, stderr: r.err })
       }
     }
   } catch (e) {
     fail = e as Failed
-    error = fail.message
+    const code = (fail.cause as { code?: string } | undefined)?.code // node's fetch: 'fetch failed', the why in its cause
+    error = typeof code === 'string' && !fail.message.includes(code) ? `${fail.message} (${code})` : fail.message
+    fail.message = error
   }
   running.delete(k)
+  const kind = fail && !fail.changed ? failOf(fail) : undefined
   const ms = Date.now() - t0
-  ran(k, { at: t0, ms, reason, why: o.why ?? (once ? 'once while off: Try it live' : undefined), ok: !error, bytes: r ? Buffer.byteLength(r.out) : 0, error, stderr: tail(fail?.stderr ?? r?.err), exit: error ? (fail?.exit ?? 0) : 0, gh: r?.gh ?? fail?.gh }, fail?.stderr ?? r?.err)
-  wLog(w, () => (error ? `fetch failed after ${ms} ms: ${error}` : `fetched in ${ms} ms: ${JSON.stringify(data)?.length ?? 0} bytes of JSON`), error ? 'error' : 'info')
+  ran(k, { at: t0, ms, reason, why: o.why ?? (once ? 'once while off: Try it live' : undefined), ok: !error, bytes: r ? Buffer.byteLength(r.out) : 0, error, stderr: tail(fail?.stderr ?? r?.err), exit: error ? (fail?.exit ?? 0) : 0, gh: r?.gh ?? fail?.gh, ...(kind && { kind: kind.kind, hint: kind.hint }) }, fail?.stderr ?? r?.err)
+  wLog(w, () => (error ? `fetch failed after ${ms} ms: ${error}` : `fetched in ${ms} ms: ${JSON.stringify(data)?.length ?? 0} bytes of JSON`), error ? (kind?.kind === 'offline' ? 'warn' : 'error') : 'info')
   const gone = !!x && !state.workspaces.includes(x) // deleted meanwhile: nothing kept
   if (!gone)
     keep(w, x?.id, s => {
       if (!error) (s.data = data), (s.mock = undefined)
-      else s.fails = (s.fails ?? 0) + 1
+      else if (kind?.kind === 'offline') s.fail = { ...kind, since: s.fail?.kind === 'offline' ? s.fail.since : s.error ? undefined : s.at } // no backoff: back as soon as the network is; since: when the data it shows was fetched
+      else (s.fails = (s.fails ?? 0) + 1), (s.fail = kind)
       s.at = Date.now()
       s.error = error
     })
@@ -1342,7 +1371,7 @@ function filesOut(w: Entry, raw: unknown, ws: Workspace | undefined, action: str
   if (bad.length) wLog(w, `action ${action}: files refused (${FILES_OUT} at most, each a file inside its workspace, its storage or the extension's folder): ${bad.map(b => String(b).slice(0, 200)).join(', ')}`, 'warn')
   return out
 }
-export async function widgetAction(o: { id: string; action: string; arg?: string; ws?: string; from?: { ws?: string; tab?: string }; ctx?: WidgetCtx }, why?: string, ev?: Ev): Promise<{ ok: boolean; out?: string; error?: string; stdout?: string; insert?: string; open?: string; files?: ActionFile[] } & WidgetSay> {
+export async function widgetAction(o: { id: string; action: string; arg?: string; ws?: string; from?: { ws?: string; tab?: string }; ctx?: WidgetCtx }, why?: string, ev?: Ev): Promise<{ ok: boolean; out?: string; error?: string; fail?: WidgetFail; stdout?: string; insert?: string; open?: string; files?: ActionFile[] } & WidgetSay> {
   const w = find(o.id)
   const gone = scoped(w) ? ev?.gone : undefined
   const x = gone ? undefined : wsOf(w, o.ws) // a scope workspace one's: the workspace it was clicked in
@@ -1406,9 +1435,10 @@ export async function widgetAction(o: { id: string; action: string; arg?: string
     return { ok: true, ...(say ?? { out: lastLine(out) }), ...(ev?.full && { stdout: out }), ...(insert !== undefined && { insert: insert.slice(0, INSERT_MAX) }), ...(openOk(open) && !ev && { open }), ...(files?.length && { files }), ...(typeof j?.send === 'string' && j.send.trim() && !ev && { send: j.send.trim().slice(0, INSERT_MAX) }) } // send: to the workspace's agent, the app asks first (widgetDo's send)
   } catch (e) {
     const f = e as Failed
-    ran(k, { at: t0, ms: Date.now() - t0, reason, why: ev?.why, action: o.action, ok: false, bytes: 0, error: f.message, stderr: tail(f.stderr), exit: f.exit, gh: f.gh }, f.stderr)
-    wLog(w, `action ${o.action} failed: ${f.message}`, 'error')
-    return { ok: false, error: f.message, ...(ev?.full && { stdout: f.stdout ?? '' }) }
+    const kind = f.changed ? undefined : failOf(f)
+    ran(k, { at: t0, ms: Date.now() - t0, reason, why: ev?.why, action: o.action, ok: false, bytes: 0, error: f.message, stderr: tail(f.stderr), exit: f.exit, gh: f.gh, ...(kind && { kind: kind.kind, hint: kind.hint }) }, f.stderr)
+    wLog(w, `action ${o.action} failed: ${f.message}`, kind?.kind === 'offline' ? 'warn' : 'error')
+    return { ok: false, error: f.message, ...(kind && kind.kind !== 'exit' && { fail: kind }), ...(ev?.full && { stdout: f.stdout ?? '' }) } // fail: the app's toast says its hint
   }
 }
 

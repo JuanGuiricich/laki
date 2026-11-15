@@ -32,6 +32,13 @@ widget.html ──▶ <template preview> / <template full>, filled with data and
    One that keeps failing waits longer each time: twice `every`, then 4 and 8 times, until a fetch works. An agent's
    source runs at most every `every` minutes whatever asks (*Run now* anyway): each run costs.
 3. What the fetch prints must be JSON: it is kept as `data`. A failure keeps the last data and shows a red dot with why.
+   Laki names the kind of failure and what to do, in place of its raw stderr, with one fix: *Install* (a terminal with
+   `brew install <program>` typed, not run) when a program it runs isn't on its PATH (exit 127, *command not found*),
+   *Sign in* (`gh auth login` or `glab auth login` typed) when gh or glab isn't signed in or a site answers 401 or 403,
+   *Retry* after a rate limit or a timeout, *Look* (its data and runs) when it printed no JSON (its first 200 characters
+   and where it stopped are kept) or exited otherwise. **Offline** (a host that doesn't resolve, no route, gh's *error
+   connecting*) isn't the extension's fault: it isn't marked failing, it backs off nothing, and it shows its last data
+   with *offline · 12 min old*. The run's `kind` is in its Runs and its log.
    Or its data comes from [somewhere else](#where-its-data-comes-from-source): a text you type, a file, a URL, or an
    agent with your MCP servers (Slack, Linear…) that sums it up.
 4. The page is filled from `data`, `config` (your settings), `at` (the last fetch) and `error`: `widget.html`'s view
@@ -461,7 +468,7 @@ numbers: a line), `copy` (true: a copy button) and `actions` (buttons, each over
 
 **Binding.** Strings are templates over `{ …data, data, config, at, error, full }`: `{{open}}` is `{{data.open}}`.
 Inside `each` the scope is the item (and `this`, `@index`). A path prop (`each`, `items`, `values`, `group`) is looked
-up as is. With an error and no data, the kit shows the error and *Retry*; a template that fails in one element shows
+up as is. With an error and no data, the kit shows what failed and its fix (*Retry*, *Install*, *Sign in*, *Look*); a template that fails in one element shows
 a small chip there, the rest draws.
 
 ```json

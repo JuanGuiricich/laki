@@ -1659,7 +1659,9 @@ const R: Record<UiType, (e: El, s: S) => string> = {
 // workspace }, the same names as a template's: {{open}} as {{data.open}}); cells: where it shows (across, down; ½ down: a
 // bar's line); hide: what the user hid (no refresh buttons; no at, nor what names it). A failed fetch with no data: the
 // error and Retry, instead of the tree
-export function uiHtml(spec: unknown, ctx: Record<string, unknown>, o: { full?: boolean; cells?: [number, number]; hide?: { refresh?: boolean; at?: boolean } } = {}) {
+// fail (R1): the failure's hint shown instead of its raw error (in the tooltip), and one fix: Retry (refresh) or the app's
+// (fix: a terminal with its command typed, or its page)
+export function uiHtml(spec: unknown, ctx: Record<string, unknown>, o: { full?: boolean; cells?: [number, number]; hide?: { refresh?: boolean; at?: boolean }; fail?: { hint: string; fix: 'refresh' | 'fix'; label: string } } = {}) {
   const tree = uiTree(spec, !!o.full)
   if (!tree) return ''
   const data = ctx.data
@@ -1668,7 +1670,8 @@ export function uiHtml(spec: unknown, ctx: Record<string, unknown>, o: { full?: 
   const line = !o.full && cells[1] <= 0.5
   const s: S = { scopes: [top], full: !!o.full, single: isElement(spec), cells, line, ids: { uid: Math.random().toString(36).slice(2, 7), n: 0 }, hide: o.hide }
   const failed = !!ctx.error && (data === undefined || data === null)
-  const body = failed ? `<div class="k-error"><b>${line ? '⚠' : 'Couldn’t fetch it'}</b><div class="k-sub">${esc(ctx.error)}</div><button type="button" class="k-btn sm" data-laki="refresh">Retry</button></div>` : node(tree, s)
+  const f = o.fail
+  const body = failed ? `<div class="k-error" title="${esc(ctx.error)}"><b>${line ? '⚠' : 'Couldn’t fetch it'}</b><div class="k-sub">${esc(f?.hint ?? ctx.error)}</div><button type="button" class="k-btn sm" data-laki="${f?.fix ?? 'refresh'}">${esc(f?.label ?? 'Retry')}</button></div>` : node(tree, s)
   return `<div class="k" data-kit="${o.full ? 'full' : 'preview'}"${line ? ' data-line' : ''}>${body}</div>`
 }
 

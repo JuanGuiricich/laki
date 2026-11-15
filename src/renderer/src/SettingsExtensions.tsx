@@ -539,8 +539,8 @@ export function StudioSessions({ api, skip }: { api: WidgetsApi; skip?: string }
 
 // what needs a look: its dev copy broke, or one that's on failed its fetch, misses a setting it needs or logged an error in
 // the last hour (Settings' rows: first in their group, a red dot)
-const failing = (w: WidgetView) => !!w.devError || (w.on && (!!w.error || !!w.missing?.length || (!!w.logErr && Date.now() - w.logErr < 3600e3)))
-const failWhy = (w: WidgetView) => w.devError ? `Last good version kept: ${w.devError}` : w.error ? `Its last fetch failed: ${w.error}` : w.missing?.length ? `A setting it needs is empty: ${w.missing.join(', ')}` : 'An error in its log in the last hour'
+const failing = (w: WidgetView) => !!w.devError || (w.on && ((!!w.error && w.fail?.kind !== 'offline') || !!w.missing?.length || (!!w.logErr && Date.now() - w.logErr < 3600e3)))
+const failWhy = (w: WidgetView) => w.devError ? `Last good version kept: ${w.devError}` : w.error ? `Its last fetch failed: ${w.fail?.hint ?? w.error}` : w.missing?.length ? `A setting it needs is empty: ${w.missing.join(', ')}` : 'An error in its log in the last hour'
 
 // the widgets as Scheduled tasks' rows: name, what it is, how it's set, its switch; a click opens its page. A search
 // (its name, id, places, project) and the ones failing first

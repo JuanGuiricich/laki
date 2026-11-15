@@ -3,6 +3,10 @@
 version it builds, with the date. A version's first three lines are its What's new card after an update (U13): put
 the biggest first, and end a line with `[Try it](laki://…)` to give it a Try button there. -->
 
+## Next
+
+- An extension that fails says why in plain words with one fix: *Install* or *Sign in* opens a terminal with the command typed, *Retry*, or *Look*. Offline, it keeps its last data, *offline · 12 min old*, and isn't marked failing.
+
 ## 0.53.0 · Nov 14, 2026
 
 - The rail's buttons click again with Glass's *Grain* on, as in the Frosted design: its grain made the rail a place to drag the window from.

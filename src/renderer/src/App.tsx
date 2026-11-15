@@ -1,6 +1,6 @@
 import { unloadStep } from '../../shared/browserBudget'
 import { type CSSProperties, type Dispatch, lazy, type ReactNode, type SetStateAction, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { aiOn, creatorOf, neverAsks, PERMS, veiled, type AgentDid, type TurnKept, type Agent, flowsOn as flowsOnIn, specsOn as specsOnIn, jobOf, type Account, type StudioChat, type Gate, type GateHeld, type WidgetLogLine, type WidgetRuns, placesOf, type RunScript, type AccountView, type AchievementsKept, type CompactLogLine, AGENT_NAMES, API, HOME_ACCOUNT, isAccountAgent, RAIL_PINS, rowsOf, type WsSort, type Doctor, type LogLine, type ScriptRun, type MergeMethod, PR_QUIET, PR_SCAN, PR_TRIES, prAllows, type PR, type PRLabel, type Project, type ProjectLook, type Sep, type SideLook, type NotifyKind, type PlanKind, type PlanPin, type ProjectConfig, type Resources, type TabView, type View, type WidgetCtx, type WidgetMenu, type WidgetView, type WorkspaceView, type ActionFile, type Blame, type Stat } from '../../shared/types'
+import { aiOn, creatorOf, neverAsks, PERMS, veiled, type AgentDid, type TurnKept, type Agent, flowsOn as flowsOnIn, specsOn as specsOnIn, jobOf, type Account, type StudioChat, type Gate, type GateHeld, type WidgetLogLine, type WidgetRuns, placesOf, type RunScript, type AccountView, type AchievementsKept, type CompactLogLine, AGENT_NAMES, API, HOME_ACCOUNT, isAccountAgent, RAIL_PINS, rowsOf, type WsSort, type Doctor, type LogLine, type ScriptRun, type MergeMethod, PR_QUIET, PR_SCAN, PR_TRIES, prAllows, type PR, type PRLabel, type Project, type ProjectLook, type Sep, type SideLook, type NotifyKind, type PlanKind, type PlanPin, type ProjectConfig, type Resources, type TabView, type View, type WidgetCtx, type WidgetFail, type WidgetMenu, type WidgetView, type WorkspaceView, type ActionFile, type Blame, type Stat } from '../../shared/types'
 import { alwaysOf, diffCounts, optLabel, permVerb, ruleFrom } from '../../shared/ask'
 import { parseAt, stamp } from '../../shared/when'
 import { type NewLine, notesOf as newLines, type UpdateState } from '../../shared/update'
@@ -2466,8 +2466,8 @@ export function App() {
       const what = label || action
       clearTimeout(noteTimer.current)
       setNote({ text: `${what}…`, busy: true }) // something is happening, until it says what
-      return api.call<{ ok: boolean; out?: string; error?: string; open?: string; send?: string } & WidgetSay>('widgetAction', { id, action, arg, ws }).then(
-        r => (!r.ok ? (toast(`${what} failed: ${r.error}`), false as const) : (r.open && widgetApi.open(r.open), r.send && (w => w && void widgetDo(inWs(w, ws ?? null), { do: 'send', prompt: r.send! }, what))(view?.widgets?.find(x => x.id === id)), r.toast || r.modal || r.close ? (setNote(null), widgetApi.say(id, r, ws)) : r.open || r.send ? setNote(null) : done(r.out || `${what}: done`))), // #26: its link opened after it; send: to the agent, asked first
+      return api.call<{ ok: boolean; out?: string; error?: string; fail?: WidgetFail; open?: string; send?: string } & WidgetSay>('widgetAction', { id, action, arg, ws }).then(
+        r => (!r.ok ? (toast(`${what} failed: ${r.fail?.hint ?? r.error}`), false as const) : (r.open && widgetApi.open(r.open), r.send && (w => w && void widgetDo(inWs(w, ws ?? null), { do: 'send', prompt: r.send! }, what))(view?.widgets?.find(x => x.id === id)), r.toast || r.modal || r.close ? (setNote(null), widgetApi.say(id, r, ws)) : r.open || r.send ? setNote(null) : done(r.out || `${what}: done`))), // #26: its link opened after it; send: to the agent, asked first
         e => (toast(`${what} failed: ${(e as Error).message}`), false as const), // false: the kit's slider, pick or box goes back
       )
     },
@@ -2494,6 +2494,7 @@ export function App() {
       ...extMenuItems(w, extCfg),
     ],
     log: (id, text, ws) => void api.call('widgetLog', { id, text, ws, src: 'page' }).catch(() => {}),
+    fix: w => (w.fail?.cmd ? void termType(w.fail.cmd) : setDialog({ extension: w.id, back: dialog, tab: 'data' })), // R1: typed, not run; else its data and runs
   }
   widgetSay.current = widgetApi.say
   // a widget button's Laki command (the UI kit's do, a JS page's laki.do): said and asked first (a page in a browser
