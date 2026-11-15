@@ -110,6 +110,7 @@ export const prOf = (ws: string) => prs.get(ws)
 // what follows agents' turns (workflows): each turn's end, its last answer, a usage limit's reset, a failure
 export const checks = new Map<string, CheckRun>() // Done means checked (verify.ts): each workspace's last check
 export const proofs = new Map<string, Proof>() // and the Proof card of its last checked turn (verify.ts)
+export const annotAt = new Map<string, number>() // and when its extensions' notes on diff lines last changed (P6: widgets.ts annotate)
 // a path in a storage folder's proof/: Laki's own (the Proof card's), never another method's to write
 export const proofIn = (root: string, path: string) => relative(root, path).split(sep)[0] === 'proof'
 export const checkHooks: { will?: (tab: Tab) => boolean } = {} // verify.ts': a check follows this turn's end (the app waits for it to notify)
@@ -768,7 +769,7 @@ export function view(): View {
     workspaces: state.workspaces.filter(w => !hidden.has(w.id)).map(w => {
       const c = projectConfig(w)
       const portNames = c.ports && typeof c.ports === 'object' ? Object.fromEntries(Object.entries(c.ports).filter(([, v]) => typeof v === 'string')) : undefined // a repo's file: strings only
-      return { ...wsOut(w), setup: existsSync(setupMarker(w)), ports: ports.get(w.id) ?? [], procs: procs.get(w.id), portNames, tunnels: tunnelsOf(w.id), pr: prs.get(w.id), run: !!c.run, scripts: RUN_SCRIPTS.filter(k => typeof c[k] === 'string' && c[k].trim()), stat: stats.get(w.id), overlaps: collisions.get(w.id), check: checks.get(w.id), proof: proofs.get(w.id), artifacts: artifacts.get(w.id), links: links.get(w.id), artKey: urlKey(`artifact:${w.id}`), ...(pageable(w) && { wtKey: urlKey(`worktree:${w.id}`) }), pending: w.pending && pendingView(w.pending), ...((t => t && { ticket: t })(ticketOf(w.id))) }
+      return { ...wsOut(w), setup: existsSync(setupMarker(w)), ports: ports.get(w.id) ?? [], procs: procs.get(w.id), portNames, tunnels: tunnelsOf(w.id), pr: prs.get(w.id), run: !!c.run, scripts: RUN_SCRIPTS.filter(k => typeof c[k] === 'string' && c[k].trim()), stat: stats.get(w.id), overlaps: collisions.get(w.id), check: checks.get(w.id), proof: proofs.get(w.id), annotAt: annotAt.get(w.id), artifacts: artifacts.get(w.id), links: links.get(w.id), artKey: urlKey(`artifact:${w.id}`), ...(pageable(w) && { wtKey: urlKey(`worktree:${w.id}`) }), pending: w.pending && pendingView(w.pending), ...((t => t && { ticket: t })(ticketOf(w.id))) }
     }),
     tabs: hidden.size ? tabs.filter(t => !hidden.has(t.workspace)) : tabs,
     presets: presets(),

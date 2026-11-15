@@ -160,6 +160,10 @@
       },
       "description": "What it reads of its workspace (scope workspace): pr, stat, changed_files, diff, commits, agents, ports. Laki gives them as {{facts.<name>}} in its ui and templates, $LAKI_FACTS (JSON) to its fetch and actions, facts to a script, and fetches it again (or draws it again) when one changes"
     },
+    "annotates": {
+      "type": "boolean",
+      "description": "It puts notes on diff lines (its action’s JSON or its data has \"annotations\": [{ file, line, level, text, fix }]): Settings lists it, the Review tab and Changes show them"
+    },
     "stream": {
       "type": "boolean",
       "description": "Its fetch runs all along: each line of JSON it prints is its data (every is ignored; global only)"

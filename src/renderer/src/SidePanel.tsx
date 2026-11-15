@@ -6,8 +6,8 @@ import { bridge, openExternal } from './api'
 import { highlight } from './highlight'
 import { PanelHandle } from './Panes'
 import { Markdown, outlineItems } from './MarkdownView'
-import { atHead, canPage, ChangeMap, CommentBox, DiffFind, diffByFile, useExpand, type DiffLine, DiffRows, IMAGE, ImageDiff, lineClass, localStore, NO_DIFF, parentOf, sameLine, type Scope, ScopeSeg, turnNext, sizeText, ThreadCard, threadKey, useGhViewed, useLoad, useRevert, useScope, useSuggestions, webItems } from './Diff'
-import type { MergeMethod, TurnKept } from '../../shared/types'
+import { AnnotRows, annotClass, annotsOn, NO_ANNOTS, useAnnots, atHead, canPage, ChangeMap, CommentBox, DiffFind, diffByFile, useExpand, type DiffLine, DiffRows, IMAGE, ImageDiff, lineClass, localStore, NO_DIFF, parentOf, sameLine, type Scope, ScopeSeg, turnNext, sizeText, ThreadCard, threadKey, useGhViewed, useLoad, useRevert, useScope, useSuggestions, webItems } from './Diff'
+import type { Annotations, MergeMethod, TurnKept } from '../../shared/types'
 import { ago, type AutoKey, type Check, type FixWhat, type LabelApi, type PRAct, PRSection, type WsInfo } from './Info'
 import { type actionsFor, csvSep, fileTree, forgeName, prName, findFiles, parseCsv, parseSize, type Picked, pickPrompt, pickWords, previewAddr, previewUrl, type RunAction, SIZES, type Suggestion, toCsv } from './text'
 import { ask, askText, type FileAct, FileCard, Icon, IconButton, type IconName, keyTip, type MenuItem, ON, useMenu, act } from './ui'
@@ -27,6 +27,8 @@ export type Edit = { text: string; was: string }
 export const edited = (e?: Edit | null) => !!e && e.text !== e.was.replace(/\r\n/g, '\n')
 export type PanelApi = {
   files: () => Promise<FileList>
+  annots?: () => Promise<Annotations> // P6: its extensions' notes on diff lines (widgetAnnotations), read again as annotAt changes
+  annotAt?: number
   newFile: (path: string, dir: boolean) => Promise<string> // the path made
   openFile: (path: string) => void // in the editor
   preview: (path: string, line?: number) => void // in the app
@@ -343,6 +345,8 @@ function ChangesTab({ api: wsApi, ws, pr, linked, empty, worktree, turn, reviewe
   const files = d?.files ?? []
   // expand arrows (the full review's): the worktree's file, or the PR head's for the PR's diff
   const keys = useMemo(() => new Map([...byFile].map(([p, fd]) => [p, `${all}#${fd.hunks.join('\n')}`])), [byFile, all]) // once per diff: the arrows ask it often
+  const annotsAll = useAnnots(wsApi)
+  const annots = scope === 'pr' || inTurn ? NO_ANNOTS : annotsAll // P6: on the worktree's lines: not a PR's diff or a turn's
   const xp = useExpand(p => (all ? api.prFile(p) : api.read(p)), p => !inTurn && !IMAGE.test(p) && !/^[AD?]/.test(files.find(f => f.path === p)?.status ?? 'A'), p => keys.get(p) ?? '') // a turn's: its files as it left them aren't read
   // Viewed, as on GitHub's Files changed: a box for each file in the PR (in both views); ticked, it folds and dims
   const vw = useGhViewed(api, ws, pr?.number)
@@ -389,7 +393,7 @@ function ChangesTab({ api: wsApi, ws, pr, linked, empty, worktree, turn, reviewe
                       <DiffRows
                         fd={fdx}
                         split={split}
-                        cls={l => (l.ctx ? 'dl dl-ctx' : lineClass(l, rv.picked(f.path, l)))}
+                        cls={l => (l.ctx ? 'dl dl-ctx' : lineClass(l, rv.picked(f.path, l))) + annotClass(annotsOn(annots, f.path, l))}
                         row={l => (l.ctx ? {} : { onMouseDown: rv.noSelect, onClick: e => pick(f.path, l, e) })}
                         head={l => (
                           <>
@@ -397,7 +401,12 @@ function ChangesTab({ api: wsApi, ws, pr, linked, empty, worktree, turn, reviewe
                             {rv.hunkHead(f.path, l, fd.cut)}
                           </>
                         )}
-                        after={l => at && l === box && <CommentBox path={f.path} line={at.line} text={at.text} setText={text => setAt(a => a && { ...a, text })} pr={pr?.number} api={api} onClose={() => setAt(null)} />}
+                        after={l => (
+                          <>
+                            <AnnotRows as={annotsOn(annots, f.path, l)} />
+                            {at && l === box && <CommentBox path={f.path} line={at.line} text={at.text} setText={text => setAt(a => a && { ...a, text })} pr={pr?.number} api={api} onClose={() => setAt(null)} />}
+                          </>
+                        )}
                       />
                       {tail && <div className="fr-more">{tail}</div>}
                     </>

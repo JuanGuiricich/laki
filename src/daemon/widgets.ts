@@ -9,8 +9,8 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { accessSync, constants, existsSync, type FSWatcher, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, watch, writeFileSync } from 'node:fs'
 import { readJson, writeAtomic } from '../shared/conn.ts'
 import { homedir, tmpdir } from 'node:os'
-import { basename, dirname, join, resolve } from 'node:path'
-import { AI_SOURCE_EVERY, BUTTON_PLACES, RETRY_KINDS, type LogLevel, type Preset, WIDGET_SOURCES, type WidgetSource, type Workspace, type WidgetOption, type WidgetTool, type WidgetRun, type WidgetPlace, type WidgetSize, type WidgetView, type WidgetHide, type WidgetCtx, type ActionFile, type WidgetFail, type WidgetWhen, WIDGET_PLACES } from '../shared/types.ts'
+import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path'
+import { AI_SOURCE_EVERY, type Annotation, type Annotations, BUTTON_PLACES, RETRY_KINDS, type LogLevel, type Preset, WIDGET_SOURCES, type WidgetSource, type Workspace, type WidgetOption, type WidgetTool, type WidgetRun, type WidgetPlace, type WidgetSize, type WidgetView, type WidgetHide, type WidgetCtx, type ActionFile, type WidgetFail, type WidgetWhen, WIDGET_PLACES } from '../shared/types.ts'
 import { fill, hasFull, hasScript, openOk, pageOf, render, sayOf, templateError, viewOf, type WidgetSay } from '../shared/widget.ts'
 import { type Tone, TONES, uiHtml, uiTree } from '../shared/widgetUi.ts'
 import { actionCmd, actionMenu, aiActOf, type Fact, FACT_NAMES, gateOf, needsOf, SAMPLE_FACTS, SIZES_ACROSS, toolOf, whenOf } from '../shared/widgetSchema.ts'
@@ -21,7 +21,7 @@ import { iconTurns } from '../shared/icons.ts'
 import { WIDGET_EVERY } from '../shared/widgetGuide.ts'
 import { aiOnce } from './ai.ts'
 import { dir, realOf } from './dir.ts'
-import { agentCaller, broadcast, git, ghSaid, imageSave, within, changed, cliArgv, cliEnv, clients, devKeep, devLog, plainEnv, prOf, presets, procs, q, rt, state, tabStatus, wsVars } from './core.ts'
+import { agentCaller, annotAt, broadcast, git, ghSaid, imageSave, within, changed, cliArgv, cliEnv, clients, devKeep, devLog, plainEnv, prOf, presets, procs, q, rt, state, tabStatus, wsVars } from './core.ts'
 import { headOf } from './pr.ts'
 import { diff, inside, stats } from './files.ts'
 import { execGroup, killGroup, own } from './resources.ts'
@@ -48,7 +48,7 @@ export * from './widgetDev.ts'
 // ui: the UI kit's elements (widgetUi.ts), one tree or { preview, full }: widget.html's own view wins, ui fills the other
 type Spec = { type?: string; label?: string; hint?: string; default?: unknown; choices?: unknown[]; required?: boolean }
 type ActionDef = string | { run?: string; tool?: unknown; ai?: string; tools?: string; profile?: string } // a command, or one an agent may call too (widgetSchema.ts' toolOf), or a prompt an agent answers (aiActOf)
-export type Manifest = { name?: string; description?: string; size?: [number, number]; every?: number; view?: string; place?: string | string[]; scope?: string; on?: Record<string, string>; stream?: boolean; state?: unknown; fetch?: string; script?: string; config?: Record<string, unknown>; actions?: Record<string, ActionDef>; icon?: string; label?: string; badge?: string; tip?: string | false; click?: string; notify?: string; facts?: string[]; sample?: unknown; sampleConfig?: Record<string, unknown>; ui?: unknown; source?: unknown; needs?: unknown; when?: unknown }
+export type Manifest = { name?: string; description?: string; size?: [number, number]; every?: number; view?: string; place?: string | string[]; scope?: string; on?: Record<string, string>; stream?: boolean; annotates?: boolean; state?: unknown; fetch?: string; script?: string; config?: Record<string, unknown>; actions?: Record<string, ActionDef>; icon?: string; label?: string; badge?: string; tip?: string | false; click?: string; notify?: string; facts?: string[]; sample?: unknown; sampleConfig?: Record<string, unknown>; ui?: unknown; source?: unknown; needs?: unknown; when?: unknown }
 // sample: made-up data in the shape its fetch prints (sampleConfig: settings for it), for a preview before it runs (widgetRender sample)
 // what's stored per widget: the user's choices over the manifest's (config: each setting as text), and the last fetch
 // (at: when it ran; error: why it failed); net: its page may reach https sites (the user's switch, never widget.json's)
@@ -768,6 +768,7 @@ export const widgetsView = (): WidgetView[] =>
     tipOff: w.m.tip === false || undefined,
     hours: w.s.hours,
     stream: w.m.stream === true || undefined,
+    annotates: w.m.annotates === true || undefined,
     facts: (f => (f.length ? f : undefined))(factNames(w)),
     js: w.js || undefined,
     ...(w.m.actions && Object.keys(w.m.actions).length && { actions: Object.keys(w.m.actions) }), // a scheduled task's picks
@@ -913,6 +914,38 @@ export function widgetPage(id: string, query: URLSearchParams): { code: number; 
   }
 }
 
+// P6: an extension's notes on a workspace's diff lines: an action's JSON or a fetch's data (per workspace) with
+// "annotations": [{ file, line, level, text, fix }], ANNOT_MAX at most, each file inside the workspace (an absolute one
+// made relative to it). Kept per workspace and extension, in memory, until its next run that has the key ([] clears
+// them): a run without it (a button's action, a fetch an action asked for) leaves them. widgetAnnotations: the on ones'
+const ANNOT_MAX = 500
+export const annots = new Map<string, Map<string, Annotation[]>>() // workspace → extension → its notes
+const annotOf = (a: unknown, root: string): Annotation[] => {
+  if (!isObj(a) || typeof a.file !== 'string') return []
+  const rel = (isAbsolute(a.file) ? relative(root, a.file) : normalize(a.file)).split(sep).join('/')
+  const line = Number(a.line)
+  const text = typeof a.text === 'string' ? a.text.trim().slice(0, 1000) : ''
+  if (!rel || rel === '.' || rel === '..' || rel.startsWith('../') || isAbsolute(rel) || !Number.isInteger(line) || line < 1 || !text) return []
+  return [{ file: rel, line, level: a.level === 'warn' || a.level === 'error' ? a.level : 'info', text, ...(typeof a.fix === 'string' && a.fix.trim() && { fix: a.fix.trim().slice(0, 2000) }) }]
+}
+function annotate(w: Entry, x: Workspace | undefined, raw: unknown) {
+  if (!x) return
+  if (raw !== undefined && !Array.isArray(raw)) wLog(w, 'annotations: a list of { "file", "line", "level", "text" } is what it takes', 'warn')
+  const list = Array.isArray(raw) ? raw.slice(0, ANNOT_MAX).flatMap(a => annotOf(a, x.path)) : []
+  if (Array.isArray(raw) && list.length < Math.min(raw.length, ANNOT_MAX)) wLog(w, `annotations: ${Math.min(raw.length, ANNOT_MAX) - list.length} left out: a file inside the workspace, a line from 1, some text`, 'warn')
+  const m = annots.get(x.id) ?? new Map<string, Annotation[]>()
+  if (!list.length && !m.has(w.id)) return
+  if (list.length) m.set(w.id, list)
+  else m.delete(w.id)
+  if (m.size) annots.set(x.id, m)
+  else annots.delete(x.id)
+  annotAt.set(x.id, Date.now())
+  changed()
+}
+export function widgetAnnotations(o: { ws: string }): Annotations {
+  return [...(annots.get(String(o.ws)) ?? [])].flatMap(([id, items]) => (w => (w && onOf(w) ? [{ widget: id, name: w.m.name || id, items }] : []))(widgets.get(id)))
+}
+
 // Reset the interface: every extension off (its other choices kept)
 export function widgetsOff() {
   for (const w of widgets.values()) {
@@ -961,7 +994,7 @@ export function widgetSet(o: { id: string; seen?: string; log?: boolean; source?
   if (o.on === true) bins.clear(), needsRead(w) // its programs looked for again: one installed since
   if (o.on === true && !s.on) s.mock = undefined // turned on: live, not the sample data put there while it was off (the studio's)
   if (o.on !== undefined) s.on = !!o.on
-  if (o.on === false) ungrant(w.id), stopAgents(w.id) // off: its tools' Always go, its agents stop
+  if (o.on === false) ungrant(w.id), stopAgents(w.id), [...annots.keys()].forEach(ws => annotate(w, state.workspaces.find(x => x.id === ws), [])) // off: its tools' Always go, its agents stop, its diff notes go
   if (o.source !== undefined) stopAgents(w.id, true) // an answer for the source it had would land over the new one's (its actions run on)
   if (o.size) s.size = [clamp(o.size[0], 1, ACROSS, 1), down(o.size[1])]
   if (o.fit !== undefined) s.fit = o.fit === true || undefined
@@ -1300,6 +1333,7 @@ export async function widgetRun(o: { id: string; reason?: string; why?: string; 
       s.error = error
     })
   changed()
+  if (!error && !gone && x && isObj(data) && 'annotations' in data) annotate(w, x, data.annotations)
   const cur = widgets.get(w.id)
   if (again.delete(k) && cur && onOf(cur) && !gone) soon({ id: w.id, reason, ws: x?.id }) // with the settings as they are now
   return error ? { ok: false, error } : { ok: true }
@@ -1471,6 +1505,7 @@ export async function widgetAction(o: { id: string; action: string; arg?: string
       keep(w, x?.id, s => ((s.data = j!.merge === true && isObj(s.data) && isObj(d) ? { ...s.data, ...d } : d), (s.at = Date.now()), (s.error = s.mock = undefined)))
       changed()
     } else if (!ai && fetches(w) && live) soon({ id: w.id, reason: /^[\w.-]{1,40}$/.test(o.action) ? `action:${o.action}` : 'manual', ws: x?.id }) // fetching already: once more after it
+    if (j && 'annotations' in j && live) annotate(w, x ?? state.workspaces.find(v => v.id === ctx?.info.ws?.id), j.annotations)
     // into the prompt: its JSON's insert, else (insert: true) all it printed, an agent's words too
     const insert = typeof j?.insert === 'string' ? j.insert : actionMenu(o.action, def)?.insert && !j ? out.trim() : undefined
     const say = (j && sayOf(j)) ?? (ai && insert === undefined && !(j && ('data' in j || 'send' in j)) ? { modal: { title: `${w.m.name || w.id} · ${o.action}`, text: out.trim().slice(0, 2000), buttons: [{ label: 'OK', style: 'primary' as const }] } } : undefined) // an agent's words: a dialog

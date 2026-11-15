@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useRef, useState, type HTMLAttributes, type MouseEvent } from 'react'
 import type { Blame, PR } from '../../shared/types'
 import { globTest } from '../../shared/widgetSchema'
-import { atHead, canPage, ChangeMap, changeLine, CommentBox, CopyComment, DiffFind, useExpand, diffByFile, type DiffLine, DiffRows, type FileDiff, IMAGE, ImageDiff, lineClass, localStore, NO_DIFF, parentOf, sameLine, ScopeSeg, type Side, ThreadCard, threadKey, useGhViewed, useLoad, useRevert, useScope, useSuggestions, webItems, webSub } from './Diff'
+import { type Annot, AnnotRows, annotClass, annotsOn, NO_ANNOTS, useAnnots, atHead, canPage, ChangeMap, changeLine, CommentBox, CopyComment, DiffFind, useExpand, diffByFile, type DiffLine, DiffRows, type FileDiff, IMAGE, ImageDiff, lineClass, localStore, NO_DIFF, parentOf, sameLine, ScopeSeg, type Side, ThreadCard, threadKey, useGhViewed, useLoad, useRevert, useScope, useSuggestions, webItems, webSub } from './Diff'
 import { ago, Avatar } from './Info'
 import { Folded, Markdown } from './MarkdownView'
 import type { PanelApi, Thread } from './SidePanel'
@@ -292,6 +292,13 @@ export function FullReview({ ws, base, branch, pr, linked, empty, worktree, api:
     setAt(null)
     setSide('mine') // shown, not saved as the choice
   }
+  // P6: extensions' notes on lines, each added as a comment of yours (its words, its fix) to send with the rest
+  const annotsAll = useAnnots(wsApi)
+  const annots = all ? NO_ANNOTS : annotsAll // the worktree's lines: not a PR's diff
+  const noteOf = (path: string, a: Annot, l: DiffLine): ReviewNote => ({ id: Math.random().toString(36).slice(2), path, line: a.line, side: 'RIGHT', body: `${a.name}: ${a.text}${a.fix ? `\nFix: ${a.fix}` : ''}`, quote: l.text })
+  const addAnnot = (path: string, a: Annot, l: DiffLine) => (setNotes(n => [...n, noteOf(path, a, l)]), setSide('mine'), hideNotes(false))
+  const shownAnnots = [...annots].flatMap(([path, by]) => (fd => (fd ? [...by].flatMap(([n, as]) => (l => (l ? as.map(a => noteOf(path, a, l)) : []))(fd.lines.find(l => l.new === n && !l.text.startsWith('@@')))) : []))(byFile.get(path))) // on a line of the diff
+  const addAll = () => (setNotes(n => [...n, ...shownAnnots.filter(x => !n.some(y => y.path === x.path && y.line === x.line && y.body === x.body))]), setSide('mine'))
   const boxFor = (path: string) => (at?.path === path ? (byFile.get(path)?.lines.find(l => sameLine(l, at.line)) ?? byFile.get(path)?.lines.at(-1)) : undefined)
   // a click on a line: its box; a drag from one line to another of the file: the range, on the side of the last
   const down = useRef<{ path: string; l: DiffLine } | null>(null)
@@ -599,7 +606,7 @@ export function FullReview({ ws, base, branch, pr, linked, empty, worktree, api:
                     <DiffRows
                       fd={fdx}
                       split={split}
-                      cls={l => (l.ctx ? 'dl dl-ctx' : lineClass(l, rv.picked(f.path, l)))}
+                      cls={l => (l.ctx ? 'dl dl-ctx' : lineClass(l, rv.picked(f.path, l))) + annotClass(annotsOn(annots, f.path, l))}
                       row={l => (l.ctx ? ctxAttrs(f.path, l) : lineAttrs(f.path, l))}
                       head={l => (
                         <>
@@ -610,6 +617,7 @@ export function FullReview({ ws, base, branch, pr, linked, empty, worktree, api:
                       gutter={gutterOf(f.path, fdx)}
                       after={l => (
                         <>
+                          <AnnotRows as={annotsOn(annots, f.path, l)} add={a => addAnnot(f.path, a, l)} />
                           {threadsAt(f.path, l).map(t => (
                             <div key={threadKey(t)} className="fr-thread">
                               <ThreadCard t={t} api={api} noHead {...props(t)} />
@@ -668,6 +676,11 @@ export function FullReview({ ws, base, branch, pr, linked, empty, worktree, api:
               {tab === 'mine' ? (
                 <>
                   {!notes.length && <p className="muted small">Click a line to comment on it, or drag over lines. They wait here until you send them.</p>}
+                  {shownAnnots.length > 0 && (
+                    <button type="button" className="link small" onClick={addAll} title="Each extension's note on a line of this diff, as a comment of yours">
+                      Add {shownAnnots.length} extension note{shownAnnots.length === 1 ? '' : 's'}
+                    </button>
+                  )}
                   {notes.map(n => (
                     <div key={n.id} className={`fr-note ${outdated(n) ? 'outdated' : ''}`}>
                       <div className="fr-note-head">

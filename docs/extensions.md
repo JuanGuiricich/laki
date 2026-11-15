@@ -282,6 +282,23 @@ An action (a button's, or an event's) that prints JSON with `"data"` replaces th
 one's instance's) instead of fetching again: `{"data": {"count": 3}, "toast": "Saved"}`. With `"merge": true` it goes
 over the data it had, key by key.
 
+### Notes on diff lines (`annotations`)
+
+An action's JSON, or a per-workspace fetch's data, may carry notes on lines of the workspace's diff: a linter's, a
+coverage tool's, a reviewer bot's.
+
+```json
+{ "annotations": [{ "file": "src/cart.ts", "line": 42, "level": "warn", "text": "unused import", "fix": "remove it" }] }
+```
+
+`file` is inside the workspace (relative to it, or an absolute path inside it), `line` the line in the file as it is
+now (the diff's new side), `level` `info` (the default), `warn` or `error`, `fix` optional words. 500 at most. They're
+kept per workspace and extension until a run of it says `annotations` again (`[]` clears them; a run without the key
+leaves them) or it's turned off. The Review tab and Changes mark each line and show its notes under it, by extension;
+the Review tab's *Add to comments* (or *Add N extension notes*) puts them among your comments, to send to the agent with
+the rest. `"annotates": true` in widget.json tags it *diff notes* in Settings. To check after each turn:
+`"on": { "turn.done": "lint" }`.
+
 ## Streams (`stream`)
 
 `"stream": true` runs its fetch all along instead of every few minutes: each line of JSON it prints is its data at once

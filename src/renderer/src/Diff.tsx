@@ -8,6 +8,7 @@ import { type Gap, gapsOf, linesAt, type MapKind, type MapMark, marksOf, reviewe
 import { closeTo, escapes, Icon, IconButton, type MenuItem, openFrom, useMenu, act } from './ui'
 import { diffCounts } from '../../shared/ask'
 import type { FileContent, PanelApi, PRFiles, Thread } from './SidePanel'
+import type { Annotation, Annotations } from '../../shared/types'
 
 // what load gives, again every few seconds while the window is in front, and on reload()
 export function useLoad<T>(load: () => Promise<T>, key: string, every: number) {
@@ -284,6 +285,50 @@ export function DiffRows({ fd, split, cls, row, head, after, gutter, nums = true
       {after && [...new Set([r.full, r.left, r.right])].map((l, j) => l && <Fragment key={j}>{after(l)}</Fragment>)}
     </Fragment>
   ))
+}
+
+// P6: the workspace's extensions' notes on diff lines, read again as they change (annotAt); by file, then new-side line
+export type Annot = Annotation & { widget: string; name: string }
+export function useAnnots(api: Pick<PanelApi, 'annots' | 'annotAt'>) {
+  const [groups, setGroups] = useState<Annotations>([])
+  useEffect(() => {
+    let live = true
+    if (!api.annots) return setGroups([])
+    api.annots().then(g => live && setGroups(g), () => {})
+    return () => void (live = false)
+  }, [api.annotAt])
+  return useMemo(() => {
+    const by = new Map<string, Map<number, Annot[]>>()
+    for (const g of groups)
+      for (const a of g.items) {
+        const f = by.get(a.file) ?? (by.set(a.file, new Map()), by.get(a.file)!)
+        f.set(a.line, [...(f.get(a.line) ?? []), { ...a, widget: g.widget, name: g.name }])
+      }
+    return by
+  }, [groups])
+}
+// a line's notes (its new side's number), the worst level first: the line's class and the rows under it
+export const NO_ANNOTS = new Map<string, Map<number, Annot[]>>()
+export const annotsOn = (by: Map<string, Map<number, Annot[]>>, path: string, l: DiffLine) => (l.new !== undefined && !l.text.startsWith('@@') ? (by.get(path)?.get(l.new) ?? []) : [])
+const LEVELS = { error: 0, warn: 1, info: 2 }
+export const annotClass = (as: Annot[]) => (as.length ? ` dl-annot ${[...as].sort((a, b) => LEVELS[a.level] - LEVELS[b.level])[0].level}` : '')
+export function AnnotRows({ as, add }: { as: Annot[]; add?: (a: Annot) => void }) {
+  if (!as.length) return null
+  return (
+    <div className="dl-annots">
+      {[...as].sort((a, b) => a.name.localeCompare(b.name) || LEVELS[a.level] - LEVELS[b.level]).map((a, i) => (
+        <div key={i} className={`dl-annot-row ${a.level}`}>
+          <Icon name={a.level === 'info' ? 'info' : 'alertCircle'} size={11} />
+          <b>{a.name}</b>
+          <span className="dl-annot-text">
+            {a.text}
+            {a.fix && <span className="muted"> · {a.fix}</span>}
+          </span>
+          {add && <button type="button" className="link small" title="Add it to your comments, to send to the agent with them" onClick={() => add(a)}>Add to comments</button>}
+        </div>
+      ))}
+    </div>
+  )
 }
 
 // an approval's diff (Ask.diff, permDiff's ' ', '-', '+' lines): red and green, its first 8 lines, Expand for the rest

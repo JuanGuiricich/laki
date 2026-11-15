@@ -5,6 +5,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
+- Extensions can put notes on lines of a workspace's diff (`annotations`: a linter's, a coverage tool's): the Review tab and Changes mark each line and show them; *Add to comments* sends them to the agent with your own.
 - An extension can put a chip under each agent turn (place *Agent turns*): what its `turn.done` handler found then, such as the new starter *After each turn*'s files and lines. A click shows that turn's data; the Reader and Needs you show them.
 - ⌘K › *Edit extensions' layout*: drag extensions to reorder them or move them between the sidebar, the bars, the rail and the foot, resize a sidebar tile from its corner. Hovering one in a bar, on the rail or on a row peeks at its full view.
 - An extension can show only when it matters: Settings' *Show when…* (or widget.json's `when`) by the selected workspace's project, branch, PR and agent state.

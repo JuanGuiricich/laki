@@ -649,6 +649,7 @@ function WidgetList({ api }: { api: WidgetsApi }) {
                 {(ps => (ps.length > 1 || ps[0] !== 'side') && <span className="tag">{ps.map(p => PLACES.find(x => x[0] === p)?.[1] ?? p).join(' · ')}</span>)(placesOf(w))}
                 {w.net && <span className="tag" data-tip="Its page may reach https sites">network</span>}
                 {w.on && w.hidden && <span className="tag" data-tip="Its data says hidden: true: it shows nowhere until its data changes">hidden</span>}
+                {w.annotates && <span className="tag" data-tip="It puts notes on diff lines: the Review tab and Changes show them">diff notes</span>}
                 {w.log && (bad => <span className={`tag ${bad ? 'tag-closed' : ''}`} data-tip={bad ? 'An error in its log in the last hour: its page’s Logs' : 'It keeps a log: its page’s Logs'}>log</span>)(!!w.logErr && Date.now() - w.logErr < 3600e3)}
                 <span className="tag">
                   {w.fit && fits(w) ? 'auto · ' : ''}{w.size[0]}×{w.size[1] === 0.5 ? '½' : w.size[1]}

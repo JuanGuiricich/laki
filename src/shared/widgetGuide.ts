@@ -167,7 +167,9 @@ ${Object.entries(FACTS).map(([k, v]) => `  - \`${k}\`: ${v}`).join('\n')}
   about \`$LAKI_FILE\` and shows it. Its JSON may also say \`"open": "https://…"\` (http(s), mailto or laki://: the app
   opens it after the run) and \`"files": ["shot.png", "report.md"]\` (10 at most, each inside the workspace, its storage
   folder or the extension's folder, a relative one from its folder: attached where an insert goes, an image as an image);
-  anything else is dropped and said in its log.
+  anything else is dropped and said in its log. Notes on diff lines (an action's JSON, a per-workspace fetch's data):
+  \`"annotations": [{ "file", "line", "level": "info" | "warn" | "error", "text", "fix" }]\` (500, files in the
+  workspace; kept until a run says them again, \`[]\` clears), with \`"annotates": true\` and \`"on": { "turn.done": … }\`.
 
 ## Fixtures and the check
 

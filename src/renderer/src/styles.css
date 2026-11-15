@@ -4022,3 +4022,12 @@ button.proof-line:not(:disabled):hover .mono { text-decoration: underline; }
 .turn-chip { display: inline-flex; align-items: center; gap: var(--sp-2); height: var(--h-s); padding: 0 var(--sp-3); border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--panel); color: var(--muted); font-variant-numeric: tabular-nums; }
 .turn-chip:hover { color: var(--fg); }
 .turn-chip.t-bad { color: var(--error); } .turn-chip.t-good { color: var(--done); } .turn-chip.t-warn { color: var(--waiting); } .turn-chip.t-accent { color: var(--accent-ink, var(--accent)); }
+/* P6: extensions' notes on diff lines: a mark at the line's edge, the notes under it by extension */
+.dl.dl-annot { box-shadow: inset 2px 0 0 var(--accent); }
+.dl.dl-annot.warn { box-shadow: inset 2px 0 0 var(--waiting); }
+.dl.dl-annot.error { box-shadow: inset 2px 0 0 var(--error); }
+.dl-annots { display: flex; flex-direction: column; gap: var(--sp-1); margin: var(--sp-1) var(--sp-4); font-size: var(--fs-2); }
+.dl-annot-row { display: flex; gap: var(--sp-2); align-items: baseline; padding: var(--sp-2) var(--sp-3); border-left: 2px solid var(--accent); border-radius: var(--r-xs); background: color-mix(in srgb, var(--accent) 8%, var(--panel)); white-space: normal; }
+.dl-annot-row.warn { border-left-color: var(--waiting); background: color-mix(in srgb, var(--waiting) 8%, var(--panel)); }
+.dl-annot-row.error { border-left-color: var(--error); background: color-mix(in srgb, var(--error) 8%, var(--panel)); }
+.dl-annot-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
