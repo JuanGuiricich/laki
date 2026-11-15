@@ -38,9 +38,11 @@ test('a turn place extension: each turn.done fetch a chip on that tab, its data 
   assert.equal(all.length, 20, 'the last 20 turns')
   assert.ok(!all.some((m: any) => m.at === first.at), 'the oldest went')
   assert.equal(all.at(-1).tone, 'bad', 'its data’s tone')
-  // its full view: that turn's data, not the last
-  const html = await rig.rpc('widgetRender', { id: 'turny', full: true, turn: { tab: tab.id, at: all[0].at } })
-  assert.match(html, new RegExp(`>${all[0].badge}<`))
+  // its full view: that turn's data, not the last (one in the middle: a late fetch's chip can still push the oldest out)
+  const mid = all[10]
+  const html = await rig.rpc('widgetRender', { id: 'turny', full: true, turn: { tab: tab.id, at: mid.at } })
+  assert.match(html, new RegExp(`>${mid.badge}<`))
+  assert.notEqual(mid.badge, all.at(-1).badge)
   await assert.rejects(rig.rpc('widgetRender', { id: 'turny', turn: { tab: tab.id, at: first.at } }), /that turn's data is gone/)
   // a place for per workspace ones only
   const g = await rig.rpc('widgetNew', { name: 'App wide', ui: { type: 'text', value: 'x' }, sample: {} })

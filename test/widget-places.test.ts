@@ -77,7 +77,7 @@ test('row: a per-workspace one fetches every live workspace’s instance, not on
   make(rig, 'mark', { name: 'Mark', scope: 'workspace', place: 'row', badge: '{{n}}', fetch: 'printf \'{"n": "%s"}\' "$LAKI_WORKSPACE_NAME"', sample: { n: 'x' } })
   make(rig, 'glob', { name: 'Glob', fetch: 'echo {}', sample: {} })
   await rig.rpc('widgetReload')
-  await assert.rejects(rig.rpc('widgetSet', { id: 'glob', place: ['side', 'row'] }), /a row's mark is per workspace/)
+  await assert.rejects(rig.rpc('widgetSet', { id: 'glob', place: ['side', 'row'] }), /a row's mark and a turn's chip are per workspace/)
   const p = await rig.rpc('projectAdd', { path: rig.repo })
   const a = await rig.rpc('wsNew', { project: p.id, preset: 'none', name: 'one' })
   const b = await rig.rpc('wsNew', { project: p.id, preset: 'none', name: 'two' })

@@ -162,6 +162,6 @@ test("an extension run's gh calls: counted in its log line and Runs; GitHub's ra
   writeFileSync(join(rig.env.FAKE_GH, 'pr.json'), 'GraphQL: API rate limit already exceeded for user ID 1.')
   await rig.rpc('widgetAction', { id: 'g', action: 'limited' })
   seen = (await logs(rig, 'g')).lines.map((l: any) => `${l.level} ${l.src} ${l.text}`)
-  assert.ok(seen.some((l: string) => /^error action:limited failed \(action:limited\) in \d+ ms, exit 1, 0 B, gh 1×: GraphQL: API rate limit/.test(l)), seen.join('\n'))
+  assert.ok(seen.some((l: string) => /^error action:limited failed \(action:limited\) in \d+ ms, exit 1, 0 B, gh 1×, rate-limit: GraphQL: API rate limit/.test(l)), seen.join('\n'))
   assert.ok(seen.some((l: string) => /^warn action:limited GitHub's rate limit: one quota for every gh of yours\. Laki's own gh calls: \d+ since \d\d:\d\d/.test(l)), seen.join('\n'))
 })

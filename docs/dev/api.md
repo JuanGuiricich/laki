@@ -521,7 +521,7 @@ last 200 lines, all through `diagRedact` (the home folder as ~, share.ts' `redac
 what's before a URL's @, JSON's prompt/text/message…, `--prompt`, an alert's words). Help's head, About and ⌘K's *Copy
 diagnostics* (panels.tsx `CopyDiagnostics`) copy it. The daemon's uncaughtException and unhandledRejection (main.ts)
 count in `troubled`: the view's `trouble { n, last, at }`, the app's bar (Copy diagnostics, Restart the daemon: `shutdown
-{ keep: true }`, ×: until the next one). A hung daemon: its event loop watched by `monitorEventLoopDelay` (main.ts, every 2 s:
+{ keep: true }`, ×: until the next one). A hung daemon: its event loop watched by a 100 ms ticker of its own (main.ts, every 2 s; not `monitorEventLoopDelay`, whose `reset()` lost a block it hadn't ticked for yet:
 a tick more than 2 s late is one log line with how long and the API methods running or begun meanwhile, `running` and
 `begun` around `call()`, at most once a minute; `LAKI_TEST_BUSY=<method>` makes that method spin 3 s, restart.test.ts);
 the app's main pings it every 5 s while a window is open (2 s to answer, any answer counts), conn.ts' `pingStep`: 3 misses

@@ -8,7 +8,6 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import type { Socket } from 'node:net'
 import { dirname, extname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { monitorEventLoopDelay } from 'node:perf_hooks'
 import { WebSocketServer } from 'ws'
 import { chatImport, chatList } from './chats.ts'
 import { agentChat, aiAnswer, aiAsk, aiHelp, aiOpenApp, aiShot, aiChatRm, aiChats, aiContinue, aiEndpointKey, aiEndpointTest, aiForget, aiImage, aiKey, aiNew, aiOpen, aiPermission, aiQuestion, aiState, aiStop, aiTick, aiUnqueue, studioChatRm, studioChats, voiceModels, voiceText } from './ai.ts'
@@ -1295,17 +1294,24 @@ function agentLine(method: string, params: unknown, e?: unknown) {
 // known: the agent's tab a call's token is of (S12, /rpc only); app: the call came with the app's token (S1)
 // a blocked event loop (a hung daemon: main pings it, the window says so): a tick more than 2 s late is one line in the
 // log, with how late and the API methods running or begun in the last two looks (the one that blocked is among them: a
-// sync stretch ends before the look, and the look can run before the histogram's own timer has the late tick, which it
-// then sees one look later), at most once a minute
+// sync stretch ends before the look, and the look can run before the ticker's late tick, which it then sees one look
+// later), at most once a minute. A ticker of its own, not monitorEventLoopDelay: that histogram's reset() forgets its
+// last tick too, so a look run after a block but before the histogram's late tick lost the block for good
 const running: string[] = []
 let begun = new Set<string>()
 let begunBefore = new Set<string>()
-const loopDelay = monitorEventLoopDelay({ resolution: 20 })
-loopDelay.enable()
+const TICK = 100
+let tickAt = performance.now()
+let worst = 0
+setInterval(() => {
+  const now = performance.now()
+  worst = Math.max(worst, now - tickAt - TICK)
+  tickAt = now
+}, TICK).unref()
 let lateSaid = 0
 setInterval(() => {
-  const ms = loopDelay.max / 1e6
-  loopDelay.reset()
+  const ms = worst
+  worst = 0
   const who = [...new Set([...running, ...begun, ...begunBefore])].slice(0, 6)
   begunBefore = begun
   begun = new Set()
