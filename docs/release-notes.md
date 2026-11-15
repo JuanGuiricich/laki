@@ -5,6 +5,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
+- An extension can say what it needs (`"needs": { "bins": ["jq"], "laki": "0.54" }`): its cell says *Needs jq* when this Mac doesn't have it, the turn-on sheet ticks each, and *Check* asks for the programs its commands run.
 - An extension that fails says why in plain words with one fix: *Install* or *Sign in* opens a terminal with the command typed, *Retry*, or *Look*. Offline, it keeps its last data, *offline · 12 min old*, and isn't marked failing.
 
 ## 0.53.0 · Nov 14, 2026

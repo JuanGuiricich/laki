@@ -4,10 +4,10 @@
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { type WidgetRuns } from '../shared/types.ts'
-import { manifestCheck, SECRET, toolOf } from '../shared/widgetSchema.ts'
+import { actionCmd, binsIn, manifestCheck, needsOf, SECRET, toolOf } from '../shared/widgetSchema.ts'
 import { STARTER_KINDS, type StarterKind, STARTERS } from '../shared/widgetStarters.ts'
 import { reservedIn, uiCheck, type UiProblem } from '../shared/widgetUi.ts'
-import { agentRoots, configOf, dataOf, devRoots, type Entry, envOf, fetchable, find, foldersIn, guarded, home, htmlOf, idOf, isObj, keep, keyOf, type Manifest, manifestOf, metaOf, oneFile, onOf, optionsOf, pathOf, readStore, refetch, repoRoots, runs, RUNS, scanWidgets, scoped, type Source, sourceOf, sourceOk, stopAgents, storePath, templatesError, typedOf, under, whence, widgetHome, widgetRun, widgets, wLog, writeStore, wsEnv, wsOf } from './widgets.ts'
+import { agentRoots, binOn, configOf, dataOf, devRoots, type Entry, envOf, fetchable, find, foldersIn, guarded, home, htmlOf, idOf, isObj, keep, keyOf, type Manifest, manifestOf, metaOf, oneFile, onOf, optionsOf, pathOf, readStore, refetch, repoRoots, runs, RUNS, scanWidgets, scoped, type Source, sourceOf, sourceOk, stopAgents, storePath, templatesError, typedOf, under, whence, widgetHome, widgetRun, widgets, wLog, writeStore, wsEnv, wsOf } from './widgets.ts'
 import { stopStream, streaming, streamOf, streamSync } from './widgetEvents.ts'
 import { agentCaller, changed, settingsSet } from './core.ts'
 import { filesIn, statOf } from './widgetFiles.ts'
@@ -196,6 +196,13 @@ async function checkOne(x: Source, run: boolean, ws?: string, agent = false): Pr
   const mp = manifestCheck(m).map(p => (x.file ? { ...p, where: p.where.replace(/^widget\.json/, x.file), text: p.text.replace('no sample:', 'no <laki.sample>:') } : p))
   out.push(...mp)
   if (!mp.some(p => p.level === 'error')) say('ok', head, 'reads')
+  // R2: the programs its commands run, each in needs.bins (so Laki can say when one's missing), and those on this Mac
+  const needs = needsOf(m)
+  const cmds = [typeof m.fetch === 'string' && !x.file ? m.fetch : '', ...Object.values(isObj(m.actions) ? m.actions : {}).map(a => actionCmd(a) ?? '')]
+  const used = [...new Set(cmds.flatMap(binsIn))]
+  for (const b of used.filter(b => !needs.bins.includes(b))) say('warn', `${head} needs`, `${b}: its commands run it, not in needs.bins: add it ("needs": { "bins": [${[...needs.bins, b].map(n => JSON.stringify(n)).join(', ')}] }) and Laki says when a Mac doesn't have it`)
+  for (const b of needs.bins.filter(b => !binOn(b))) say('warn', `${head} needs`, `${b} isn't on this Mac's PATH (what its commands get)`)
+  if (needs.bins.length && needs.bins.every(binOn) && used.every(b => needs.bins.includes(b))) say('ok', `${head} needs`, `${needs.bins.join(', ')}: on this Mac`)
   if (typeof m.script === 'string') {
     const p = resolve(x.d, m.script)
     if (!p.startsWith(x.d + '/')) say('error', 'widget.json script', `${m.script} isn't in the extension's folder`)

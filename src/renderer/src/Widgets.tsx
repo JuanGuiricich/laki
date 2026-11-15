@@ -296,7 +296,12 @@ function Cell({ w, api, parked, load, style, cells, fit }: { w: WidgetView; api:
   const st = on ? ({ maxWidth: 'calc(4 * var(--widget-cell, 92px))', ...(fw > 0 && { '--fit-w': `${fw}px` }) } as CSSProperties) : style
   return (
     <div className={`widget ${w.full ? 'opens' : ''} ${w.button ? 'is-button' : ''} ${w.here === null ? 'no-ws' : ''} ${on ? 'fit' : ''}`} style={st} data-tip={tipOf(w)} onContextMenu={api.menu && (e => api.menu!(w, e))}>
-      {w.missing?.length ? (
+      {w.tooNew || w.missingBins?.length ? (
+        // R2: a program it runs isn't on this Mac, or it's for a newer Laki: say so, its page says more
+        <button className="widget-parked muted small" data-tip={w.tooNew ?? `${w.missingBins!.join(', ')}: not on the PATH its commands get`} onClick={() => api.settings(w.id)}>
+          {w.tooNew ? `Needs a newer Laki` : `Needs ${w.missingBins!.join(', ')}`}
+        </button>
+      ) : w.missing?.length ? (
         // a setting it needs is empty: say which, and open it there
         <button className="widget-parked muted small" onClick={() => api.settings(w.id, w.missing![0])}>
           Set {(o => o?.label || o?.key)(w.options.find(o => o.key === w.missing![0]))}

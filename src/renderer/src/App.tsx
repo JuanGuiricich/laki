@@ -2659,7 +2659,8 @@ export function App() {
     const proj = view?.projects.find(p => p.id === w.project)?.name ?? w.project
     const needs = w.options.filter(x => x.required || x.type === 'secret').map(x => `${x.label || x.key}${x.type === 'secret' ? ' (a secret, kept on this Mac)' : ''}${x.required ? ', needed' : ''}`)
     const from = w.project ? `It comes with ${proj}'s repo (.laki/extensions)` : "An agent linked its folder (laki widget dev): its code is the agent's"
-    const text = [`${from}${w.changed ? ', and its files changed there since you turned it on' : ''}.`, what.text.replace(/^`{3,}$/gm, '').replace(/\n{3,}/g, '\n\n'), needs.length ? `Its settings: ${needs.join('; ')}.` : '', w.project ? 'It shows and runs only in its workspaces.' : 'It turns off again as its files change.'].filter(Boolean).join('\n\n')
+    const bins = (w.needs ?? []).map(b => `${w.missingBins?.includes(b) ? '✗' : '✓'} ${b}`).join(', ') // R2: each on this Mac or not
+    const text = [`${from}${w.changed ? ', and its files changed there since you turned it on' : ''}.`, what.text.replace(/^`{3,}$/gm, '').replace(/\n{3,}/g, '\n\n'), bins ? `It needs: ${bins}.` : '', needs.length ? `Its settings: ${needs.join('; ')}.` : '', w.project ? 'It shows and runs only in its workspaces.' : 'It turns off again as its files change.'].filter(Boolean).join('\n\n')
     // S10: a file the sheet cut is opened whole before Turn on shows (the daemon refuses it until then too)
     const opened = new Set<string>()
     for (;;) {

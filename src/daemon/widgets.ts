@@ -6,14 +6,16 @@
 // widgetTools.ts, widgetTrust.ts, widgetFiles.ts and widgetDev.ts, which it re-exports.
 import { type ChildProcess } from 'node:child_process'
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
-import { existsSync, type FSWatcher, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, watch, writeFileSync } from 'node:fs'
+import { accessSync, constants, existsSync, type FSWatcher, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, watch, writeFileSync } from 'node:fs'
 import { readJson, writeAtomic } from '../shared/conn.ts'
 import { homedir, tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { AI_SOURCE_EVERY, BUTTON_PLACES, RETRY_KINDS, type LogLevel, type Preset, WIDGET_SOURCES, type WidgetSource, type Workspace, type WidgetOption, type WidgetTool, type WidgetRun, type WidgetPlace, type WidgetSize, type WidgetView, type WidgetHide, type WidgetCtx, type ActionFile, type WidgetFail, WIDGET_PLACES } from '../shared/types.ts'
 import { fill, hasFull, hasScript, openOk, pageOf, render, sayOf, templateError, viewOf, type WidgetSay } from '../shared/widget.ts'
 import { type Tone, TONES, uiHtml, uiTree } from '../shared/widgetUi.ts'
-import { actionCmd, actionMenu, aiActOf, type Fact, FACT_NAMES, gateOf, SAMPLE_FACTS, SIZES_ACROSS, toolOf } from '../shared/widgetSchema.ts'
+import { actionCmd, actionMenu, aiActOf, type Fact, FACT_NAMES, gateOf, needsOf, SAMPLE_FACTS, SIZES_ACROSS, toolOf } from '../shared/widgetSchema.ts'
+import { newer } from '../shared/update.ts'
+import { VERSION } from '../shared/version.ts'
 import { describeHours, inHours, parseHours } from '../shared/when.ts'
 import { iconTurns } from '../shared/icons.ts'
 import { WIDGET_EVERY } from '../shared/widgetGuide.ts'
@@ -46,14 +48,14 @@ export * from './widgetDev.ts'
 // ui: the UI kit's elements (widgetUi.ts), one tree or { preview, full }: widget.html's own view wins, ui fills the other
 type Spec = { type?: string; label?: string; hint?: string; default?: unknown; choices?: unknown[]; required?: boolean }
 type ActionDef = string | { run?: string; tool?: unknown; ai?: string; tools?: string; profile?: string } // a command, or one an agent may call too (widgetSchema.ts' toolOf), or a prompt an agent answers (aiActOf)
-export type Manifest = { name?: string; description?: string; size?: [number, number]; every?: number; view?: string; place?: string | string[]; scope?: string; on?: Record<string, string>; stream?: boolean; state?: unknown; fetch?: string; script?: string; config?: Record<string, unknown>; actions?: Record<string, ActionDef>; icon?: string; label?: string; badge?: string; tip?: string | false; click?: string; notify?: string; facts?: string[]; sample?: unknown; sampleConfig?: Record<string, unknown>; ui?: unknown; source?: unknown }
+export type Manifest = { name?: string; description?: string; size?: [number, number]; every?: number; view?: string; place?: string | string[]; scope?: string; on?: Record<string, string>; stream?: boolean; state?: unknown; fetch?: string; script?: string; config?: Record<string, unknown>; actions?: Record<string, ActionDef>; icon?: string; label?: string; badge?: string; tip?: string | false; click?: string; notify?: string; facts?: string[]; sample?: unknown; sampleConfig?: Record<string, unknown>; ui?: unknown; source?: unknown; needs?: unknown }
 // sample: made-up data in the shape its fetch prints (sampleConfig: settings for it), for a preview before it runs (widgetRender sample)
 // what's stored per widget: the user's choices over the manifest's (config: each setting as text), and the last fetch
 // (at: when it ran; error: why it failed); net: its page may reach https sites (the user's switch, never widget.json's)
 type Store = { fails?: number; fail?: WidgetFail; log?: boolean; hours?: string; trusted?: string; files?: Record<string, string>; changed?: boolean; source?: WidgetSource; on?: boolean; size?: [number, number]; fit?: boolean; every?: number; view?: string; place?: WidgetPlace | WidgetPlace[]; net?: boolean; hide?: WidgetHide; config?: Record<string, string>; data?: unknown; at?: number; error?: string; by?: 'ai'; aiMay?: number; mock?: string; told?: string; allow?: string[]; allowFor?: string } // hours: its own working hours over Settings' (always: none) // allowFor: aiKey as allow was given // fit: in a bar, as wide as it needs (Auto) // trusted: a repo's extension's folder as it was when you turned it on (dirHash), files: each of its files' (eachHash); changed: off because it changed since; log: keep a log (its Settings card's Keep a log, the user's only); allow: claude tools its agent may use unasked (Always, when it asked: widgetPermission); told: what its notify last said (keep); by: Laki AI wrote it (widgetWrite); aiMay: when an ask in its page's chat let Laki AI rewrite the user's own, once (AI_MAY); mock: data put there by hand (widgetMock: a fixture's name, or edited), not fetched
 // preview: widget.html has one; face: its button's words, filled from the last data (faceOf)
 type Face = { label?: string; badge?: string; tip?: string; tone?: Tone; hidden?: boolean } // tone: its data's own `tone`, one of the kit's (a row mark's color); hidden: its data's own `hidden: true`, shown nowhere until it isn't
-export type Entry = { id: string; dir: string; file?: string; project?: string; dev: boolean; devError?: string; agentDev?: boolean; m: Manifest; full: boolean; js: boolean; preview: boolean; face: Face; s: Omit<Store, 'data'>; inst: Map<string, InstMeta>; fixtures: string[] } // fixtures: fixtures/<name>.json at its scan, made-up data to preview it with // inst: a scope workspace one's instances (by workspace id), their last fetch // dev: in a folder laki widget dev linked; devError: why its files don't read now (the last good version runs on); agentDev: one an agent linked (settings.widgetDevAgent): trusted as a repo's
+export type Entry = { id: string; dir: string; file?: string; project?: string; dev: boolean; devError?: string; agentDev?: boolean; m: Manifest; full: boolean; js: boolean; preview: boolean; face: Face; s: Omit<Store, 'data'>; inst: Map<string, InstMeta>; fixtures: string[]; tooNew?: string; missingBins?: string[] } // tooNew (R2): needs.laki is newer than this build, why it never runs; missingBins: needs.bins not on its PATH (binOn, at its scan and as it's turned on) // fixtures: fixtures/<name>.json at its scan, made-up data to preview it with // inst: a scope workspace one's instances (by workspace id), their last fetch // dev: in a folder laki widget dev linked; devError: why its files don't read now (the last good version runs on); agentDev: one an agent linked (settings.widgetDevAgent): trusted as a repo's
 // scope workspace: an instance per live workspace, its data in <data>/widget-data/<id>/ws/<wsId>.json (the settings stay
 // the store's, shared); in memory its last fetch and its button's words
 type Inst = { data?: unknown; at?: number; error?: string; fail?: WidgetFail; mock?: string; told?: string; fails?: number } // fails: fetches failed in a row (due backs off; an offline one's don't count); fail: the last one's kind and hint (R1)
@@ -426,6 +428,10 @@ export function oneFile(d: string, file: string): (Manifest & { seconds?: number
   const tag = (k: string) => new RegExp(`<laki\\.${k}>([\\s\\S]*?)</laki\\.${k}>`).exec(text)?.[1].trim()
   const m: Manifest & { seconds?: number } = { name: tag('name') || file.split('.')[0] }
   for (const k of ['description', 'icon', 'label', 'badge', 'tip'] as const) if (tag(k)) m[k] = tag(k)
+  // R2: <laki.needs>jq gh</laki.needs>, a laki 0.54 among them; or widget.json's JSON ({ "bins", "laki" })
+  const needs = tag('needs')
+  const LAKI_AT = /\blaki\s*(?:>=|@)?\s*(\d+(?:\.\d+){0,2})\b/
+  if (needs) m.needs = needs.startsWith('{') ? (() => { try { return JSON.parse(needs) } catch { return undefined } })() : { bins: needs.replace(LAKI_AT, ' ').split(/[\s,]+/).filter(Boolean), ...(v => v && { laki: v[1] })(LAKI_AT.exec(needs)) }
   if (tag('scope')) m.scope = tag('scope')
   const place = tag('place')
   if (place) m.place = place.includes(',') ? place.split(',').map(x => x.trim()) : place
@@ -492,6 +498,7 @@ export function scanWidgets() {
   const before = new Map(widgets)
   widgets.clear()
   masks.clear() // widget.json's settings read again
+  bins.clear() // its programs looked for again (R2)
   rev++
   const dev = devRoots()
   // yours first, then the repos' (<project>.<id>: never over yours)
@@ -514,6 +521,7 @@ export function scanWidgets() {
       const own = dev.filter(r => under(pathOf({ d, file }), r)).sort((a, b) => b.length - a.length)[0] // the nearest linked folder decides: yours inside an agent's stays yours
       const agentDev = !!own && !project && agentRoots().includes(own)
       const e: Entry = { id, dir: d, file, ...(project && { project }), ...(agentDev && { agentDev }), dev: isDev, devError: bad, m, full: hasFull(html) || !!uiTree(m.ui, true), js: hasScript(html), preview: !!viewOf(html, false)?.trim() || !!uiTree(m.ui, false), face: {}, s, inst: new Map(), fixtures: file ? [] : fixtureNames(d).map(n => n.slice(0, -5)) }
+      needsRead(e)
       e.face = faceOf(e, data)
       if (scoped(e)) e.inst = instsOf(id, e)
       widgets.set(id, e)
@@ -666,7 +674,29 @@ const sizeOf = (w: Entry): [number, number] => {
   return [clamp(a, 1, ACROSS, 1), down(b)]
 }
 const everyOf = (w: Entry) => (sourceOf(w).kind === 'ai' ? clamp(w.s.every ?? w.m.every, 15, 1440, AI_SOURCE_EVERY) : clamp(w.s.every ?? w.m.every, 1, 1440, WIDGET_EVERY)) // an agent's run costs: every 15 minutes at most
-export const onOf = (w: Entry) => !!w.s.on // every extension starts off: Settings › Extensions turns it on
+export const onOf = (w: Entry) => !!w.s.on && !w.tooNew // every extension starts off: Settings › Extensions turns it on; one for a newer Laki never runs (R2)
+// R2: needs.bins, each looked for on the PATH its commands get (exec's env: the login shell's, as command -v would), once
+// per scan (and as one is turned on: the cache cleared). ponytail: a program, not a shell function or alias
+const bins = new Map<string, boolean>()
+export function binOn(bin: string) {
+  let on = bins.get(bin)
+  if (on === undefined) {
+    on = (plainEnv().PATH ?? '').split(':').some(d => {
+      try {
+        return !!d && (accessSync(join(d, bin), constants.X_OK), statSync(join(d, bin)).isFile())
+      } catch {
+        return false
+      }
+    })
+    bins.set(bin, on)
+  }
+  return on
+}
+const needsRead = (e: Entry) => {
+  const n = needsOf(e.m)
+  e.tooNew = n.laki && newer(n.laki, VERSION) ? `needs Laki ${n.laki} or newer: this is ${VERSION}. Update Laki to run it` : undefined
+  e.missingBins = (m => (m.length ? m : undefined))(n.bins.filter(b => !binOn(b)))
+}
 // an off one runs nothing, its fetch nor its actions (its page's clicks and scripts, a preview's too): one Laki AI wrote
 // is off until you've looked at it
 export const OFF = (w: Entry) => `${w.m.name || w.id} is off: turn it on first`
@@ -748,6 +778,9 @@ export const widgetsView = (): WidgetView[] =>
     at: w.s.at,
     error: w.s.error,
     fail: w.s.error ? w.s.fail : undefined,
+    ...((n => n.length && { needs: n })(needsOf(w.m).bins)),
+    missingBins: w.missingBins,
+    tooNew: w.tooNew,
     running: running.has(w.id) || undefined,
     agent: agents.has(w.id) || undefined,
     ...(scoped(w) && { scope: 'workspace' as const, inst: instView(w) }),
@@ -915,6 +948,8 @@ export function widgetSet(o: { id: string; seen?: string; log?: boolean; source?
     if (w.dir !== join(widgetHome(), w.id)) throw new Error(`${w.m.name ?? w.id} isn't in Laki's folder: Laki AI can't change it`)
     s.aiMay = Date.now()
   }
+  if (o.on === true && w.tooNew) throw new Error(`${w.m.name || w.id} ${w.tooNew}`)
+  if (o.on === true) bins.clear(), needsRead(w) // its programs looked for again: one installed since
   if (o.on === true && !s.on) s.mock = undefined // turned on: live, not the sample data put there while it was off (the studio's)
   if (o.on !== undefined) s.on = !!o.on
   if (o.on === false) ungrant(w.id), stopAgents(w.id) // off: its tools' Always go, its agents stop

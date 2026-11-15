@@ -196,6 +196,7 @@ export const MANIFEST: Record<string, J> = {
     properties: { kind: { enum: ['fetch', 'static', 'file', 'url', 'ai'], description: 'fetch: its own fetch or script; static: the text below; file: a file read each time (JSON, else { "text" }); url: an http(s) page read each time; ai: an agent (claude or codex, with the user’s own MCP servers) answers prompt, its last ```json block the data' }, text: str('With static: JSON, or words (its data: { "text" })'), path: str('With file: its path (~ is home; relative: the extension’s folder; {{config.x}}, {{workspace.path}})'), url: str('With url: the address ({{config.x}} too)'), prompt: str('With ai: what the agent finds and sums up ({{config.x}}, {{workspace.branch}} too); it answers in the shape of sample'), tools: str('With ai, claude: the tools it may use unasked, by name, comma-separated (mcp__slack, WebFetch, Bash(gh pr list:*)); others are refused'), profile: str('With ai: a claude or codex profile of Settings › Agents & profiles (unset: Settings › Extensions’ agent)') },
     description: 'Where its data comes from at first: the user picks another on its card (Own script, Static, File, URL, AI)',
   },
+  needs: { type: 'object', additionalProperties: false, properties: { bins: { type: 'array', items: { type: 'string', pattern: '^[\\w.+-]+$' }, description: 'Programs its commands run that a Mac may not have (jq, gh, python3): looked for on the PATH its commands get; one that isn’t there is said on its cell (Needs jq) and before it’s turned on' }, laki: { type: 'string', pattern: '^\\d+(\\.\\d+){0,2}$', description: 'The oldest Laki it runs on (0.54): an older one shows it with that error and never runs it' } }, description: 'What it needs to run: programs and a Laki version' },
   sample: { description: 'Made-up data in the shape its data takes, for its preview before it runs (needed with a fetch, a script, a file or a URL)' },
   sampleConfig: { type: 'object', description: 'Settings to show the sample with' },
   ui: { description: 'What it draws with the UI kit (Settings › Extensions › UI kit, laki widget kit): one element, or { "preview", "full" }', allOf: [{ $ref: '#/definitions/ui' }] },
@@ -320,9 +321,42 @@ function menuCheck(where: string, c: Record<string, unknown>, say: (level: UiPro
 // a command that reaches past this Mac: a tool that never asks gets check's warning
 const OUTWARD = /\bgit\s+push\b|\bgh\s+(pr|release|issue|api)\b|\bcurl\b[^|;&]*-X\s*(POST|PUT|PATCH|DELETE)|\bdeploy|\bnpm\s+publish\b|\bkubectl\s+(apply|delete)\b/i
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/
+// R2: widget.json's needs, read leniently (manifestCheck says what's wrong): its programs' names, its oldest Laki
+export const NEED_BIN = /^[\w.+-]+$/
+export const NEED_LAKI = /^\d+(\.\d+){0,2}$/
+export function needsOf(m: { needs?: unknown }): { bins: string[]; laki?: string } {
+  const n = isObj(m.needs) ? m.needs : {}
+  const bins = Array.isArray(n.bins) ? [...new Set(n.bins.filter((b): b is string => typeof b === 'string').map(b => b.trim()).filter(b => NEED_BIN.test(b)))].slice(0, 32) : []
+  return { bins, ...(typeof n.laki === 'string' && NEED_LAKI.test(n.laki.trim()) && { laki: n.laki.trim() }) }
+}
+// the programs a shell command runs: each segment's first word (|, &&, ||, ;, a line, $( ), past VAR=x and sudo, exec,
+// command, env), not a builtin, a path, a variable or what every Mac has (BASE). ponytail: the command line only, not the
+// scripts it runs; quotes aren't parsed (a | inside one starts a segment whose first word is then skipped as odd)
+const BUILTIN = new Set('alias bg break cd command continue echo eval exec exit export false fc fg getopts hash jobs kill local printf pwd read readonly return set shift source test times trap true type ulimit umask unalias unset wait if then else elif fi for while until do done case esac in function select time [ [[ . : !'.split(' '))
+const BASE = new Set('sh bash zsh dash cat grep egrep fgrep sed awk head tail cut tr sort uniq wc date basename dirname mkdir rmdir rm cp mv ln ls find xargs env sleep tee touch stat expr seq od base64 dd uname id whoami hostname ps open defaults osascript curl git plutil sw_vers security pbcopy pbpaste diff cmp comm paste join fold fmt nl rev jot md5 shasum openssl tar gzip gunzip zip unzip file du df mktemp realpath readlink chmod chown pgrep pkill lsof perl sqlite3 laki'.split(' '))
+export function binsIn(cmd: string): string[] {
+  const out = new Set<string>()
+  for (const seg of cmd.replace(/\\\n/g, ' ').split(/\|\||&&|\$\(|[|;&\n()`]/)) {
+    const words = seg.trim().split(/\s+/).filter(Boolean)
+    let i = 0
+    while (i < words.length && (/^[A-Za-z_]\w*=/.test(words[i]) || ['sudo', 'exec', 'command', 'env', 'nohup', 'time', 'then', 'else', 'do', '!', '{'].includes(words[i]))) i++
+    const w = words[i]
+    if (w && NEED_BIN.test(w) && !w.startsWith('.') && !BUILTIN.has(w) && !BASE.has(w)) out.add(w)
+  }
+  return [...out]
+}
 export function manifestCheck(m: Record<string, unknown>): UiProblem[] {
   const out: UiProblem[] = []
   const say = (level: UiProblem['level'], where: string, text: string) => out.push({ level, where, text })
+  if (m.needs !== undefined) {
+    const n = m.needs
+    if (!isObj(n)) say('error', 'widget.json needs', '{ "bins": ["jq", "gh"], "laki": "0.54" }')
+    else {
+      for (const k of Object.keys(n)) if (k !== 'bins' && k !== 'laki') say('warn', 'widget.json needs', `no key ${k}${(x => (x ? ` (did you mean ${x}?)` : ''))(near(k, ['bins', 'laki']))}`)
+      if (n.bins !== undefined && !(Array.isArray(n.bins) && n.bins.every(b => typeof b === 'string' && NEED_BIN.test(b.trim())))) say('error', 'widget.json needs.bins', 'programs by name, like ["jq", "gh"]')
+      if (n.laki !== undefined && !(typeof n.laki === 'string' && NEED_LAKI.test(n.laki.trim()))) say('error', 'widget.json needs.laki', `a version, like "0.54", not ${JSON.stringify(n.laki)}`)
+    }
+  }
   const keys = Object.keys(MANIFEST)
   for (const k of Object.keys(m)) if (!keys.includes(k)) say('warn', 'widget.json', `no key ${k}${(n => (n ? ` (did you mean ${n}?)` : ''))(near(k, keys))}`)
   for (const k of ['name', 'description', 'fetch', 'script', 'icon', 'label', 'badge', 'tip', 'click', 'notify'])

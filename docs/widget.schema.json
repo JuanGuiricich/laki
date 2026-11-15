@@ -522,6 +522,26 @@
       },
       "description": "Where its data comes from at first: the user picks another on its card (Own script, Static, File, URL, AI)"
     },
+    "needs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[\\w.+-]+$"
+          },
+          "description": "Programs its commands run that a Mac may not have (jq, gh, python3): looked for on the PATH its commands get; one that isn’t there is said on its cell (Needs jq) and before it’s turned on"
+        },
+        "laki": {
+          "type": "string",
+          "pattern": "^\\d+(\\.\\d+){0,2}$",
+          "description": "The oldest Laki it runs on (0.54): an older one shows it with that error and never runs it"
+        }
+      },
+      "description": "What it needs to run: programs and a Laki version"
+    },
     "sample": {
       "description": "Made-up data in the shape its data takes, for its preview before it runs (needed with a fetch, a script, a file or a URL)"
     },

@@ -78,6 +78,9 @@ number; put the words in \`tip\`. Add them only when the user asks.
   \`sample\` (Laki's own hide them). To fail, exit non-zero with a line on stderr ("Set Repo in Settings › Extensions"): the last
   data stays. 2 minutes at most. Prefer what every Mac has (sh with curl, gh, jq; python3's standard library; a JS
   script) and shape the data there: small, with ready fields (\`"ci": "failing"\`): templates have no comparisons.
+- \`needs\`: \`{ "bins": ["jq", "gh"], "laki": "0.54" }\`: the programs its commands run that a Mac may lack (its cell says
+  *Needs jq* when one isn't on its PATH, and the turn-on sheet lists each) and the oldest Laki it runs on. Check warns at
+  a program its commands run that isn't listed.
   To show nothing for now (no PR on this branch, nothing to say), add \`"hidden": true\` to the data: it vanishes from
   every place (bars, sidebar, rail, foot, Desk, panel, row marks) until data without it comes; Settings still lists it.
 - Its env: \`$WIDGET_<NAME>\` per setting (\`repo\`: \`$WIDGET_REPO\`; an on/off \`1\` or empty, a list comma-joined; quote
@@ -173,7 +176,8 @@ ${Object.entries(FACTS).map(([k, v]) => `  - \`${k}\`: ${v}`).join('\n')}
 - One file is a whole extension too: \`prs.5m.sh\` (its id, how often: \`5m\`, \`1h\`), executable or with a \`#!\` line,
   printing JSON, its widget.json in comment lines: \`<laki.name>PRs</laki.name>\`, \`<laki.place>status</laki.place>\`,
   \`<laki.size>2x1</laki.size>\`, \`<laki.ui>{"type": "text", "value": "{{n}} open"}</laki.ui>\`, \`<laki.sample>{"n": 3}</laki.sample>\`, settings as
-  \`<laki.var>text(REPO="acme/web"): Repo</laki.var>\` (text, number, bool, choice(a,b)), \`$WIDGET_REPO\` in it.
+  \`<laki.var>text(REPO="acme/web"): Repo</laki.var>\` (text, number, bool, choice(a,b)), \`$WIDGET_REPO\` in it;
+  \`<laki.needs>jq gh laki 0.54</laki.needs>\` its needs.
 
 ## The UI kit: "ui" (prefer it)
 

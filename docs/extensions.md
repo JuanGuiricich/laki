@@ -87,6 +87,18 @@ A file's or URL's JSON is its data; anything else (Markdown, plain text) is `{ "
 element shows (`{ "type": "markdown", "value": "{{text}}" }`: the *note* starter). A path or URL may name settings and
 the workspace: `{{config.repo}}`, `{{workspace.path}}/TODO.md`. A failed read keeps the last data, as a fetch does.
 
+### What it needs (`needs`)
+
+```json
+{ "needs": { "bins": ["jq", "gh"], "laki": "0.54" } }
+```
+
+`bins`: the programs its commands run that a Mac may not have. Laki looks for each on the PATH its commands get (your
+login shell's), as it reads the extension and again as you turn it on: one that isn't there makes its cell say *Needs
+jq*, and *Try it live*'s and *Turn on*'s sheets list each with ✓ or ✗. `laki`: the oldest Laki it runs on; an older one
+lists it with that error and never runs it. *Check* warns at a program its commands run that `bins` leaves out (the
+first word of each part of a pipeline or list, not a shell builtin, a path or what every Mac has: `cat`, `curl`, `git`…).
+
 ### Settings (`config`)
 
 Each setting is a default or `{ "type", "label", "hint", "default", "choices", "required" }`, `type` one of `text`, `number`,
@@ -784,7 +796,7 @@ laki widget check deploys        # by its id, or a folder (laki widget check . i
 ```
 
 It reads `widget.json` (unknown keys, the kinds of its fields, `place`, `size`, `every`, `view`, `config`'s specs and
-choices, `click`, `script` in the folder, `fetch` or `script`), each template of `widget.html` and `ui`, then `ui`
+choices, `click`, `script` in the folder, `fetch` or `script`, `needs` and the programs its commands run), each template of `widget.html` and `ui`, then `ui`
 (unknown elements and props, a `run` that names no action, icons) against its `sample` and each `fixtures/*.json` (each
 `each` a list, the fields its rows use in at least one item, a chart's numbers), and runs its fetch once (as *Fetch
 now*), checking `ui` against what it printed. ✗ is an error (it exits 1), ! a hint. One Laki AI wrote isn't run while
@@ -810,7 +822,7 @@ gh pr list -R "$WIDGET_REPO" --json number --jq '{n: length}'
 
 Tags: `name`, `description`, `place` (one or a comma list), `icon`, `label`, `badge`, `tip`, `size`, `ui` and `sample`
 (a line of JSON each), and settings as `<laki.var>type(NAME="default"): Label</laki.var>` (`text`, `number`, `bool`,
-`choice(a,b)`), given as `$WIDGET_NAME`. Seconds (`.30s.`) are refused: at most once a minute. Renaming the file changes
+`choice(a,b)`), given as `$WIDGET_NAME`; `<laki.needs>jq gh laki 0.54</laki.needs>` its needs. Seconds (`.30s.`) are refused: at most once a minute. Renaming the file changes
 its id (its settings stay under the old one: *Check* says so).
 
 ## Dev mode

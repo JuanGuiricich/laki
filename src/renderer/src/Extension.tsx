@@ -420,6 +420,21 @@ function runsOf(files: Record<string, string>): Runs {
 
 // Try it live and Turn on: exactly what will run (its fetch or script, each action's command, a JS page's network),
 // then one fetch while off (widgetRun once), or on
+// R2: the programs it needs (widget.json's needs.bins), each on this Mac's PATH or not
+function Needs({ w }: { w: WidgetView }) {
+  return (
+    <>
+      <b className="small">It needs</b>
+      <p className="mono small">
+        {(w.needs ?? []).map(b => (
+          <span key={b} className={w.missingBins?.includes(b) ? 'bad' : 'good'} data-tip={w.missingBins?.includes(b) ? 'Not on the PATH its commands get: install it first' : 'On this Mac'}>
+            {w.missingBins?.includes(b) ? '✗' : '✓'} {b}{' '}
+          </span>
+        ))}
+      </p>
+    </>
+  )
+}
 function TrySheet({ w, on, cfg, onClose, onRan, onOn }: { w: WidgetView; on: boolean; cfg: WidgetsApi; onClose: () => void; onRan: () => void; onOn: () => void }) {
   const [r, setR] = useState<Runs | null>(null)
   const [hash, setHash] = useState<string>() // its files as shown: Turn on holds only for them (widgetSet seen)
@@ -477,6 +492,7 @@ function TrySheet({ w, on, cfg, onClose, onRan, onOn }: { w: WidgetView; on: boo
             </>
           )}
           {!r.fetch && !r.script && !ai && !r.actions.length && <p className="muted small">It runs nothing: what it shows is its own page.</p>}
+          {!!w.needs?.length && <Needs w={w} />}
           {w.js && (
             <Switch className="switch-row" on={!!w.net} onChange={net => void cfg.set(w.id, { net })}>
               <span>Network access: its page may fetch() from https sites</span>
