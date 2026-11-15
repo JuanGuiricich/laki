@@ -187,7 +187,8 @@ export function WidgetBody({ w, full, api, sample, cells, onSize, turn, still }:
         style.textContent = WIDGET_CSS
         root.replaceChildren(style, clean(html ?? ''))
         diagramsIn(root, () => live)
-        const keys = sample || turn || !now.current.api.term ? [] : [...new Set([...root.querySelectorAll<HTMLElement>('.k-term[data-term]')].map(e => e.dataset.term!))]
+        // its terminals: not a sample's, a turn's, nor a peek's (still: the command's words, nothing started)
+        const keys = sample || turn || still || !now.current.api.term ? [] : [...new Set([...root.querySelectorAll<HTMLElement>('.k-term[data-term]')].map(e => e.dataset.term!))]
         setTerms(t => (t.join() === keys.join() ? t : keys))
       },
       e => live && setErr(String(e?.message ?? e)),

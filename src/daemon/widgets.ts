@@ -375,8 +375,10 @@ export function widgetsGone(ws: string) {
   try {
     ids = readdirSync(join(dir, 'widget-data'), { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name) // <id>/ws/: beside each <id>.json
   } catch {}
-  for (const id of ids) rmSync(instPath(id, ws), { force: true })
+  for (const id of ids) rmSync(instPath(id, ws), { force: true }), rmSync(kvPath(id, ws), { force: true }) // its data and its store
   for (const w of widgets.values()) w.inst.delete(ws)
+  annots.delete(ws), annotAt.delete(ws) // its diff notes (P6)
+  for (const [id, t] of [...terms]) if (t.ws === ws) termStop(id) // its terminals (K1)
   for (const k of [...runs.keys()]) if (k.endsWith(`@${ws}`)) runs.delete(k)
   for (const k of [...facts.keys()]) if (k.endsWith(`@${ws}`)) facts.delete(k)
   if (state.widgetGrants?.[ws]) delete state.widgetGrants[ws] // its tools' Always (dropWs saves)
@@ -926,7 +928,7 @@ export function widgetPage(id: string, query: URLSearchParams): { code: number; 
 // the extension goes off or is deleted, or once no window looked at it for TERM_IDLE (an ended command's last screen
 // stays till then). Never a JS page's (the app asks, from the kit's HTML), nor an agent's or the phone's (gates.ts)
 const TERM_IDLE = 10 * 60_000
-const terms = new Map<string, { widget: string; seen: number; off: () => void }>()
+const terms = new Map<string, { widget: string; ws?: string; seen: number; off: () => void }>()
 export function widgetTerm(o: { id: string; key: string; ws?: string }) {
   const w = find(o.id)
   if (!onOf(w)) throw new Error(OFF(w))
@@ -940,7 +942,8 @@ export function widgetTerm(o: { id: string; key: string; ws?: string }) {
   const cwd = el.cwd ? resolve(root, el.cwd) : root
   const s = new Session(id, '/bin/sh', ['-c', el.run], { cwd: existsSync(cwd) ? cwd : root, env: { ...envOf(w, wsEnv(w, x)), TERM: 'xterm-256color' }, cols: 100, rows: 24 })
   sessions.set(id, s)
-  terms.set(id, { widget: w.id, seen: Date.now(), off: ownPid(s.pty.pid, `${w.m.name || w.id}: ${el.run.slice(0, 60)}`, `term:${id}`) })
+  t?.off() // its session gone: its Resources row too
+  terms.set(id, { widget: w.id, ws: x?.id, seen: Date.now(), off: ownPid(s.pty.pid, `${w.m.name || w.id}: ${el.run.slice(0, 60)}`, `term:${id}`) })
   wLog(w, `terminal: ${el.run}${x ? ` in ${x.name ?? x.id}` : ''}`)
   return { tab: id }
 }
@@ -957,8 +960,9 @@ function termTick(now: number) {
   for (const [id, t] of terms) {
     const s = sessions.get(id)
     if (!s) terms.delete(id), t.off()
-    else if (s.attachedClients().length) t.seen = now
-    else if (now - t.seen > TERM_IDLE) termStop(id)
+    else if (s.exited) (t.off(), (t.off = () => {})) // ended: its last screen stays till the idle stop, not its row in Resources
+    if (s?.attachedClients().length) t.seen = now
+    else if (s && now - t.seen > TERM_IDLE) termStop(id)
   }
 }
 
@@ -981,6 +985,8 @@ export async function widgetStore(o: { id: string; op: string; key?: unknown; va
     const tab = state.tabs.find(t => t.id === o.from!.tab)
     await approve(w, `store ${o.op}`, { description: `Its store: ${o.op} ${key}`, ask: 'always', input: { key, ...(o.op === 'set' && { value: o.value }) }, ws: x?.id ?? tab?.workspace, tab: tab?.id, agent: tab?.name })
   }
+  // ponytail: read, changed and written whole with no lock: a script's store write at the same moment loses one of
+  // the two; a lock file if extensions ever write it from both sides at once
   if (o.op === 'set') all[key] = o.value
   else delete all[key]
   const text = JSON.stringify(all)

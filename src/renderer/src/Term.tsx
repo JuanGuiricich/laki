@@ -262,7 +262,7 @@ export function Term({
     let alive = true
     const attach = async (quiet = false) => {
       try {
-        const r = await api.call('attach', { tab, cols: term.cols, rows: term.rows })
+        const r = await api.call('attach', { tab, cols: term.cols, rows: term.rows, ...(readOnly && { ro: true }) }) // ro: it can't answer the program's queries (disableStdin), so never the responder
         if (!alive) return
         term.reset()
         term.write(r.snapshot, where) // the scroll button as the snapshot leaves it

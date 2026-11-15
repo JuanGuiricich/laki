@@ -337,7 +337,7 @@ async function handle(id: string, j: Job) {
   writeFileSync(file, j.json, { mode: 0o600 })
   const ev = { env: { LAKI_EVENT: j.name, LAKI_EVENT_FILE: file, LAKI_EVENT_HOPS: String(j.hops), ...(j.agent && { LAKI_EVENT_AGENT: j.agent }) }, stdin: j.json, gone: j.gone }
   if (j.agent) handling.set(id, j.agent)
-  const marks = j.name === 'turn.done' && j.tab && j.ws && placesOf(w).includes('turn') && scoped(w) ? dataOf(w, j.ws).at : false // P5: its data before, to tell this turn's
+  const marks = j.name === 'turn.done' && !!j.tab && !!j.ws && placesOf(w).includes('turn') && scoped(w) // P5: a turn chip after it (turnMark: data newer than the turn's end)
   try {
     if (j.h === 'refresh' && j.gone) wLog(w, `event ${j.name}: not fetched: ${j.gone.name} is gone, nothing to keep (an action runs on it)`)
     else if (j.h === 'refresh') {
@@ -347,7 +347,7 @@ async function handle(id: string, j: Job) {
       const r = await widgetAction({ id, action: j.h, ws: j.ws }, `event:${j.name}`, ev)
       if (r.ok && (r.toast || r.modal || r.close)) broadcast({ ev: 'widget-say', widget: id, ws: j.ws, toast: r.toast, modal: r.modal, close: r.close })
     }
-    if (marks !== false) turnMark(w, j)
+    if (marks) turnMark(w, j)
   } finally {
     rmSync(file, { force: true })
     handling.delete(id)

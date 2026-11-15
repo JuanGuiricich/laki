@@ -59,4 +59,5 @@ test('binsIn: each segment’s first word, past assignments and sudo; not builti
   assert.deepEqual(binsIn('A=1 B=2 jq . | sudo rg x && ./run.sh; $LAKI_CLI x; cat f | yq'), ['jq', 'rg', 'yq'])
   assert.deepEqual(binsIn('echo "$(node -v)" `deno --version`'), ['node', 'deno'])
   assert.deepEqual(binsIn('if test -f x; then gh api y; fi'), ['gh'])
+  assert.deepEqual(binsIn('gh pr list 2>&1 | jq . >&2; rg x &>/dev/null'), ['gh', 'jq', 'rg'], 'a redirection’s & starts nothing')
 })

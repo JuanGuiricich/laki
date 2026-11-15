@@ -689,6 +689,7 @@ export function uiBehave(root: { addEventListener: (t: string, f: (e: any) => vo
   }
   // a table drawn anew (new data): sorted again as it was
   const drawn = () => {
+    if (!sorted.size) return // nothing sorted: every other change (a clock, a tooltip) costs nothing
     const ts = all('.k-table')
     sorted.forEach(([j, dir], i) => ts[i] && !ts[i].querySelector('th[aria-sort$="ending"]') && sortBy(ts[i], j, dir))
   }
@@ -859,7 +860,8 @@ export function uiBehave(root: { addEventListener: (t: string, f: (e: any) => vo
     const ch = t?.closest('.k-chart')
     if (!t || !ch) return
     if (e.type === 'mouseout') {
-      if (!(e.relatedTarget as Element | null)?.closest?.('.k-chart [data-tip]')) ch.querySelectorAll('.k-ch-tip, .k-ch-hov').forEach(x => x.remove())
+      const to = (e.relatedTarget as Element | null)?.closest?.('.k-chart [data-tip]')
+      if (to?.closest('.k-chart') !== ch) ch.querySelectorAll('.k-ch-tip, .k-ch-hov').forEach(x => x.remove()) // off its points, or onto another chart's
       return
     }
     const doc = ch.ownerDocument

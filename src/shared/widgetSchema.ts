@@ -354,18 +354,18 @@ export function needsOf(m: { needs?: unknown }): { bins: string[]; laki?: string
   return { bins, ...(typeof n.laki === 'string' && NEED_LAKI.test(n.laki.trim()) && { laki: n.laki.trim() }) }
 }
 // the programs a shell command runs: each segment's first word (|, &&, ||, ;, a line, $( ), past VAR=x and sudo, exec,
-// command, env), not a builtin, a path, a variable or what every Mac has (BASE). ponytail: the command line only, not the
+// command, env; a redirection's & isn't one: 2>&1, &>), not a builtin, a path, a variable, a number or what every Mac has (BASE). ponytail: the command line only, not the
 // scripts it runs; quotes aren't parsed (a | inside one starts a segment whose first word is then skipped as odd)
 const BUILTIN = new Set('alias bg break cd command continue echo eval exec exit export false fc fg getopts hash jobs kill local printf pwd read readonly return set shift source test times trap true type ulimit umask unalias unset wait if then else elif fi for while until do done case esac in function select time [ [[ . : !'.split(' '))
 const BASE = new Set('sh bash zsh dash cat grep egrep fgrep sed awk head tail cut tr sort uniq wc date basename dirname mkdir rmdir rm cp mv ln ls find xargs env sleep tee touch stat expr seq od base64 dd uname id whoami hostname ps open defaults osascript curl git plutil sw_vers security pbcopy pbpaste diff cmp comm paste join fold fmt nl rev jot md5 shasum openssl tar gzip gunzip zip unzip file du df mktemp realpath readlink chmod chown pgrep pkill lsof perl sqlite3 laki'.split(' '))
 export function binsIn(cmd: string): string[] {
   const out = new Set<string>()
-  for (const seg of cmd.replace(/\\\n/g, ' ').split(/\|\||&&|\$\(|[|;&\n()`]/)) {
+  for (const seg of cmd.replace(/\\\n/g, ' ').replace(/[<>]&|&>/g, '>').split(/\|\||&&|\$\(|[|;&\n()`]/)) {
     const words = seg.trim().split(/\s+/).filter(Boolean)
     let i = 0
     while (i < words.length && (/^[A-Za-z_]\w*=/.test(words[i]) || ['sudo', 'exec', 'command', 'env', 'nohup', 'time', 'then', 'else', 'do', '!', '{'].includes(words[i]))) i++
     const w = words[i]
-    if (w && NEED_BIN.test(w) && !w.startsWith('.') && !BUILTIN.has(w) && !BASE.has(w)) out.add(w)
+    if (w && NEED_BIN.test(w) && !/^\d+$/.test(w) && !w.startsWith('.') && !BUILTIN.has(w) && !BASE.has(w)) out.add(w)
   }
   return [...out]
 }

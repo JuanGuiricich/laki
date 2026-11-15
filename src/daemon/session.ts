@@ -72,7 +72,7 @@ export class Session {
   private muted = false // R6: an adopted terminal's earlier output drawn again (replay): its old queries get no answer, its old hooks and reports aren't heard twice
   readonly term: InstanceType<typeof headless.Terminal>
   private ser = new serializeAddon.SerializeAddon()
-  private clients = new Map<Client, { ready: boolean; pending: string[]; size?: [number, number] }>() // size: the client's own
+  private clients = new Map<Client, { ready: boolean; ro?: boolean; pending: string[]; size?: [number, number] }>() // size: the client's own
   responder: Client | null = null
   exited = false
   exitCode = 0
@@ -177,10 +177,11 @@ export class Session {
   }
 
   // attach hands the snapshot to reply; live data for this client follows it, in order, on the same channel.
-  // reply gets null when a newer attach (or a detach) of the same client came first.
-  attach(c: Client, cols: number | undefined, rows: number | undefined, reply: (r: { snapshot: string; cols: number; rows: number } | null) => void) {
+  // reply gets null when a newer attach (or a detach) of the same client came first. ro: one that only shows it (an
+  // extension's terminal in a cell): it can't answer queries, so it never becomes the responder
+  attach(c: Client, cols: number | undefined, rows: number | undefined, reply: (r: { snapshot: string; cols: number; rows: number } | null) => void, ro = false) {
     if (cols && rows) this.resize(cols, rows)
-    const st = { ready: false, pending: [] as string[], size: cols && rows ? ([cols, rows] as [number, number]) : undefined }
+    const st = { ready: false, ro, pending: [] as string[], size: cols && rows ? ([cols, rows] as [number, number]) : undefined }
     this.clients.set(c, st)
     // the callback runs once the headless terminal parsed everything written so far
     this.term.write('', () => {
@@ -189,7 +190,7 @@ export class Session {
       for (const d of st.pending) c.send({ ev: 'data', tab: this.tab, d })
       st.ready = true
       st.pending = []
-      this.setResponder(c)
+      if (!ro) this.setResponder(c)
     })
   }
 
@@ -197,7 +198,7 @@ export class Session {
     if (!this.clients.delete(c)) return
     this.lookedAt = Date.now()
     if (this.responder === c) {
-      const ready = [...this.clients].filter(([, s]) => s.ready).map(([k]) => k)
+      const ready = [...this.clients].filter(([, s]) => s.ready && !s.ro).map(([k]) => k)
       this.setResponder(ready.at(-1) ?? null)
     }
   }

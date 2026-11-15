@@ -1668,8 +1668,13 @@ server.on('upgrade', (req: IncomingMessage, socket, head) => {
         const s = core.sessions.get(m.params?.tab)
         if (!s) return c.send({ id: m.id, error: `no session ${m.params?.tab}` })
         if (m.params.cols) core.resize(s.tab, m.params.cols, m.params.rows)
-        return s.attach(c, m.params.cols, m.params.rows, r =>
-          c.send(r ? { id: m.id, result: { ...r, responder: true, exited: s.exited } } : { id: m.id, error: 'superseded by a newer attach' }),
+        const ro = m.params.ro === true // K1: an extension's terminal shown only: no keys, no replies
+        return s.attach(
+          c,
+          m.params.cols,
+          m.params.rows,
+          r => c.send(r ? { id: m.id, result: { ...r, responder: !ro, exited: s.exited } } : { id: m.id, error: 'superseded by a newer attach' }),
+          ro,
         )
       }
       try {

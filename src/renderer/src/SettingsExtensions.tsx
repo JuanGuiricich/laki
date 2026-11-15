@@ -233,7 +233,7 @@ function ShowWhen({ w, api }: { w: WidgetView; api: WidgetsApi }) {
   return (
     <WcRow title="Show when…" hint="Only while the selected workspace matches: all that are set must hold. None set: always">
       <div className="wc-when">
-        <select aria-label="Project" value={cur.project ?? ''} onChange={e => set('project', e.target.value || undefined)}>
+        <select aria-label="Project" value={(api.projects ?? []).find(p => p.name.toLowerCase() === cur.project?.toLowerCase())?.id ?? cur.project ?? ''} onChange={e => set('project', e.target.value || undefined)}>
           <option value="">any project</option>
           {(api.projects ?? []).map(p => (
             <option key={p.id} value={p.id}>

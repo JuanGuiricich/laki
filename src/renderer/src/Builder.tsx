@@ -14,6 +14,7 @@ import { COMMON, type Prop, readsOf, UI, UI_GROUPS, UI_SAMPLES, uiCheck, uiHtml,
 import type { WidgetsApi } from './Settings'
 import { Icon } from './ui'
 import { clean } from './Widgets'
+import { diagramsIn } from './MarkdownView'
 
 // the field a click in the tree types into: the one focused last (bindable's onFocus) while it still has the focus
 let target: HTMLInputElement | HTMLTextAreaElement | null = null
@@ -121,7 +122,10 @@ function Preview({ root, data, full, cells, lit, onPick, onHover }: { root: unkn
     style.textContent = `${WIDGET_CSS}\n[data-bk].b-lit { outline: 2px solid var(--accent, #7aa2f7); outline-offset: 1px; } [data-bk]:hover { outline: 1px dashed var(--accent, #7aa2f7); }`
     r.replaceChildren(style, clean(uiHtml(marked, { data, config: {}, at: Date.now() - 120_000, sample: true }, full ? { full: true } : { cells })))
     for (const e of r.querySelectorAll<HTMLElement>('[title^="@@"]')) e.setAttribute('data-bk', e.title.slice(2)), e.removeAttribute('title')
-    return uiBehave(r, () => Promise.resolve())
+    let live = true
+    diagramsIn(r, () => live) // K4: as the cell draws them
+    const off = uiBehave(r, () => Promise.resolve())
+    return () => ((live = false), off())
   }, [JSON.stringify(marked), JSON.stringify(data), full, cells.join()])
   useEffect(() => {
     const r = host.current?.shadowRoot
