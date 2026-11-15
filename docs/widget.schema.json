@@ -6849,6 +6849,21 @@
           ],
           "description": "A field to sort by: \"age\", or \"age desc\""
         },
+        "sortable": {
+          "type": "boolean",
+          "description": "The full view’s headers sort it on a click, numbers and dates as such (a column’s \"sortable\": false leaves it out; its \"sortBy\": the path its order is read from)"
+        },
+        "select": {
+          "type": "boolean",
+          "description": "The full view’s rows get boxes (each row needs an \"id\"), and bulk’s buttons run with { \"ids\": [...] }"
+        },
+        "bulk": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/button"
+          },
+          "description": "With select: the buttons over the picked rows: [{ \"label\", \"run\", \"confirm\" }]"
+        },
         "limit": {
           "type": [
             "number",

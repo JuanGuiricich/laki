@@ -5,6 +5,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
+- Tables in an extension's full view sort by a click on a header (numbers and dates as such), can pick rows for its bulk buttons, keep their header in sight and show long lists as you scroll. A click in a table after *+N more* works again.
 - The UI kit has a `term` element: a live terminal running a command in an extension's cell, typed into from its full view (Settings › Resources lists it).
 - Each extension has a store of its own for what it remembers between runs: `laki.store` in a JS page, `store` in a script, `laki widget store` in a command; the inspector's Data tab shows it.
 - Extensions can put notes on lines of a workspace's diff (`annotations`: a linter's, a coverage tool's): the Review tab and Changes mark each line and show them; *Add to comments* sends them to the agent with your own.

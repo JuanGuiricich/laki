@@ -209,6 +209,9 @@ export const UI = {
     props: {
       columns: p('items', 'The columns: [{ "title", "value", "subtitle" (a muted line under it), "image" (a picture before it: data: or https) | "avatar" (a GitHub login’s) | "icon", "tag", "badge", "progress" (a number: a bar, of "max", 100, in "color"; value its words), "spark" (a path to numbers: a line), "copy" (true: a copy button), "actions" (buttons), "tone", "href", "align", "mono", "width", "wrap", "hide": "narrow" }]'),
       sort: p('text', 'A field to sort by: "age", or "age desc"'),
+      sortable: p('bool', 'The full view’s headers sort it on a click, numbers and dates as such (a column’s "sortable": false leaves it out; its "sortBy": the path its order is read from)'),
+      select: p('bool', 'The full view’s rows get boxes (each row needs an "id"), and bulk’s buttons run with { "ids": [...] }'),
+      bulk: p('buttons', 'With select: the buttons over the picked rows: [{ "label", "run", "confirm" }]'),
       limit: p('number', 'Rows at most, then +N more'),
       filter: p('bool', 'A filter box in the full view'),
       empty: p('text', 'What it says with no rows'),
@@ -499,6 +502,7 @@ function list(e: El, s: S) {
   return `<div${at({ tip: e.tip }, s, 'k-list')} data-rows>${filterBox(e, s)}${body}${empty(e, s, items.length)}${s.line ? '' : more(items.length - Math.min(max, items.length))}</div>`
 }
 
+const LAZY = 200 // K3: a full view's table rows drawn at first; the next ones as it's scrolled to (uiBehave)
 const cmp = (a: unknown, b: unknown) => (typeof a === 'number' && typeof b === 'number' ? a - b : String(a ?? '').localeCompare(String(b ?? ''), undefined, { numeric: true }))
 function table(e: El, s: S) {
   const cols = (Array.isArray(e.columns) ? e.columns : []).filter(obj)
@@ -508,10 +512,17 @@ function table(e: El, s: S) {
   const max = cap(e, s, cols.some(c => c.subtitle !== undefined) ? 38 : 28)
   const cls = (c: El) => [c.align === 'right' || c.align === 'center' ? `al-${c.align}` : '', c.mono === true ? 'mono' : '', c.wrap === true ? 'wrap' : '', c.hide === 'narrow' ? 'hide-narrow' : ''].filter(Boolean).join(' ')
   const width = (c: El) => (w => (w ? ` style="width:${/^\d+$/.test(w) ? `${w}px` : w}"` : ''))(/^\d{1,4}(px|%)?$/.test(String(c.width ?? '')) ? String(c.width) : '')
-  const head = `<thead><tr>${cols.map(c => `<th class="${cls(c)}"${width(c)}>${h(c.title, s)}</th>`).join('')}</tr></thead>`
+  // K3, the full view's: headers that sort it (uiBehave), a box per row with an id and the bulk buttons over them, rows
+  // past LAZY shown as it's scrolled to
+  const sorts = cols.map(c => s.full && !s.line && (c.sortable === true || (e.sortable === true && c.sortable !== false)))
+  const sel = s.full && !s.line && e.select === true
+  const head = `<thead><tr>${sel ? '<th class="k-sel"><input type="checkbox" data-sel-all aria-label="Select all"></th>' : ''}${cols.map((c, j) => (on => `<th class="${cls(c)}${on ? ' k-sortable' : ''}"${width(c)}${on ? ` data-sort="${j}" aria-sort="none" tabindex="0"` : ''}>${h(c.title, s)}</th>`)(sorts[j])).join('')}</tr></thead>`
+  // a sortable cell's order: its sortBy path's value, a lone template's ({{ago updated}}: updated), else its words
+  const sortOf = (c: El, r: S) => (p => (p ? valueAt(p, r.scopes) : txt(c.value, r)))(typeof c.sortBy === 'string' ? c.sortBy : /^\{\{\s*(?:\w+\s+)?([\w.@]+)\s*\}\}$/.exec(String(c.value ?? '').trim())?.[1])
+  const sv = (c: El, r: S, j: number) => (sorts[j] ? ` data-v="${esc(String(sortOf(c, r) ?? ''))}"` : '')
   // a cell: its words (a tag before them), or a bar; a picture before, a muted line under, a badge, a line, copy and
   // buttons after (none of those: the words alone, as before)
-  const cell = (c: El, r: S) => {
+  const cell = (c: El, r: S, j: number) => {
     const v = txt(c.value, r)
     const tag = c.tag !== undefined ? txt(c.tag, r) : ''
     const tone = toneOf(c, v || tag, r)
@@ -524,14 +535,21 @@ function table(e: El, s: S) {
     const badge = c.badge !== undefined ? (b => (b ? `<span class="k-badge ${toneOf(c, b, r)}">${esc(b)}</span>` : ''))(txt(c.badge, r)) : ''
     const sp = c.spark !== undefined ? spark(valueAt(c.spark, r.scopes)) : ''
     const end = `${badge}${sp ? `<span class="k-tc-sp">${sp}</span>` : ''}${c.copy === true && v ? copyBtn(v) : ''}${buttons(c.actions, r)}`
-    if (!lead && !sub && !bar && !end) return `<td class="${cls(c)}">${href && words ? link(href, words, 'link') : words}</td>`
+    if (!lead && !sub && !bar && !end) return `<td class="${cls(c)}"${sv(c, r, j)}>${href && words ? link(href, words, 'link') : words}</td>`
     const head = `${lead}${words || sub ? `<div class="k-main"><span>${words}</span>${sub ? `<span class="k-sub">${esc(sub)}</span>` : ''}</div>` : ''}` // the link: its picture and words
-    return `<td class="${cls(c)}"><div class="k-tc">${href && head ? link(href, head, 'link k-tc-a') : head}${bar}${end}</div></td>`
+    return `<td class="${cls(c)}"${sv(c, r, j)}><div class="k-tc">${href && head ? link(href, head, 'link k-tc-a') : head}${bar}${end}</div></td>`
   }
+  const idOf = (r: S) => (v => (typeof v === 'string' || typeof v === 'number' ? String(v) : ''))(valueAt('id', r.scopes))
   const body = items
-    .map(({ item, i }, k) => (k >= max && !s.full ? '' : (r => `<tr data-row${k >= max ? ' data-extra hidden' : ''}>${cols.map(c => cell(c, r)).join('')}</tr>`)(inner(s, item, i))))
+    .map(({ item, i }, k) =>
+      k >= max && !s.full
+        ? ''
+        : (r => (id => `<tr data-row${k >= max ? ' data-extra hidden' : k >= LAZY && s.full ? ' data-lazy hidden' : ''}>${sel ? `<td class="k-sel">${id ? `<input type="checkbox" data-sel value="${esc(id)}" aria-label="Select">` : ''}</td>` : ''}${cols.map((c, j) => cell(c, r, j)).join('')}</tr>`)(sel ? idOf(r) : ''))(inner(s, item, i)),
+    )
     .join('')
-  return `<div${at({ tip: e.tip }, s, 'k-table')} data-rows>${filterBox(e, s)}<table>${head}<tbody>${body}</tbody></table>${empty(e, s, items.length)}${s.line ? '' : more(items.length - Math.min(max, items.length))}</div>`
+  const bulk = sel ? `<div class="k-bulk" data-bulk hidden><span class="k-sub" data-bulk-n></span>${buttons(e.bulk, s).replace(/<button /g, '<button data-bulk-run ')}</div>` : ''
+  const later = s.full && Math.min(max, items.length) > LAZY ? '<div class="k-lazy" data-lazy-more></div>' : ''
+  return `<div${at({ tip: e.tip }, s, 'k-table')} data-rows>${filterBox(e, s)}${bulk}<table>${head}<tbody>${body}</tbody></table>${later}${empty(e, s, items.length)}${s.line ? '' : more(items.length - Math.min(max, items.length))}</div>`
 }
 
 // a chart: the plot in a 100×40 box stretched to its size (lines keep their width), its labels and dot in HTML
@@ -1840,6 +1858,8 @@ export function uiCheck(spec: unknown, data?: unknown, o: { actions?: string[] }
         if (c.actions !== undefined && !Array.isArray(c.actions)) say('error', `${here}.columns[${i}]`, 'actions: a list of buttons')
         ;(Array.isArray(c.actions) ? c.actions : []).forEach((b, j) => runs(b, `${here}.columns[${i}].actions[${j}]`))
       })
+    if (type === 'table' && el.bulk !== undefined && (!Array.isArray(el.bulk) || el.select !== true)) say(Array.isArray(el.bulk) ? 'warn' : 'error', here, Array.isArray(el.bulk) ? 'bulk: its buttons show with "select": true' : 'bulk: a list of buttons')
+    if (type === 'table' && Array.isArray(el.bulk)) el.bulk.forEach((b, j) => runs(b, `${here}.bulk[${j}]`))
     // against the data: each's list, then the fields the rows use
     let rowScopes = scopes
     const path = el.each ?? (def.rows && typeof el.items === 'string' ? el.items : undefined)
@@ -1850,10 +1870,11 @@ export function uiCheck(spec: unknown, data?: unknown, o: { actions?: string[] }
       else {
         const items = Array.isArray(v) ? v : Object.values(v)
         rowScopes = items.length ? [{ ...(obj(items[0]) ? items[0] : {}), this: items[0], '@index': 0 }, ...scopes] : null
+        if (type === 'table' && el.select === true && items.some(x => !obj(x) || (typeof x.id !== 'string' && typeof x.id !== 'number'))) say('warn', here, 'select: each row needs an "id" (a row without one gets no box)')
         if (items.length && def.rows) {
           const fields = new Set(items.flatMap(x => (obj(x) ? Object.keys(x) : [])))
           const outer = new Set(scopes.flatMap(sc => Object.keys(sc)))
-          const skip = new Set(['each', 'items', 'empty', 'limit', 'filter', 'sort', 'kind', 'height', 'min', 'max', 'label', 'unit', 'if', 'unless', 'tip', 'series', 'colors', 'legend', 'rows', 'count', 'nested', 'open', 'wrap', 'placeholder', 'seconds', ...(type === 'board' || type === 'matrix' ? ['columns'] : []), ...(type === 'log' ? ['value'] : []), ...(type === 'meter' ? ['title'] : []), ...(type === 'uptime' ? ['title', 'value'] : [])])
+          const skip = new Set(['each', 'items', 'empty', 'bulk', 'select', 'sortable', 'limit', 'filter', 'sort', 'kind', 'height', 'min', 'max', 'label', 'unit', 'if', 'unless', 'tip', 'series', 'colors', 'legend', 'rows', 'count', 'nested', 'open', 'wrap', 'placeholder', 'seconds', ...(type === 'board' || type === 'matrix' ? ['columns'] : []), ...(type === 'log' ? ['value'] : []), ...(type === 'meter' ? ['title'] : []), ...(type === 'uptime' ? ['title', 'value'] : [])])
           if (['meter', 'tree', 'steps', 'breadcrumbs', 'links', 'menu', 'command', 'marquee', 'snippet', 'clock', 'funnel', 'swatches'].includes(type)) skip.delete('label') // a row's name there, not a title
           if (type === 'endpoints') skip.delete('count') // a row's calls
           for (const [k, val] of Object.entries(el)) {
@@ -1935,8 +1956,8 @@ const SAMPLES: Record<UiType, { spec: UiElement; data?: unknown }> = {
     data: { prs: PRS },
   },
   table: {
-    spec: { type: 'table', each: 'prs', sort: 'number desc', filter: true, columns: [{ title: 'PR', value: '#{{number}} {{title}}', subtitle: '{{author}}', avatar: '{{author}}', href: '{{url}}' }, { title: 'Review', progress: '{{approvals}}', max: 2, value: '{{approvals}}/2', hide: 'narrow' }, { title: 'CI', tag: '{{ci}}', tone: { failing: 'bad', passing: 'good', pending: 'warn' } }, { title: 'Updated', value: '{{ago updated}}', align: 'right', hide: 'narrow' }] },
-    data: { prs: PRS.map((x, i) => ({ ...x, approvals: [0, 2, 1][i] })) },
+    spec: { type: 'table', each: 'prs', sort: 'number desc', filter: true, sortable: true, select: true, bulk: [{ label: 'Merge', run: 'merge', style: 'primary', confirm: 'Merge the picked PRs?' }, { label: 'Close', run: 'close' }], columns: [{ title: 'PR', value: '#{{number}} {{title}}', subtitle: '{{author}}', avatar: '{{author}}', href: '{{url}}' }, { title: 'Review', progress: '{{approvals}}', max: 2, value: '{{approvals}}/2', sortBy: 'approvals', hide: 'narrow' }, { title: 'CI', tag: '{{ci}}', tone: { failing: 'bad', passing: 'good', pending: 'warn' } }, { title: 'Updated', value: '{{ago updated}}', align: 'right', hide: 'narrow' }] },
+    data: { prs: PRS.map((x, i) => ({ ...x, id: x.number, approvals: [0, 2, 1][i] })) },
   },
   chart: { spec: { type: 'chart', kind: 'area', each: 'days', x: '{{day}}', y: '{{ms}}', unit: ' ms', label: 'p95 latency' }, data: { days: [{ day: 'Mon', ms: 320 }, { day: 'Tue', ms: 280 }, { day: 'Wed', ms: 410 }, { day: 'Thu', ms: 300 }, { day: 'Fri', ms: 260 }] } },
   spark: { spec: { type: 'spark', values: 'cpu', tone: 'accent' }, data: { cpu: [12, 30, 22, 48, 35, 60, 41] } },

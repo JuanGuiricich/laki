@@ -239,7 +239,12 @@ ${[1, 2, 3, 4, 5, 6, 7, 8].map(i => `.k-tabs:has(> .k-tabbar > label:nth-child($
 .k input:not([type=checkbox]):not([type=radio]), .k select, .k textarea { width: 100%; min-width: 0; padding: 4px 8px; border: 1px solid var(--line, #232833); border-radius: var(--radius, 6px); background: transparent; color: inherit; font: inherit; }
 .k-filter { margin-bottom: 6px; }
 @container kit (max-width: 170px) { .k-acc, .k-acts, .k-sub { display: none; } }
-.k-table { overflow-x: auto; } .k-table table { min-width: 100%; } .k-table :is(th, td) { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .k-table :is(th, td).wrap { white-space: normal; overflow-wrap: anywhere; }
+.k-table { overflow-x: auto; } .k-table table { min-width: 100%; }
+/* K3: the full view's table scrolls in itself under a header that stays; its sortable headers, boxes and bulk bar */
+.k[data-kit="full"] .k-table { max-height: min(70vh, 640px); overflow: auto; } .k[data-kit="full"] .k-table thead th { position: sticky; top: 0; z-index: 1; background: var(--panel, var(--bg, #161a22)); }
+.k-sortable { cursor: pointer; user-select: none; } .k-sortable::after { content: '↕'; margin-left: 4px; opacity: .35; font-size: 10px; } .k-sortable[aria-sort="ascending"]::after { content: '↑'; opacity: .8; } .k-sortable[aria-sort="descending"]::after { content: '↓'; opacity: .8; }
+.k-table .k-sel { width: 22px; } .k-bulk { display: flex; align-items: center; gap: 6px; padding: 2px 2px 6px; } .k-bulk[hidden] { display: none; } .k-lazy { height: 1px; }
+ .k-table :is(th, td) { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .k-table :is(th, td).wrap { white-space: normal; overflow-wrap: anywhere; }
 .k[data-kit=preview] .k-table :is(th, td) { padding: 3px 6px; } .k-table .al-right { text-align: right; } .k-table .al-center { text-align: center; } .k-table tr[data-open] { cursor: pointer; } .k-table tr[data-open]:hover td { background: var(--hover, #1b2029); }
 @container kit (max-width: 360px) { .k-table .hide-narrow { display: none; } }
 .k[data-line] .k-table thead, .k[data-line] :is(.k-gh, .k-filter, .k-more, .k-sh, .k-ch-head, .k-ch-axis, .k-legend) { display: none; } .k[data-line] .k-stack { flex-direction: row; align-items: center; } .k[data-line] .k-stack > :is(.k-row, .k-chl) { flex-shrink: 0; } /* their min-width 0 would let a bar's line squeeze them to nothing, the words over the next */ .k[data-line] .k-table :is(th, td) { padding: 0 6px; border: 0; }
@@ -626,7 +631,7 @@ export function uiBehave(root: { addEventListener: (t: string, f: (e: any) => vo
   const said = (x: any): string => [...x.childNodes].map((c: any) => (c.nodeType === 3 ? c.data : c.nodeType === 1 && c.localName !== 'button' && c.localName !== 'kbd' ? said(c) : '')).join('') // a row's words, not its buttons'
   // the rows of a box: those whose words have q (none: all but the extra ones, unless it's open)
   const sift = (box: any, q: string) => {
-    const open = box.hasAttribute('data-open')
+    const open = box.hasAttribute('data-unfolded')
     box.querySelectorAll('[data-row]').forEach((x: any) => (x.hidden = q ? !said(x).toLowerCase().includes(q) : x.hasAttribute('data-extra') && !open))
     box.querySelectorAll('[data-group]').forEach((g: any) => (g.hidden = !g.querySelector('[data-row]:not([hidden])')))
     // a heading among its rows (a menu's): shown while a row up to the next one is
@@ -641,6 +646,49 @@ export function uiBehave(root: { addEventListener: (t: string, f: (e: any) => vo
     if (none) none.hidden = !q || !!box.querySelector('[data-row]:not([hidden])')
   }
   const all = (q: string): any[] => (d => (d && d.querySelectorAll ? [...d.querySelectorAll(q)] : []))((root as any).querySelectorAll ? root : (root as any).document) // a shadow root's, a page's
+  // K3: a table's header sorts it (numbers, then ISO dates, then words; again: the other way), kept by the table's place
+  // in the view and done again as it's drawn anew; sorted, every row shows (its filter's words still hold)
+  const sorted = new Map<number, [number, number]>()
+  const sortBy = (tbl: Element, j: number, dir: number) => {
+    const tb = tbl.querySelector('tbody')
+    if (!tb) return
+    const off = tbl.querySelector('thead th.k-sel') ? 1 : 0
+    const key = (r: Element): string => (c => (c ? (c.getAttribute('data-v') ?? c.textContent ?? '') : ''))(r.children[j + off])
+    const num = (x: string) => (/^\s*[-−]?[\d,]*\.?\d+(e[-+]?\d+)?\s*%?\s*$/i.test(x) ? Number(x.replace(/[,%\s]/g, '').replace('−', '-')) : NaN)
+    const day = (x: string) => (/^\d{4}-\d\d-\d\d/.test(x) ? Date.parse(x) : NaN)
+    const order = (x: string, y: string) => (([p, q], [d, e]) => (p === p && q === q ? p - q : d === d && e === e ? d - e : x.localeCompare(y, undefined, { numeric: true })))([num(x), num(y)], [day(x), day(y)])
+    const rows = [...tb.children].sort((a, b) => order(key(a), key(b)) * dir)
+    rows.forEach(r => (r.removeAttribute('data-lazy'), r.removeAttribute('data-extra')))
+    tb.append(...rows)
+    tbl.setAttribute('data-unfolded', '')
+    tbl.querySelector('[data-more]')?.remove()
+    tbl.querySelector('[data-lazy-more]')?.remove()
+    sift(tbl, String(tbl.querySelector<HTMLInputElement>('[data-filter]')?.value ?? '').trim().toLowerCase())
+    tbl.querySelectorAll('th[data-sort]').forEach(th => th.setAttribute('aria-sort', Number(th.getAttribute('data-sort')) === j ? (dir > 0 ? 'ascending' : 'descending') : 'none'))
+  }
+  // its boxes: the ids picked (shown rows only by its all box), said on its bulk bar, shown while any is
+  const picked = (tbl: Element): string[] => {
+    const ids = [...tbl.querySelectorAll<HTMLInputElement>('[data-sel]:checked')].map(x => x.value)
+    const bar = tbl.querySelector<HTMLElement>('[data-bulk]')
+    if (bar) (bar.hidden = !ids.length), (n => n && (n.textContent = `${ids.length} selected`))(bar.querySelector('[data-bulk-n]'))
+    return ids
+  }
+  // rows past the first 200: 200 more as its end comes near (the full view's table scrolls in itself; scroll doesn't
+  // bubble: caught on the way down)
+  const scroll = (e: Event) => {
+    const tbl = (t => (t?.matches?.('.k-table') ? t : null))(e.target as Element | null)
+    if (!tbl || !tbl.querySelector('[data-lazy-more]') || tbl.scrollTop + tbl.clientHeight < tbl.scrollHeight - 300) return
+    ;[...tbl.querySelectorAll<HTMLElement>('tr[data-lazy]')].slice(0, 200).forEach(r => (r.removeAttribute('data-lazy'), (r.hidden = false)))
+    if (!tbl.querySelector('tr[data-lazy]')) tbl.querySelector('[data-lazy-more]')?.remove()
+  }
+  // a table drawn anew (new data): sorted again as it was
+  const drawn = () => {
+    const ts = all('.k-table')
+    sorted.forEach(([j, dir], i) => ts[i] && !ts[i].querySelector('th[aria-sort$="ending"]') && sortBy(ts[i], j, dir))
+  }
+  const target = (r => (r.nodeType ? r : typeof document !== 'undefined' ? document : null))(root as unknown as globalThis.Node) // a shadow root's, a page's (its window: the document)
+  const mo = target && typeof MutationObserver !== 'undefined' ? new MutationObserver(drawn) : null
+  if (target) mo?.observe(target, { childList: true, subtree: true })
   const click = (e: any) => {
     const t = e.target && e.target.closest ? e.target : null
     if (!t) return
@@ -650,6 +698,16 @@ export function uiBehave(root: { addEventListener: (t: string, f: (e: any) => vo
     // a hover card opened by the pointer: a click on its button keeps it open (it would toggle it shut)
     const pin = t.closest('.k-pop[data-hov] > [popovertarget]')
     if (pin) return void (e.preventDefault(), pin.parentNode.removeAttribute('data-hov'))
+    const th = t.closest('th[data-sort]')
+    if (th) {
+      const tbl = th.closest('.k-table')
+      const i = all('.k-table').indexOf(tbl)
+      const j = Number(th.getAttribute('data-sort'))
+      const was = sorted.get(i)
+      const dir = was && was[0] === j ? -was[1] : 1
+      sorted.set(i, [j, dir])
+      return sortBy(tbl, j, dir)
+    }
     const chip = t.closest('[data-chip]')
     if (chip) {
       // a filter's chip: the rows under it with its words; clicked again (or All), every row
@@ -674,7 +732,7 @@ export function uiBehave(root: { addEventListener: (t: string, f: (e: any) => vo
       e.preventDefault()
       const box = more.closest('[data-rows]')
       if (!more.closest('[data-kit="full"]') || !box) return void send({ laki: 'full' })
-      box.setAttribute('data-open', '')
+      box.setAttribute('data-unfolded', '') // not data-open: that's a link a click opens
       box.querySelectorAll('[data-extra]').forEach((x: any) => (x.hidden = false))
       more.remove()
     } else if (r) {
@@ -693,6 +751,7 @@ export function uiBehave(root: { addEventListener: (t: string, f: (e: any) => vo
         form.querySelectorAll('input[name], select[name], textarea[name]').forEach((f: any) => (v[f.name] = f.type === 'checkbox' ? f.checked : f.type === 'number' ? (f.value === '' ? null : Number(f.value)) : f.value))
         arg = JSON.stringify(v)
       }
+      if (r.hasAttribute('data-bulk-run')) arg = JSON.stringify({ ids: picked(r.closest('.k-table')) }) // K3: the picked rows'
       r.setAttribute('data-busy', '')
       const p: any = send({ laki: 'run', action: r.getAttribute('data-run'), arg, label: (r.getAttribute('data-label') || r.textContent || '').trim(), confirm: r.getAttribute('data-confirm') || undefined })
       const clear = () => box && !r.hasAttribute('data-keep') && box.value.trim() === arg && (box.value = '')
@@ -735,6 +794,12 @@ export function uiBehave(root: { addEventListener: (t: string, f: (e: any) => vo
   }
   // a slider let go, an option picked: runs its action with the value
   const change = (e: any) => {
+    const sel = e.target && e.target.closest ? e.target.closest('[data-sel], [data-sel-all]') : null
+    if (sel?.type === 'checkbox') {
+      const tbl: Element = sel.closest('.k-table')
+      if (sel.hasAttribute('data-sel-all')) tbl.querySelectorAll<HTMLInputElement>('[data-sel]').forEach(x => !x.closest('tr')?.hidden && (x.checked = sel.checked))
+      return void picked(tbl)
+    }
     const t = e.target && e.target.closest ? e.target.closest('[data-change]') : null
     if (!t) return
     const pick = t.localName === 'select' ? (t.selectedOptions?.[0]?.textContent ?? '').trim() : `${t.getAttribute('aria-label') || ''} ${t.value}`.trim() // its confirm's and note's words
@@ -760,6 +825,7 @@ export function uiBehave(root: { addEventListener: (t: string, f: (e: any) => vo
   const key = (e: any) => {
     const t = e.target && e.target.closest ? e.target : null
     if (!t || e.isComposing) return
+    if ((e.key === 'Enter' || e.key === ' ') && t.matches?.('th[data-sort]')) return void (e.preventDefault(), t.click()) // K3: a header's sort from the keyboard
     // Esc closes an open popover or dropdown first, not the full view's dialog under it (it waits for a key not taken)
     if (e.key === 'Escape') {
       const open = all('.k-pop-b:popover-open, details.k-dd[open]')
@@ -811,9 +877,9 @@ export function uiBehave(root: { addEventListener: (t: string, f: (e: any) => vo
     const t = e.target
     if (t && t.open && t.matches && t.matches('details.k-dd') && t.closest('[data-kit="full"]')) t.querySelector('.k-dd-m')?.scrollIntoView({ block: 'nearest' })
   }
-  const on: [string, (e: any) => void, boolean?][] = [['click', click], ['input', input], ['change', change], ['keydown', key], ['toggle', toggle, true], ['focusout', blur], ['mouseover', hover], ['mouseout', hover]]
+  const on: [string, (e: any) => void, boolean?][] = [['click', click], ['input', input], ['change', change], ['keydown', key], ['toggle', toggle, true], ['scroll', scroll, true], ['focusout', blur], ['mouseover', hover], ['mouseout', hover]]
   for (const [k, f, c] of on) (root as any).addEventListener(k, f, c)
-  return () => (clearInterval(clock), on.forEach(([k, f, c]) => (root as any).removeEventListener(k, f, c)))
+  return () => (clearInterval(clock), mo?.disconnect(), on.forEach(([k, f, c]) => (root as any).removeEventListener(k, f, c)))
 }
 
 // a JS widget's page (the daemon serves it, sandboxed, to a frame of the app): the filled template with window.laki
