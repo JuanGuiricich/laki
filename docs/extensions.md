@@ -87,6 +87,17 @@ A file's or URL's JSON is its data; anything else (Markdown, plain text) is `{ "
 element shows (`{ "type": "markdown", "value": "{{text}}" }`: the *note* starter). A path or URL may name settings and
 the workspace: `{{config.repo}}`, `{{workspace.path}}/TODO.md`. A failed read keeps the last data, as a fetch does.
 
+### When it shows (`when`)
+
+```json
+{ "when": { "project": "web", "branch": "feat/*", "pr": true, "agent": "waiting" } }
+```
+
+It shows only while the selected workspace matches, everything set at once: its project (id or name), its branch (a
+glob), a PR (`true`) or none (`false`), and an agent there `running`, `waiting` for you, or `idle`. With no workspace
+selected it's hidden. Settings' *Show when…* row on its card sets the same four and wins over widget.json's; none set
+there shows it always.
+
 ### What it needs (`needs`)
 
 ```json

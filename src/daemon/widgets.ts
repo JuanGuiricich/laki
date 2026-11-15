@@ -10,10 +10,10 @@ import { accessSync, constants, existsSync, type FSWatcher, mkdirSync, readdirSy
 import { readJson, writeAtomic } from '../shared/conn.ts'
 import { homedir, tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
-import { AI_SOURCE_EVERY, BUTTON_PLACES, RETRY_KINDS, type LogLevel, type Preset, WIDGET_SOURCES, type WidgetSource, type Workspace, type WidgetOption, type WidgetTool, type WidgetRun, type WidgetPlace, type WidgetSize, type WidgetView, type WidgetHide, type WidgetCtx, type ActionFile, type WidgetFail, WIDGET_PLACES } from '../shared/types.ts'
+import { AI_SOURCE_EVERY, BUTTON_PLACES, RETRY_KINDS, type LogLevel, type Preset, WIDGET_SOURCES, type WidgetSource, type Workspace, type WidgetOption, type WidgetTool, type WidgetRun, type WidgetPlace, type WidgetSize, type WidgetView, type WidgetHide, type WidgetCtx, type ActionFile, type WidgetFail, type WidgetWhen, WIDGET_PLACES } from '../shared/types.ts'
 import { fill, hasFull, hasScript, openOk, pageOf, render, sayOf, templateError, viewOf, type WidgetSay } from '../shared/widget.ts'
 import { type Tone, TONES, uiHtml, uiTree } from '../shared/widgetUi.ts'
-import { actionCmd, actionMenu, aiActOf, type Fact, FACT_NAMES, gateOf, needsOf, SAMPLE_FACTS, SIZES_ACROSS, toolOf } from '../shared/widgetSchema.ts'
+import { actionCmd, actionMenu, aiActOf, type Fact, FACT_NAMES, gateOf, needsOf, SAMPLE_FACTS, SIZES_ACROSS, toolOf, whenOf } from '../shared/widgetSchema.ts'
 import { newer } from '../shared/update.ts'
 import { VERSION } from '../shared/version.ts'
 import { describeHours, inHours, parseHours } from '../shared/when.ts'
@@ -48,11 +48,11 @@ export * from './widgetDev.ts'
 // ui: the UI kit's elements (widgetUi.ts), one tree or { preview, full }: widget.html's own view wins, ui fills the other
 type Spec = { type?: string; label?: string; hint?: string; default?: unknown; choices?: unknown[]; required?: boolean }
 type ActionDef = string | { run?: string; tool?: unknown; ai?: string; tools?: string; profile?: string } // a command, or one an agent may call too (widgetSchema.ts' toolOf), or a prompt an agent answers (aiActOf)
-export type Manifest = { name?: string; description?: string; size?: [number, number]; every?: number; view?: string; place?: string | string[]; scope?: string; on?: Record<string, string>; stream?: boolean; state?: unknown; fetch?: string; script?: string; config?: Record<string, unknown>; actions?: Record<string, ActionDef>; icon?: string; label?: string; badge?: string; tip?: string | false; click?: string; notify?: string; facts?: string[]; sample?: unknown; sampleConfig?: Record<string, unknown>; ui?: unknown; source?: unknown; needs?: unknown }
+export type Manifest = { name?: string; description?: string; size?: [number, number]; every?: number; view?: string; place?: string | string[]; scope?: string; on?: Record<string, string>; stream?: boolean; state?: unknown; fetch?: string; script?: string; config?: Record<string, unknown>; actions?: Record<string, ActionDef>; icon?: string; label?: string; badge?: string; tip?: string | false; click?: string; notify?: string; facts?: string[]; sample?: unknown; sampleConfig?: Record<string, unknown>; ui?: unknown; source?: unknown; needs?: unknown; when?: unknown }
 // sample: made-up data in the shape its fetch prints (sampleConfig: settings for it), for a preview before it runs (widgetRender sample)
 // what's stored per widget: the user's choices over the manifest's (config: each setting as text), and the last fetch
 // (at: when it ran; error: why it failed); net: its page may reach https sites (the user's switch, never widget.json's)
-type Store = { fails?: number; fail?: WidgetFail; log?: boolean; hours?: string; trusted?: string; files?: Record<string, string>; changed?: boolean; source?: WidgetSource; on?: boolean; size?: [number, number]; fit?: boolean; every?: number; view?: string; place?: WidgetPlace | WidgetPlace[]; net?: boolean; hide?: WidgetHide; config?: Record<string, string>; data?: unknown; at?: number; error?: string; by?: 'ai'; aiMay?: number; mock?: string; told?: string; allow?: string[]; allowFor?: string } // hours: its own working hours over Settings' (always: none) // allowFor: aiKey as allow was given // fit: in a bar, as wide as it needs (Auto) // trusted: a repo's extension's folder as it was when you turned it on (dirHash), files: each of its files' (eachHash); changed: off because it changed since; log: keep a log (its Settings card's Keep a log, the user's only); allow: claude tools its agent may use unasked (Always, when it asked: widgetPermission); told: what its notify last said (keep); by: Laki AI wrote it (widgetWrite); aiMay: when an ask in its page's chat let Laki AI rewrite the user's own, once (AI_MAY); mock: data put there by hand (widgetMock: a fixture's name, or edited), not fetched
+type Store = { fails?: number; fail?: WidgetFail; when?: WidgetWhen | null; log?: boolean; hours?: string; trusted?: string; files?: Record<string, string>; changed?: boolean; source?: WidgetSource; on?: boolean; size?: [number, number]; fit?: boolean; every?: number; view?: string; place?: WidgetPlace | WidgetPlace[]; net?: boolean; hide?: WidgetHide; config?: Record<string, string>; data?: unknown; at?: number; error?: string; by?: 'ai'; aiMay?: number; mock?: string; told?: string; allow?: string[]; allowFor?: string } // hours: its own working hours over Settings' (always: none) // allowFor: aiKey as allow was given // fit: in a bar, as wide as it needs (Auto) // trusted: a repo's extension's folder as it was when you turned it on (dirHash), files: each of its files' (eachHash); changed: off because it changed since; log: keep a log (its Settings card's Keep a log, the user's only); allow: claude tools its agent may use unasked (Always, when it asked: widgetPermission); told: what its notify last said (keep); by: Laki AI wrote it (widgetWrite); aiMay: when an ask in its page's chat let Laki AI rewrite the user's own, once (AI_MAY); mock: data put there by hand (widgetMock: a fixture's name, or edited), not fetched
 // preview: widget.html has one; face: its button's words, filled from the last data (faceOf)
 type Face = { label?: string; badge?: string; tip?: string; tone?: Tone; hidden?: boolean } // tone: its data's own `tone`, one of the kit's (a row mark's color); hidden: its data's own `hidden: true`, shown nowhere until it isn't
 export type Entry = { id: string; dir: string; file?: string; project?: string; dev: boolean; devError?: string; agentDev?: boolean; m: Manifest; full: boolean; js: boolean; preview: boolean; face: Face; s: Omit<Store, 'data'>; inst: Map<string, InstMeta>; fixtures: string[]; tooNew?: string; missingBins?: string[] } // tooNew (R2): needs.laki is newer than this build, why it never runs; missingBins: needs.bins not on its PATH (binOn, at its scan and as it's turned on) // fixtures: fixtures/<name>.json at its scan, made-up data to preview it with // inst: a scope workspace one's instances (by workspace id), their last fetch // dev: in a folder laki widget dev linked; devError: why its files don't read now (the last good version runs on); agentDev: one an agent linked (settings.widgetDevAgent): trusted as a repo's
@@ -779,6 +779,7 @@ export const widgetsView = (): WidgetView[] =>
     error: w.s.error,
     fail: w.s.error ? w.s.fail : undefined,
     ...((n => n.length && { needs: n })(needsOf(w.m).bins)),
+    when: w.s.when === null ? undefined : (w.s.when ?? whenOf(w.m.when)), // P2: the store's wins (null: always)
     missingBins: w.missingBins,
     tooNew: w.tooNew,
     running: running.has(w.id) || undefined,
@@ -919,7 +920,7 @@ export function widgetsOff() {
 export const AI_MAY = 3600000 // ms: how long an ask in its page's chat lets Laki AI rewrite one of the user's
 // agent: an agent's change (MCP's laki_extension_set, Laki AI's too; laki widget set in an agent's tab): where it shows,
 // its size, every, view, hide and plain settings; never on, network access, its source or a secret: those are the user's
-export function widgetSet(o: { id: string; seen?: string; log?: boolean; source?: WidgetSource | null; on?: boolean; size?: [number, number]; fit?: boolean; every?: number; view?: WidgetSize; place?: WidgetPlace | WidgetPlace[]; net?: boolean; hide?: WidgetHide; config?: Record<string, string>; ai?: boolean; name?: string; allow?: string[]; hours?: string; from?: { ws?: string; tab?: string }; agent?: boolean }) {
+export function widgetSet(o: { id: string; seen?: string; log?: boolean; source?: WidgetSource | null; on?: boolean; size?: [number, number]; fit?: boolean; every?: number; view?: WidgetSize; place?: WidgetPlace | WidgetPlace[]; net?: boolean; hide?: WidgetHide; config?: Record<string, string>; ai?: boolean; name?: string; allow?: string[]; hours?: string; when?: unknown; from?: { ws?: string; tab?: string }; agent?: boolean }) {
   const w = find(o.id)
   if (o.agent === true || agentCaller(o.from)) {
     if (o.on === true) throw new Error('only you can turn an extension on (Settings › Extensions)') // its code would run unlooked at
@@ -958,6 +959,7 @@ export function widgetSet(o: { id: string; seen?: string; log?: boolean; source?
   if (o.fit !== undefined) s.fit = o.fit === true || undefined
   if (o.every !== undefined) s.every = clamp(o.every, 1, 1440, WIDGET_EVERY)
   if (o.hours !== undefined) s.hours = hours
+  if (o.when !== undefined) s.when = o.when === null ? undefined : (whenOf(o.when) ?? null) // P2: {} (nothing set): always, over widget.json's (null kept); null: widget.json's again
   if (o.view !== undefined) s.view = isSize(o.view) ? o.view : undefined
   if (o.place !== undefined) s.place = (l => (l.length > 1 ? l : l[0]))(placeList(o.place)) // none: widget.json's again
   if (o.net !== undefined) s.net = !!o.net || undefined

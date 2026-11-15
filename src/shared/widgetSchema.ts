@@ -3,7 +3,7 @@
 // (LAKI_DTS: window.laki and the UI kit's elements, for a JS page), and manifestCheck, the checker's widget.json part
 // (widgetCheck in daemon/widgetDev.ts adds the files, the ui against data, the fixtures and a fetch). The ui elements'
 // words are the UI kit's own (widgetUi.ts UI), so the schema, the types, the guide and the gallery say the same.
-import { CUSTOM_EVENT, eventOk, type Gate, GATES, REPO, WIDGET_EVENTS, WIDGET_PLACES } from './types.ts'
+import { CUSTOM_EVENT, eventOk, type Gate, GATES, REPO, WHEN_AGENT, WIDGET_EVENTS, WIDGET_PLACES, type WidgetWhen } from './types.ts'
 import { BUTTON, COMMON, type Kind, near, type Prop, UI, UI_TYPES, type UiProblem } from './widgetUi.ts'
 
 export const WIDGET_SCHEMA_URL = `${REPO.replace('https://github.com/', 'https://raw.githubusercontent.com/')}/main/docs/widget.schema.json`
@@ -196,6 +196,7 @@ export const MANIFEST: Record<string, J> = {
     properties: { kind: { enum: ['fetch', 'static', 'file', 'url', 'ai'], description: 'fetch: its own fetch or script; static: the text below; file: a file read each time (JSON, else { "text" }); url: an http(s) page read each time; ai: an agent (claude or codex, with the user’s own MCP servers) answers prompt, its last ```json block the data' }, text: str('With static: JSON, or words (its data: { "text" })'), path: str('With file: its path (~ is home; relative: the extension’s folder; {{config.x}}, {{workspace.path}})'), url: str('With url: the address ({{config.x}} too)'), prompt: str('With ai: what the agent finds and sums up ({{config.x}}, {{workspace.branch}} too); it answers in the shape of sample'), tools: str('With ai, claude: the tools it may use unasked, by name, comma-separated (mcp__slack, WebFetch, Bash(gh pr list:*)); others are refused'), profile: str('With ai: a claude or codex profile of Settings › Agents & profiles (unset: Settings › Extensions’ agent)') },
     description: 'Where its data comes from at first: the user picks another on its card (Own script, Static, File, URL, AI)',
   },
+  when: { type: 'object', additionalProperties: false, properties: { project: str('Only in this project’s workspaces (its id or name)'), branch: str('Only on a branch that matches this glob (feat/*, release-*)'), pr: { type: 'boolean', description: 'true: only with a PR; false: only without one' }, agent: { enum: [...WHEN_AGENT], description: 'Only while an agent there is running, waiting for you, or idle' } }, description: 'Show it only when the selected workspace matches (the user’s choice in Settings wins); all that are set must hold' },
   needs: { type: 'object', additionalProperties: false, properties: { bins: { type: 'array', items: { type: 'string', pattern: '^[\\w.+-]+$' }, description: 'Programs its commands run that a Mac may not have (jq, gh, python3): looked for on the PATH its commands get; one that isn’t there is said on its cell (Needs jq) and before it’s turned on' }, laki: { type: 'string', pattern: '^\\d+(\\.\\d+){0,2}$', description: 'The oldest Laki it runs on (0.54): an older one shows it with that error and never runs it' } }, description: 'What it needs to run: programs and a Laki version' },
   sample: { description: 'Made-up data in the shape its data takes, for its preview before it runs (needed with a fetch, a script, a file or a URL)' },
   sampleConfig: { type: 'object', description: 'Settings to show the sample with' },
@@ -321,6 +322,28 @@ function menuCheck(where: string, c: Record<string, unknown>, say: (level: UiPro
 // a command that reaches past this Mac: a tool that never asks gets check's warning
 const OUTWARD = /\bgit\s+push\b|\bgh\s+(pr|release|issue|api)\b|\bcurl\b[^|;&]*-X\s*(POST|PUT|PATCH|DELETE)|\bdeploy|\bnpm\s+publish\b|\bkubectl\s+(apply|delete)\b/i
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/
+// P2: a when as given (widget.json's, the store's), its known keys of the right kind only; none left: undefined
+export function whenOf(v: unknown): WidgetWhen | undefined {
+  if (!isObj(v)) return
+  const w: WidgetWhen = {}
+  if (typeof v.project === 'string' && v.project.trim()) w.project = v.project.trim().slice(0, 200)
+  if (typeof v.branch === 'string' && v.branch.trim()) w.branch = v.branch.trim().slice(0, 200)
+  if (typeof v.pr === 'boolean') w.pr = v.pr
+  if ((WHEN_AGENT as readonly unknown[]).includes(v.agent)) w.agent = v.agent as WidgetWhen['agent']
+  return Object.keys(w).length ? w : undefined
+}
+// does the selected workspace (none: undefined) meet it: a project by id or name, a branch by glob (globMatch), a PR or
+// none, an agent tab running, waiting, or idle (one there, none at work or asking). No when: always
+export function whenOk(when: WidgetWhen | undefined, ws: { project: string; branch?: string; pr?: unknown } | undefined, o: { projectName?: string; agents?: string[] } = {}): boolean {
+  if (!when) return true
+  if (!ws) return false
+  if (when.project !== undefined && when.project !== ws.project && when.project.toLowerCase() !== o.projectName?.toLowerCase()) return false
+  if (when.branch !== undefined && !globMatch(when.branch, ws.branch ?? '')) return false
+  if (when.pr !== undefined && when.pr !== !!ws.pr) return false
+  const a = o.agents ?? []
+  if (when.agent === 'idle') return a.length > 0 && !a.some(s => s === 'running' || s === 'waiting')
+  return when.agent === undefined || a.includes(when.agent)
+}
 // R2: widget.json's needs, read leniently (manifestCheck says what's wrong): its programs' names, its oldest Laki
 export const NEED_BIN = /^[\w.+-]+$/
 export const NEED_LAKI = /^\d+(\.\d+){0,2}$/
@@ -348,6 +371,16 @@ export function binsIn(cmd: string): string[] {
 export function manifestCheck(m: Record<string, unknown>): UiProblem[] {
   const out: UiProblem[] = []
   const say = (level: UiProblem['level'], where: string, text: string) => out.push({ level, where, text })
+  if (m.when !== undefined) {
+    const w = m.when
+    if (!isObj(w)) say('error', 'widget.json when', '{ "project", "branch": a glob, "pr": true or false, "agent": running, waiting or idle }')
+    else {
+      for (const k of Object.keys(w)) if (!['project', 'branch', 'pr', 'agent'].includes(k)) say('warn', 'widget.json when', `no key ${k}${(x => (x ? ` (did you mean ${x}?)` : ''))(near(k, ['project', 'branch', 'pr', 'agent']))}`)
+      for (const k of ['project', 'branch'] as const) if (w[k] !== undefined && (typeof w[k] !== 'string' || !w[k].trim())) say('error', `widget.json when.${k}`, k === 'branch' ? 'a glob, like "feat/*"' : "a project's id or name")
+      if (w.pr !== undefined && typeof w.pr !== 'boolean') say('error', 'widget.json when.pr', 'true (with a PR) or false (without)')
+      if (w.agent !== undefined && !(WHEN_AGENT as readonly unknown[]).includes(w.agent)) say('error', 'widget.json when.agent', `${WHEN_AGENT.join(', ')}, not ${JSON.stringify(w.agent)}`)
+    }
+  }
   if (m.needs !== undefined) {
     const n = m.needs
     if (!isObj(n)) say('error', 'widget.json needs', '{ "bins": ["jq", "gh"], "laki": "0.54" }')

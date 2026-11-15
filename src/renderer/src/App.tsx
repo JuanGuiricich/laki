@@ -28,7 +28,7 @@ import { hasCap } from '../../shared/caps'
 import { click as extClick, Glyph as ExtGlyph, imagesVia, insertMenus, inWs, status as extStatus, type WidgetApi, WidgetBody, WidgetButtons, WidgetModal, WidgetPanel, WidgetStrip } from './Widgets'
 import type { SayModal, WidgetSay } from '../../shared/widget'
 import type { UiDo, UiProblem } from '../../shared/widgetUi'
-import { globMatch } from '../../shared/widgetSchema'
+import { globMatch, whenOk } from '../../shared/widgetSchema'
 import type { ExtTab } from './Extension'
 import type { FlowStartAt, Sel as FlowSel } from './Workflows'
 import { FLOW_ENDED, type WorkflowItem } from '../../shared/workflow'
@@ -2679,6 +2679,7 @@ export function App() {
   // Settings › Extensions' and the Extension page's: each one's settings, page, folder, logs
   const extCfg: WidgetsApi = {
     list: view?.widgets ?? [],
+    projects: view?.projects.filter(p => !p.kind).map(p => ({ id: p.id, name: p.name })),
     ungated: view?.tabs.filter(t => t.ungated).length,
     gateRestart: () => call<{ restarted: number; left: number }>('gateRestart', {}).then(r => (r.left && toast(`${r.left} still at work or asking: restart once idle`), r)),
     home: view?.widgetHome,
@@ -3460,7 +3461,8 @@ export function App() {
   // the names Laki AI's answers may write in bold (made links): its own (MCP's state) and the one shown (a PR's title)
   const aiNames = view.workspaces.filter(w => !w.archived).flatMap(w => [...new Set([w.name || w.id, wsName(w)])].map(name => ({ id: w.id, name })))
   const shownWidgets = (view.widgets ?? []).map(w => inWs(w, wsHere)) // a per-workspace one's instance in the workspace on screen
-  const ownWidgets = shownWidgets.filter(w => (!w.project || w.project === ws?.project) && !(w.on && w.hidden)) // a repo's (.laki/extensions): only while a workspace of its project is selected; hidden: its data says so
+  const whenHere = ws && { projectName: view.projects.find(p => p.id === ws.project)?.name, agents: view.tabs.filter(t => t.workspace === ws.id && t.kind === 'agent').map(t => t.status) } // P2: what a when reads of the selected workspace
+  const ownWidgets = shownWidgets.filter(w => (!w.project || w.project === ws?.project) && !(w.on && w.hidden) && whenOk(w.when, ws ?? undefined, whenHere || {})) // a repo's (.laki/extensions): only while a workspace of its project is selected; hidden: its data says so; when: only while the selected workspace matches
   // the tab bar's ⋯: One next step first; on a phone, the top bar's extensions too (no room for their strip), each as
   // its button's click
   const wsMore = (extra: MenuItem[] = []): MenuItem[] => [...(ws ? stepItem(ws) : []), ...extra, ...(narrow && ws?.kind === 'worktree' && !(stepsOn && stepOf(ws)?.id === 'ship') ? [{ label: 'Ship: commit, push, open a PR', icon: 'ship', run: () => setDialog('ship') } as MenuItem] : []), ...(tops => (narrow && tops.length ? [...wsActions, { head: 'Extensions' }, ...tops.map(w => ({ label: w.name, sub: w.label ?? w.badge, run: () => extClick(w, widgetApi) }))] : wsActions))(ownWidgets.filter(w => w.on && placesOf(w).includes('top')))]

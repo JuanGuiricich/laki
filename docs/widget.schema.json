@@ -522,6 +522,33 @@
       },
       "description": "Where its data comes from at first: the user picks another on its card (Own script, Static, File, URL, AI)"
     },
+    "when": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "Only in this project’s workspaces (its id or name)"
+        },
+        "branch": {
+          "type": "string",
+          "description": "Only on a branch that matches this glob (feat/*, release-*)"
+        },
+        "pr": {
+          "type": "boolean",
+          "description": "true: only with a PR; false: only without one"
+        },
+        "agent": {
+          "enum": [
+            "running",
+            "waiting",
+            "idle"
+          ],
+          "description": "Only while an agent there is running, waiting for you, or idle"
+        }
+      },
+      "description": "Show it only when the selected workspace matches (the user’s choice in Settings wins); all that are set must hold"
+    },
     "needs": {
       "type": "object",
       "additionalProperties": false,

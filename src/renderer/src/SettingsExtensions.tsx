@@ -1,6 +1,6 @@
 // Settings › Extensions: the list, each one's card (where it shows, updates, its settings, its tools) and Laki AI's
 // extension chats where you left off. Settings.tsx re-exports it.
-import { placesOf, type StudioChat, type WidgetHide, type WidgetLogLine, type WidgetOption, type WidgetPlace, type WidgetRuns, type WidgetSize, type WidgetSource, type WidgetView } from '../../shared/types'
+import { placesOf, WHEN_AGENT, type WidgetWhen, type StudioChat, type WidgetHide, type WidgetLogLine, type WidgetOption, type WidgetPlace, type WidgetRuns, type WidgetSize, type WidgetSource, type WidgetView } from '../../shared/types'
 import { STARTER_KINDS, type StarterKind } from '../../shared/widgetStarters'
 import { ICONS } from '../../shared/icons'
 import { UI_TYPES, type UiProblem } from '../../shared/widgetUi'
@@ -18,7 +18,7 @@ import { describeHours, parseHours } from '../../shared/when'
 export type WidgetsApi = {
   list: WidgetView[]
   home?: string // Laki's own widgets folder
-  set: (id: string, p: { on?: boolean; seen?: string; log?: boolean; size?: [number, number]; fit?: boolean; every?: number; view?: WidgetSize; place?: WidgetPlace | WidgetPlace[]; net?: boolean; hide?: WidgetHide; config?: Record<string, string>; ai?: boolean; source?: WidgetSource | null; name?: string; allow?: string[]; hours?: string }) => Promise<unknown> // hours: its own working hours ('': Settings'); seen: the files hash of what the user was shown (on only while it's that); ai: Laki AI may rewrite it (an hour); source: where its data comes from; name: widget.json's; allow: the tools its agent may use unasked
+  set: (id: string, p: { on?: boolean; seen?: string; log?: boolean; size?: [number, number]; fit?: boolean; every?: number; view?: WidgetSize; place?: WidgetPlace | WidgetPlace[]; net?: boolean; hide?: WidgetHide; config?: Record<string, string>; ai?: boolean; source?: WidgetSource | null; name?: string; allow?: string[]; hours?: string; when?: WidgetWhen | null }) => Promise<unknown> // when (P2): {} always, null widget.json's again; hours: its own working hours ('': Settings'); seen: the files hash of what the user was shown (on only while it's that); ai: Laki AI may rewrite it (an hour); source: where its data comes from; name: widget.json's; allow: the tools its agent may use unasked
   desk?: boolean // Desk is on: a place too
   ungated?: number // S8: claude tabs started before a tool gate was on
   gateRestart?: () => Promise<{ restarted: number; left: number }> // the idle ones again, their chats resumed
@@ -31,6 +31,7 @@ export type WidgetsApi = {
   chats?: StudioChat[] // Laki AI's extension chats with nothing made yet, or at work: where you left off (Laki AI on)
   chatRm?: (id: string) => Promise<unknown> // a session let go of (asked first)
   reload: () => Promise<unknown>
+  projects?: { id: string; name: string }[] // P2: Show when…'s project picker
   page: (id: string) => void // its own page (Extension.tsx): preview, settings, Laki AI's chat; '': a new one
   folder?: (id: string, at: MouseEvent<HTMLButtonElement> | DOMRect) => void // its folder's Open in menu, at a button or where one was
   logs?: (id: string) => void // its page's Logs tab
@@ -223,6 +224,40 @@ const WcRow = ({ title, hint, children }: { title: ReactNode; hint?: ReactNode; 
     <div className="wc-ctl">{children}</div>
   </div>
 )
+// P2: Show when…: the selected workspace's project, branch (a glob), PR and agent; each change saved whole ({}: always)
+function ShowWhen({ w, api }: { w: WidgetView; api: WidgetsApi }) {
+  const cur = w.when ?? {}
+  const set = (k: keyof WidgetWhen, v: unknown) => void api.set(w.id, { when: (n => (Object.keys(n).length ? n : {}))(Object.fromEntries(Object.entries({ ...cur, [k]: v }).filter(([, x]) => x !== undefined && x !== ''))) })
+  return (
+    <WcRow title="Show when…" hint="Only while the selected workspace matches: all that are set must hold. None set: always">
+      <div className="wc-when">
+        <select aria-label="Project" value={cur.project ?? ''} onChange={e => set('project', e.target.value || undefined)}>
+          <option value="">any project</option>
+          {(api.projects ?? []).map(p => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+          {cur.project && !(api.projects ?? []).some(p => p.id === cur.project || p.name === cur.project) && <option value={cur.project}>{cur.project}</option>}
+        </select>
+        <input aria-label="Branch, a glob" placeholder="any branch (feat/*)" defaultValue={cur.branch ?? ''} key={cur.branch ?? ''} onBlur={e => e.currentTarget.value.trim() !== (cur.branch ?? '') && set('branch', e.currentTarget.value.trim() || undefined)} onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()} />
+        <select aria-label="Pull request" value={cur.pr === undefined ? '' : String(cur.pr)} onChange={e => set('pr', e.target.value === '' ? undefined : e.target.value === 'true')}>
+          <option value="">PR or not</option>
+          <option value="true">with a PR</option>
+          <option value="false">without a PR</option>
+        </select>
+        <select aria-label="Agent" value={cur.agent ?? ''} onChange={e => set('agent', e.target.value || undefined)}>
+          <option value="">any agent state</option>
+          {WHEN_AGENT.map(a => (
+            <option key={a} value={a}>
+              agent {a}
+            </option>
+          ))}
+        </select>
+      </div>
+    </WcRow>
+  )
+}
 
 // Where it shows, drawn: a small Laki window with each place it's in lit, the pill under the mouse brighter
 function PlaceMap({ on, hot }: { on: WidgetPlace[]; hot?: WidgetPlace }) {
@@ -391,6 +426,7 @@ export function WidgetCard({ w, api }: { w: WidgetView; api: WidgetsApi }) {
             </Switch>
           </>
         )}
+        <ShowWhen w={w} api={api} />
         <Switch className="switch-row" on={!w.hide?.tip} disabled={w.tipOff} onChange={on => void api.set(w.id, { hide: { tip: !on } })}>
           <Says title="Show a tooltip" hint={w.tipOff ? 'Its widget.json says none ("tip": false)' : `What its name says on hover${w.tip ? ` ("${w.tip}")` : ''} and when it was fetched. Off: nothing shows as you hover it`} />
         </Switch>

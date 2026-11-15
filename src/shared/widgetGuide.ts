@@ -78,6 +78,8 @@ number; put the words in \`tip\`. Add them only when the user asks.
   \`sample\` (Laki's own hide them). To fail, exit non-zero with a line on stderr ("Set Repo in Settings › Extensions"): the last
   data stays. 2 minutes at most. Prefer what every Mac has (sh with curl, gh, jq; python3's standard library; a JS
   script) and shape the data there: small, with ready fields (\`"ci": "failing"\`): templates have no comparisons.
+- \`when\`: \`{ "project", "branch": "feat/*", "pr": true, "agent": "waiting" }\`: it shows only while the selected workspace
+  matches (all that are set; the user's *Show when…* wins). For something that only matters on a PR, a project or a branch.
 - \`needs\`: \`{ "bins": ["jq", "gh"], "laki": "0.54" }\`: the programs its commands run that a Mac may lack (its cell says
   *Needs jq* when one isn't on its PATH, and the turn-on sheet lists each) and the oldest Laki it runs on. Check warns at
   a program its commands run that isn't listed.

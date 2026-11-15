@@ -5,6 +5,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
+- An extension can show only when it matters: Settings' *Show when…* (or widget.json's `when`) by the selected workspace's project, branch, PR and agent state.
 - An extension's page has a *Build* tab: add the UI kit's elements, drag them in place, set their props, and bind them to its data with a click on a path; each change saved, Undo puts it back. The UI kit's cards are editable, and *Make an extension from this* keeps one.
 - Needs you stays collapsed once you collapse it: new asks and finishes add to its count, and ⌘K's *Collapse all projects* and *Expand all projects* leave it as it is.
 - Right click a terminal tab › *Make a tile from this command*: the selected command (or the last one, with shell integration) becomes an extension that runs it, its output as a table, a number or a list. *Improve with AI* gives it a look of its own.

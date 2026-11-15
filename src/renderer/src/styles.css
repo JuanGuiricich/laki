@@ -3307,6 +3307,7 @@ html.picking, html.picking * { cursor: crosshair !important; }
 .narrow .kit-type-row { grid-template-columns: minmax(0, 1fr); gap: var(--sp-3); }
 .kit-json pre { margin: 0; max-height: 180px; overflow: auto; padding: var(--sp-4) var(--sp-4); border: 1px solid var(--line); border-radius: var(--r-m); background: var(--bg); font-size: var(--fs-1); line-height: 1.45; }
 .kit-json button { position: absolute; top: 6px; right: 6px; }
+.wc-when { display: flex; flex-wrap: wrap; gap: var(--sp-3); } .wc-when input { width: 140px; }
 .kit-edit { display: flex; flex-direction: column; gap: var(--sp-2); } .kit-edit button { position: static; }
 .kit-edit textarea { min-height: 120px; max-height: 280px; padding: var(--sp-4); border: 1px solid var(--line); border-radius: var(--r-m); background: var(--bg); font-size: var(--fs-1); line-height: 1.45; resize: vertical; white-space: pre; tab-size: 2; }
 .kit-edit-acts { display: flex; flex-wrap: wrap; gap: var(--sp-3); } .kit-problems { margin: var(--sp-3) 0 0; padding-left: var(--sp-6); }
