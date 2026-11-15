@@ -207,8 +207,9 @@ export function paletteItems(app: AppCtx): PaletteItem[] {
   a({ label: 'Help: keys and commands', icon: 'help', hint: kh('help'), run: () => setDialog('help') })
   a({ id: 'about', label: 'About Laki', icon: 'info', run: () => setDialog('about') })
   a({ id: 'diagnostics', label: 'Copy diagnostics: versions, checks and logs for a bug report (redacted)', icon: 'copy', run: () => void copyDiagnostics().then(() => done('Diagnostics copied: paste them in a bug report'), fail) })
-  a({ id: 'collapseAll', label: 'Collapse all projects', icon: 'chevronRight', run: () => setFolded(view?.projects.map(p => p.id) ?? []) })
-  a({ id: 'expandAll', label: 'Expand all projects', icon: 'chevron', run: () => setFolded([]) })
+  // Needs you's own fold stays as you left it (it's not a project): collapsed, it stays so as new asks come in
+  a({ id: 'collapseAll', label: 'Collapse all projects', icon: 'chevronRight', run: () => setFolded(f => [...f.filter(x => x === 'needs'), ...(view?.projects.map(p => p.id) ?? [])]) })
+  a({ id: 'expandAll', label: 'Expand all projects', icon: 'chevron', run: () => setFolded(f => f.filter(x => x === 'needs')) })
   a({ label: sideOpen ? 'Hide sidebar' : 'Show sidebar', icon: 'sidebar', hint: kh('sidebar'), run: () => setSideOpen(o => !o) })
   a({ label: video ? 'Another YouTube video…' : 'Watch a YouTube video…', icon: 'youtube', run: () => setDialog('video') })
   if (video) a({ label: 'Close the video', icon: 'x', run: () => setVideo(null) })
