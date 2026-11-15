@@ -95,10 +95,11 @@ export const STARTERS: Record<StarterKind, Starter> = {
     blurb: 'Rows with avatars, tags and a button each; grouped, filtered, +N more',
     files: kit({ spec: sample('list').spec, data: sample('list').data, empty: { prs: [] }, more: PRS, real: `gh pr list --json number,title,author,url,updatedAt,state \\\n  --jq '{prs: [.[] | {number, title, url, updated: .updatedAt, state, author: .author.login, ci: "passing"}]}'`, actions: { review: toast('Review') } }),
   },
+  // the kit's sample without bulk and select: they want actions and row ids this one hasn't
   table: {
     title: 'A table',
     blurb: 'Columns, sorted, a filter box; columns that hide when narrow',
-    files: kit({ spec: sample('table').spec, data: sample('table').data, empty: { prs: [] }, more: PRS, real: `gh pr list --json number,title,author,url,updatedAt \\\n  --jq '{prs: [.[] | {number, title, url, updated: .updatedAt, author: .author.login, ci: "pending"}]}'` }),
+    files: kit({ spec: (({ bulk, select, ...plain }) => plain)(sample('table').spec as Record<string, unknown>), data: sample('table').data, empty: { prs: [] }, more: PRS, real: `gh pr list --json number,title,author,url,updatedAt \\\n  --jq '{prs: [.[] | {number, title, url, updated: .updatedAt, author: .author.login, ci: "pending"}]}'` }),
   },
   chart: {
     title: 'A chart',
