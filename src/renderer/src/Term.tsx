@@ -18,6 +18,10 @@ import { termTheme, transparent } from './themes'
 import { closeTo, Icon, type IconName, openFrom } from './ui'
 
 export const xterms = new Map<string, Terminal>() // per tab: the KeyBar asks for its cursor-key mode
+// K1: two views of one terminal in a window (an extension's cell and its full view) share the window's socket: it
+// detaches only as the last one goes, and the one left attaches again (its snapshot, its size); a read-only view doesn't
+// size it while a live one shows it
+const views = new Map<string, Map<() => void, boolean>>() // tab → each view's attach again, and whether it's read only
 
 // a file:// link's path (any host: claude puts the Mac's name there), or a bare absolute path; '' for any other link
 const filePath = (uri: string) => {
@@ -260,9 +264,12 @@ export function Term({
     ]
 
     let alive = true
+    const peers = views.get(tab) ?? new Map<() => void, boolean>()
+    views.set(tab, peers)
+    const sizing = () => !readOnly || ![...peers.values()].some(r => !r) // a live view of it sizes it
     const attach = async (quiet = false) => {
       try {
-        const r = await api.call('attach', { tab, cols: term.cols, rows: term.rows, ...(readOnly && { ro: true }) }) // ro: it can't answer the program's queries (disableStdin), so never the responder
+        const r = await api.call('attach', { tab, ...(sizing() && { cols: term.cols, rows: term.rows }), ...(readOnly && { ro: true }) }) // ro: it can't answer the program's queries (disableStdin), so never the responder
         if (!alive) return
         term.reset()
         term.write(r.snapshot, where) // the scroll button as the snapshot leaves it
@@ -300,7 +307,7 @@ export function Term({
     if (readOnly) term.options.disableStdin = true
     term.onData(d => readOnly || api.send('input', { tab, data: d }))
     term.onBinary(d => readOnly || api.send('input', { tab, data: d }))
-    term.onResize(({ cols, rows }) => api.send('resize', { tab, cols, rows }))
+    term.onResize(({ cols, rows }) => sizing() && api.send('resize', { tab, cols, rows }))
     // a selection goes to the clipboard as you make it (Settings: Copy selected text)
     term.onSelectionChange(() => {
       const text = term.getSelection()
@@ -314,9 +321,11 @@ export function Term({
     })
     ro.observe(box.current!)
     // the size is the last client's to look (a phone, then this Mac): back here, it's this one's again
-    const mine = () => document.visibilityState === 'visible' && api.send('resize', { tab, cols: term.cols, rows: term.rows })
+    const mine = () => document.visibilityState === 'visible' && sizing() && api.send('resize', { tab, cols: term.cols, rows: term.rows })
     window.addEventListener('focus', mine)
     document.addEventListener('visibilitychange', mine)
+    const again = () => void attach(true)
+    peers.set(again, readOnly)
     if (api.connected) attach()
     setXt({ term, search, fit })
     ;(window as any).__term = term // for inspection in dev tools
@@ -325,7 +334,9 @@ export function Term({
       alive = false
       clearTimeout(showT.current)
       clearTimeout(hideT.current)
-      api.send('detach', { tab })
+      peers.delete(again)
+      if (peers.size) [...peers.keys()].at(-1)!() // another view of it here: it stays attached, as that one
+      else views.delete(tab), api.send('detach', { tab })
       off()
       ro.disconnect()
       window.removeEventListener('focus', mine)

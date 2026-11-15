@@ -389,6 +389,7 @@ let peek: Peek | null = null
 let peekT: ReturnType<typeof setTimeout> | undefined
 const peekSubs = new Set<() => void>()
 const peekSet = (p: Peek | null) => ((peek = p), peekSubs.forEach(f => f()))
+const onPeek = (f: () => void) => (peekSubs.add(f), () => void peekSubs.delete(f))
 const peekable = (w: WidgetView) => w.on && w.full && !w.hide?.tip && !w.missing?.length && w.here !== null && !editing && !matchMedia('(prefers-reduced-motion: reduce)').matches
 const peekOf = (w: WidgetView, side: Peek['side']) =>
   peekable(w)
@@ -402,10 +403,7 @@ const peekOf = (w: WidgetView, side: Peek['side']) =>
       }
     : {}
 export function WidgetPeek({ widgets, api }: { widgets: WidgetView[]; api: WidgetApi }) {
-  const p = useSyncExternalStore(
-    f => (peekSubs.add(f), () => void peekSubs.delete(f)),
-    () => peek,
-  )
+  const p = useSyncExternalStore(onPeek, () => peek)
   const w = p && (x => x && inWs(x, p.w.here))(widgets.find(x => x.id === p.w.id))
   if (!p || !w || !peekable(w)) return null
   const W = 360

@@ -191,6 +191,7 @@ export class Session {
       st.ready = true
       st.pending = []
       if (!ro) this.setResponder(c)
+      else if (this.responder === c) this.setResponder(null) // the window's live view went: the mirror answers
     })
   }
 

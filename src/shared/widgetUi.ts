@@ -731,8 +731,9 @@ function chart(e: El, s: S) {
   const axis = s.line ? '' : ticks.length ? `<div class="k-ch-axis ticks"><span class="k-ch-w">${esc(ticks.map(fmt).reduce((a, b) => (b.length > a.length ? b : a)))}</span>${ticks.map(v => `<span style="top:${f1((yOf(v) / H) * 100)}%">${esc(fmt(v))}</span>`).join('')}</div>` : `<div class="k-ch-axis"><span>${esc(fmt(hi))}</span><span>${esc(fmt(lo))}</span></div>`
   const thl = ths.filter(t => t.label).map(t => `<span class="k-ch-thl" style="top:${f1((yOf(t.v) / H) * 100)}%;color:${t.c}">${esc(t.label)}</span>`).join('')
   const [yl, xlab] = s.line ? ['', ''] : [txt(e.ylabel, s), txt(e.xlabel, s)]
+  const bodyH = s.full || s.line || n(e.height, s) !== undefined ? height : Math.max(24, height - (xTicks ? 13 : 0) - (yl ? 12 : 0) - (xlab ? 12 : 0)) // a cell's height holds its labels too
   return wrap(
-    `${yl ? `<div class="k-ch-yl">${esc(yl)}</div>` : ''}<div class="k-ch-body${xTicks ? ' xt' : ''}" style="height:${height}px">${axis}<div class="k-ch-plot" data-hc="${esc(colorOfSe(series[0], 0))}"><svg viewBox="0 0 100 ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(label || 'chart')}">${plot}</svg>${dots}${thl}${xTicks}</div></div>${xAxis}${xlab ? `<div class="k-ch-xl">${esc(xlab)}</div>` : ''}`,
+    `${yl ? `<div class="k-ch-yl">${esc(yl)}</div>` : ''}<div class="k-ch-body${xTicks ? ' xt' : ''}" style="height:${bodyH}px">${axis}<div class="k-ch-plot" data-hc="${esc(colorOfSe(series[0], 0))}"><svg viewBox="0 0 100 ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(label || 'chart')}">${plot}</svg>${dots}${thl}${xTicks}</div></div>${xAxis}${xlab ? `<div class="k-ch-xl">${esc(xlab)}</div>` : ''}`,
     kind === 'scatter' ? headOf() : headOf(lastV !== undefined ? fmt(lastV) : undefined),
     legend,
   )
@@ -1935,7 +1936,7 @@ export function uiCheck(spec: unknown, data?: unknown, o: { actions?: string[] }
     if (type === 'term' && (typeof el.run !== 'string' || !el.run.trim())) say('error', here, 'term: its run, the command it runs')
     if (type === 'chart') {
       runs({ run: el.run }, `${here}.run`, true)
-      if (Array.isArray(el.threshold)) el.threshold.forEach((t, i) => obj(t) ? t.value === undefined && say('error', `${here}.threshold[${i}]`, 'its value, where the line goes') : typeof t !== 'number' && say('error', `${here}.threshold[${i}]`, '{ "value", "label", "tone" }'))
+      if (Array.isArray(el.threshold)) el.threshold.forEach((t, i) => obj(t) ? t.value === undefined && say('error', `${here}.threshold[${i}]`, 'its value, where the line goes') : typeof t !== 'number' && typeof t !== 'string' && say('error', `${here}.threshold[${i}]`, '{ "value", "label", "tone" }'))
     }
     if (type === 'diagram' && (typeof el.code !== 'string' || !el.code.trim())) say('error', here, 'diagram: its code, mermaid’s words (flowchart LR; A --> B)')
     if (type === 'qr' && (typeof el.value !== 'string' || !el.value)) say('error', here, 'qr: its value, what the code holds')

@@ -2683,7 +2683,6 @@ export function App() {
   // its own)
   const [layoutOn, setLayoutOn] = useState(false)
   const widgetsNow = useRef<WidgetView[]>([])
-  widgetsNow.current = view?.widgets ?? []
   useEffect(() => {
     if (!layoutOn) return
     setLayoutEdit(layoutEditor(() => widgetsNow.current, (id, o) => call('widgetSet', { id, ...o })))

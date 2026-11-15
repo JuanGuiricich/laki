@@ -42,6 +42,9 @@ test('a term element’s terminal: started once and attached, in Resources, stop
   assert.equal((await cell.call('attach', { tab, cols: 40, rows: 5, ro: true })).responder, false, 'a cell, shown only: never the one that answers its queries')
   assert.ok(!cell.events.some((m: any) => m.ev === 'responder' && m.tab === tab && m.on), 'nor told it is')
   cell.ws.close()
+  // the window's live view goes and its cell attaches again, read only: nothing there answers, the mirror does
+  await app.call('attach', { tab, ro: true })
+  await until(() => app.events.some((m: any) => m.ev === 'responder' && m.tab === tab && m.on === false), 'the window told it no longer answers')
   const row = async () => ((await rig.rpc('resources')).others ?? []).find((o: any) => o.stop === `term:${tab}`)
   assert.match((await until(row, 'its row in Resources')).name, /^TT: echo/)
   await rig.rpc('resourceStop', { key: `term:${tab}` })

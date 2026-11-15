@@ -156,7 +156,13 @@ function KitCard({ it, pick, onPick, copy, make }: { it: Item; pick: string; onP
             Reset
           </button>
           {make && (
-            <button type="button" className="sm primary" disabled={!!shown.bad} data-tip="An extension of yours showing this, its data this sample: it opens on its page" onClick={() => make(it.title, shown.spec, shown.data)}>
+            <button type="button" className="sm primary" disabled={!!shown.bad} data-tip="An extension of yours showing this, its data this sample: it opens on its page" onClick={() => {
+                try {
+                  make(it.title, JSON.parse(uiText) as UiSpec, dataText.trim() ? JSON.parse(dataText) : undefined) // as the boxes say now, not 300 ms ago
+                } catch (e) {
+                  setShown(s => ({ ...s, bad: (e as Error).message }))
+                }
+              }}>
               Make an extension from this
             </button>
           )}

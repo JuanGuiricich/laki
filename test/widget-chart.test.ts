@@ -25,7 +25,8 @@ test('chart: thresholds as dashed lines in their tone, in sight, labeled', () =>
   assert.match(html, /<line class="k-ch-th" x1="0" x2="100" y1="2.0" y2="2.0"[^>]*style="color:var\(--error/, '150 is the top now')
   assert.match(html, /<span class="k-ch-thl" style="top:5.0%;color:var\(--error[^"]*">SLO<\/span>/)
   assert.match(html, /<div class="k-ch-axis"><span>150<\/span>/)
-  assert.match(JSON.stringify(uiCheck({ type: 'chart', each: 'd', y: '{{v}}', threshold: [{ label: 'x' }, 'y'] }, { d })), /threshold\[0\].*its value.*threshold\[1\]/)
+  assert.match(JSON.stringify(uiCheck({ type: 'chart', each: 'd', y: '{{v}}', threshold: [{ label: 'x' }, true] }, { d })), /threshold\[0\].*its value.*threshold\[1\]/)
+  assert.deepEqual(uiCheck({ type: 'chart', each: 'd', y: '{{v}}', threshold: ['{{limit}}', 80] }, { d, limit: 60 }), [], 'a template or a number')
 })
 
 test('chart: a line over time by its rows’ at, sorted; time labels; the head’s value the latest', () => {
@@ -40,6 +41,9 @@ test('chart: a line over time by its rows’ at, sorted; time labels; the head�
   assert.match(html, /<b>30<\/b>/, 'the latest')
   assert.equal((html.match(/<div class="k-ch-xt">(.*?)<\/div>/)?.[1].match(/<span/g) ?? []).length, 4)
   assert.match(html, /data-tip="\d\d:\d\d\n10" data-px="0.0"/, 'its time in the tooltip')
+  const h = (x: string) => Number(/k-ch-body[^"]*" style="height:(\d+)px/.exec(x)?.[1])
+  const cell = (o: object) => uiHtml({ type: 'chart', each: 'r', y: '{{v}}', ...o }, ctx({ r: rows }), { cells: [2, 2] })
+  assert.equal(h(cell({ xticks: 3, xlabel: 'time', ylabel: 'reqs' })), h(cell({})) - 37, 'a cell: its labels inside its height')
   const plain = uiHtml({ type: 'chart', each: 'r', y: '{{v}}' }, ctx({ r: rows.map(({ v }) => ({ v })) }), { full: true })
   assert.match(plain, /<polyline points="0.0,[\d.]+ 50.0,[\d.]+ 100.0,/, 'no at: by place')
   assert.match(uiHtml({ type: 'chart', kind: 'bars', each: 'r', y: '{{v}}' }, ctx({ r: rows }), { full: true }), /<rect x=/, 'bars stay bars')
