@@ -706,7 +706,7 @@ const viewSize = (w: Entry): WidgetSize => [w.s.view, w.m.view].find(isSize) ?? 
 const isPlace = (v: unknown): v is WidgetPlace => WIDGET_PLACES.includes(v as WidgetPlace)
 // its places: the user's (one, or a list), else widget.json's, else the sidebar; the first is its place
 const placeList = (v: unknown) => [...new Set((Array.isArray(v) ? v : [v]).filter(isPlace))]
-const placesOf = (w: Entry): WidgetPlace[] => [w.s.place, w.m.place].map(placeList).find(l => l.length) ?? ['side']
+export const placesOf = (w: Entry): WidgetPlace[] => [w.s.place, w.m.place].map(placeList).find(l => l.length) ?? ['side']
 const placeOf = (w: Entry): WidgetPlace => placesOf(w)[0]
 
 const TYPES: WidgetOption['type'][] = ['text', 'number', 'bool', 'choice', 'list', 'secret']
@@ -839,8 +839,12 @@ export function find(id: string) {
 // whole page (pageOf), for a frame. widget.html's view, else its ui's (the UI kit's HTML for the cells it shows in:
 // across, down, ½ a bar's line)
 // sample: with widget.json's made-up data (and sampleConfig over its settings), as it would look; sample in the context
-export function widgetRender(o: { id: string; full?: boolean; vars?: Record<string, string>; sample?: boolean | string; cells?: [number, number]; ws?: string }) {
+export function widgetRender(o: { id: string; full?: boolean; vars?: Record<string, string>; sample?: boolean | string; cells?: [number, number]; ws?: string; turn?: { tab: string; at: number } }) {
   const w = find(o.id)
+  // P5: a turn's chip: the data its turn.done handler left for that turn, in that tab's workspace
+  const mark = o.turn ? rt.get(String(o.turn.tab))?.marks?.find(m => m.widget === w.id && m.at === Number(o.turn!.at)) : undefined
+  if (o.turn && !mark) throw new Error(`that turn's data is gone: the last 20 turns are kept, until a restart`)
+  if (mark) o = { ...o, sample: undefined, ws: state.tabs.find(t => t.id === o.turn!.tab)?.workspace }
   // sample: widget.json's, or a fixture's by its name (fixtures/<name>.json: busy, empty…)
   let made: unknown = w.m.sample
   if (typeof o.sample === 'string') {
@@ -866,10 +870,12 @@ export function widgetRender(o: { id: string; full?: boolean; vars?: Record<stri
   const fx = factNames(w).length ? { facts: o.sample || !x ? sampleFacts(w) : (known ?? {}) } : {}
   const ctx = o.sample
     ? { data: made ?? typedData(w), config: { ...typedOf(w), ...sc }, at: Date.now() - 120_000, error: undefined, full: !!o.full, sample: true, workspace, ...fx }
-    : { data: s.data ?? typedData(w), config: typedOf(w), at: s.at, error: s.error, full: !!o.full, workspace, ...fx }
+    : mark
+      ? { data: mark.data, config: typedOf(w), at: mark.at, error: undefined, full: !!o.full, workspace, ...fx }
+      : { data: s.data ?? typedData(w), config: typedOf(w), at: s.at, error: s.error, full: !!o.full, workspace, ...fx }
   const cells = Array.isArray(o.cells) ? (o.cells.map(Number) as [number, number]) : undefined
   const hide = w.s.hide // the user's switches: a template's at gone too ({{ago at}} empty, {{#if at}} not)
-  const fail = o.sample ? undefined : s.error ? s.fail : undefined // R1: the error block's words and its fix
+  const fail = o.sample || mark ? undefined : s.error ? s.fail : undefined // R1: the error block's words and its fix
   const body = fromUi ? uiHtml(w.m.ui, ctx, { full: !!o.full, cells: cells ?? (o.full ? undefined : sizeOf(w)), hide, ...(fail && { fail: { hint: fail.hint, fix: RETRY_KINDS.includes(fail.kind) ? 'refresh' : 'fix', label: fixLabel(fail) } }) }) : render(own!, hide?.at ? { ...ctx, at: undefined } : ctx)
   return hasScript(file) ? pageOf(body, ctx, o.vars) : body // as the app shows it (js): a script in either view makes both pages
 }
@@ -888,7 +894,8 @@ export function widgetPage(id: string, query: URLSearchParams): { code: number; 
       vars = JSON.parse(query.get('theme') || '{}')
     } catch {}
     const cells = /^(\d)x(\d(?:\.5)?)$/.exec(query.get('cells') ?? '')
-    html = widgetRender({ id, full: query.get('full') === '1', sample: (v => (v === '1' ? true : v || undefined))(query.get('sample')), vars: vars && typeof vars === 'object' ? vars : {}, cells: cells ? [Number(cells[1]), Number(cells[2])] : undefined, ws: query.get('ws') || undefined })
+    const turn = /^([\w-]+):(\d+)$/.exec(query.get('turn') ?? '') // P5: <tab>:<at>
+    html = widgetRender({ id, full: query.get('full') === '1', sample: (v => (v === '1' ? true : v || undefined))(query.get('sample')), vars: vars && typeof vars === 'object' ? vars : {}, cells: cells ? [Number(cells[1]), Number(cells[2])] : undefined, ws: query.get('ws') || undefined, ...(turn && { turn: { tab: turn[1], at: Number(turn[2]) } }) })
   } catch (e) {
     html = `<!doctype html><p style="color:#f7768e;font:12px system-ui">${String((e as Error).message).replace(/[&<>]/g, '')}</p>`
   }
@@ -939,7 +946,7 @@ export function widgetSet(o: { id: string; seen?: string; log?: boolean; source?
   if (unopened.length) throw new Error(`the sheet cut ${unopened.join(', ')}: open ${unopened.length === 1 ? 'it' : 'them'} in full first (laki widget what ${w.id} --full ${unopened[0]})`) // S10
   const badPlace = o.place === undefined ? undefined : (Array.isArray(o.place) ? o.place : [o.place]).find(x => !isPlace(x)) // a typo would put back widget.json's
   if (badPlace !== undefined) throw new Error(`no place ${badPlace}: ${WIDGET_PLACES.join(', ')}`)
-  if (o.place !== undefined && placeList(o.place).includes('row') && !scoped(w)) throw new Error(`${w.m.name || w.id} is one for the app: a row's mark is per workspace`)
+  if (o.place !== undefined && placeList(o.place).some(p => p === 'row' || p === 'turn') && !scoped(w)) throw new Error(`${w.m.name || w.id} is one for the app: a row's mark and a turn's chip are per workspace`)
   const hours = o.hours === undefined ? undefined : hoursText(o.hours) // '': Settings' again; checked before anything changes
   const bad = o.on === true && repoBad(w)
   if (bad) throw new Error(`${w.m.name || w.id} can't be trusted: ${bad}`)

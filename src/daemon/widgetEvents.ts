@@ -9,8 +9,8 @@ import { type ChildProcess, spawn } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { CUSTOM_EVENT, type EventSent, type Gate, type GateHeld, type WidgetEvent, type WidgetStream, type Workspace } from '../shared/types.ts'
 import { actionCmd, gateOf } from '../shared/widgetSchema.ts'
-import { type Entry, envOf, eventWs, exec, faceOf, type Failed, find, guarded, inProj, instOk, isObj, keep, keyOf, lastLine, onOf, outside, ownFetch, ran, RUN_JS, scoped, shown, sourceOf, tail, trusted, where, widgetAction, widgetRun, widgets, wLog, wsEnv, wsInfo, type WsInfo } from './widgets.ts'
-import { agentIn, broadcast, callerAgent, changed, devLog, state } from './core.ts'
+import { dataOf, type Entry, envOf, eventWs, exec, faceOf, placesOf, type Failed, find, guarded, inProj, instOk, isObj, keep, keyOf, lastLine, onOf, outside, ownFetch, ran, RUN_JS, scoped, shown, sourceOf, tail, trusted, where, widgetAction, widgetRun, widgets, wLog, wsEnv, wsInfo, type WsInfo } from './widgets.ts'
+import { agentIn, broadcast, callerAgent, changed, devLog, rtOf, state } from './core.ts'
 import { killGroup, own } from './resources.ts'
 import { filesHash } from './widgetTrust.ts'
 import { dir } from './dir.ts'
@@ -27,7 +27,7 @@ const QUEUE_MAX = 20
 const EVENT_MAX = 64 << 10
 export const HOPS_MAX = 3 // an emit made while handling an event is one hop more: past this, dropped (a loop)
 const SENT_MAX = 50
-type Job = { name: string; json: string; h: string; ws?: string; gone?: WsInfo; hops: number; agent?: string; of?: string; rec: EventSent } // agent: an agent's event (its from.agent); of: the event's workspace (whose Always); rec: what laki widget events says of it
+type Job = { name: string; json: string; h: string; ws?: string; gone?: WsInfo; hops: number; agent?: string; of?: string; rec: EventSent; tab?: string; at: number } // agent: an agent's event (its from.agent); of: the event's workspace (whose Always); rec: what laki widget events says of it
 type From = { widget?: string; tab?: { id: string; name: string }; agent?: string }
 const queues = new Map<string, Job[]>()
 // laki events (main.ts' events): the objects extensions get (tool.call's aside: every tool call), numbered, the newest
@@ -102,7 +102,7 @@ export function widgetEvent(name: WidgetEvent, extra: Record<string, unknown> = 
       wLog(w, `event ${name}: a fetch for it waits already`) // one fetch after the burst, not one per event
       continue
     }
-    q.push({ name, json, h, ws: at, gone: scoped(w) && going ? i : undefined, hops, agent: o.from?.agent, of: x?.id, rec })
+    q.push({ name, json, h, ws: at, gone: scoped(w) && going ? i : undefined, hops, agent: o.from?.agent, of: x?.id, rec, tab: tab?.id, at: head.at })
     if (q.length > QUEUE_MAX) wLog(w, `event ${q.shift()!.name}: dropped, ${QUEUE_MAX} more waiting`, 'warn')
     queues.set(w.id, q)
     rec.widgets.push(w.id)
@@ -290,6 +290,20 @@ export function widgetEmit(o: { name?: unknown; data?: unknown; ws?: unknown; fr
   return { ok: true, event: name, widgets: rec.widgets, flows: rec.flows }
 }
 export const widgetEvents = () => [...sent].reverse()
+// P5: a turn place's (per workspace) turn.done handler that left new data (a refresh's fetch, an action's { data }):
+// that data and its face kept for that turn of that tab, in memory as Proof cards are, the last TURN_MARKS turns a tab
+// had marks for; the Reader's chip under the turn, Needs you's card; widgetRender's turn draws its full view
+export const TURN_MARKS = 20
+function turnMark(w: Entry, j: Job) {
+  const s = dataOf(w, j.ws)
+  if (s.error || s.data === undefined || !s.at || s.at < j.at || !state.tabs.some(t => t.id === j.tab)) return
+  const { label, badge, tip, tone, hidden } = faceOf(w, s.data, j.ws)
+  const r = rtOf(j.tab!)
+  const list = [...(r.marks ?? []).filter(m => !(m.at === j.at && m.widget === w.id)), ...(hidden ? [] : [{ widget: w.id, at: j.at, data: s.data, label, badge, tip, tone }])].sort((a, b) => a.at - b.at)
+  const ats = [...new Set(list.map(m => m.at))].slice(-TURN_MARKS)
+  r.marks = list.filter(m => ats.includes(m.at))
+  changed()
+}
 async function drain(id: string) {
   if (draining.has(id)) return
   draining.add(id)
@@ -323,6 +337,7 @@ async function handle(id: string, j: Job) {
   writeFileSync(file, j.json, { mode: 0o600 })
   const ev = { env: { LAKI_EVENT: j.name, LAKI_EVENT_FILE: file, LAKI_EVENT_HOPS: String(j.hops), ...(j.agent && { LAKI_EVENT_AGENT: j.agent }) }, stdin: j.json, gone: j.gone }
   if (j.agent) handling.set(id, j.agent)
+  const marks = j.name === 'turn.done' && j.tab && j.ws && placesOf(w).includes('turn') && scoped(w) ? dataOf(w, j.ws).at : false // P5: its data before, to tell this turn's
   try {
     if (j.h === 'refresh' && j.gone) wLog(w, `event ${j.name}: not fetched: ${j.gone.name} is gone, nothing to keep (an action runs on it)`)
     else if (j.h === 'refresh') {
@@ -332,6 +347,7 @@ async function handle(id: string, j: Job) {
       const r = await widgetAction({ id, action: j.h, ws: j.ws }, `event:${j.name}`, ev)
       if (r.ok && (r.toast || r.modal || r.close)) broadcast({ ev: 'widget-say', widget: id, ws: j.ws, toast: r.toast, modal: r.modal, close: r.close })
     }
+    if (marks !== false) turnMark(w, j)
   } finally {
     rmSync(file, { force: true })
     handling.delete(id)

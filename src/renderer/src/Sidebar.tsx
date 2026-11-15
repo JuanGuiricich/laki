@@ -13,7 +13,7 @@ import { rollup, Glyph } from './Glyph'
 import { type Collision, spanText } from '../../shared/overlap'
 import { type CSSProperties, type KeyboardEvent as ReactKey, useLayoutEffect, useRef } from 'react'
 import { short, prState, Avatar, PrCard } from './Info'
-import { RowMarks, rowMarks, WidgetGrid } from './Widgets'
+import { RowMarks, rowMarks, TurnChips, WidgetGrid } from './Widgets'
 import { planCount } from '../../shared/todos'
 import { phVars, sideVars, sideAttrs } from './SettingsLook'
 import { Video, TimerBar, StopwatchBar, stepsOf, OnboardBar } from './panels'
@@ -148,6 +148,7 @@ export function sideOf(app: AppBase & ReturnType<typeof menusOf>) {
     seenAll: ts => (ts.forEach(t => needsApi.seen(t)), done(`Marked ${ts.length} as seen`, () => ts.forEach(t => markUnread(t.id)))),
     name: wsName,
     openProof: (t, path) => (setDialog(null), selectTab(t), app.openFile({ ws: t.workspace, path, storage: true }), narrow && setSideOpen(false)),
+    turnChips: t => (last => (last?.length ? <TurnChips marks={last} widgets={view.widgets ?? []} open={m => setDialog({ widget: m.widget, turn: { tab: t.id, at: m.at } })} /> : null))(t.marks?.filter(m => m.at === t.marks!.at(-1)!.at)),
     keys: (t, data) => void api.call('input', { tab: t.id, data }).catch(() => {}),
     // U8: each answered as its card would be (its first option or Allow; its last or Deny), one after another; the
     // daemon refuses a menu that changed since, named in the toast

@@ -25,7 +25,7 @@ import { completeOf, type Inserted, type Inserts, keepFile, VoiceBar } from './P
 import type { ProjectTab } from './Project' // a type alone: verbatimModuleSyntax keeps a { type } import's module in the bundle (E8)
 import { ACHIEVEMENTS, earnedBy, pageEarns, upsOf, wentUp } from '../../shared/achievements'
 import { hasCap } from '../../shared/caps'
-import { click as extClick, Glyph as ExtGlyph, imagesVia, insertMenus, inWs, layoutEditor, setLayoutEdit, status as extStatus, type WidgetApi, WidgetBody, WidgetButtons, WidgetModal, WidgetPanel, WidgetStrip } from './Widgets'
+import { click as extClick, Glyph as ExtGlyph, imagesVia, insertMenus, inWs, layoutEditor, setLayoutEdit, status as extStatus, TurnChips, type WidgetApi, WidgetBody, WidgetButtons, WidgetModal, WidgetPanel, WidgetStrip } from './Widgets'
 import type { SayModal, WidgetSay } from '../../shared/widget'
 import type { UiDo, UiProblem } from '../../shared/widgetUi'
 import { globMatch, whenOk } from '../../shared/widgetSchema'
@@ -2455,7 +2455,7 @@ export function App() {
   const openPort = (port: number) => openExternal(`http://localhost:${port}`)
   // widgets: the sidebar's grid and a widget's dialog (Widgets.tsx)
   const widgetApi: WidgetApi = {
-    render: (id, full, sample, cells, ws) => api.call<string | null>('widgetRender', { id, full, ...(sample && { sample }), ...(cells && { cells }), ws }),
+    render: (id, full, sample, cells, ws, turn) => api.call<string | null>('widgetRender', { id, full, ...(sample && { sample }), ...(cells && { cells }), ws, ...(turn && { turn }) }),
     run: (id, ws) => call('widgetRun', { id, ws }),
     open: url => (/^laki:\/\//i.test(url) ? setLink(url) : openExternal(url)),
     copy: text => void copy(text),
@@ -3041,6 +3041,7 @@ export function App() {
     mentions: t => mentionsOf(viewRef.current, t.workspace), // @ in its box: your other workspaces, your projects
     proof: t => (p => (p?.tab === t.id ? p : undefined))(view?.workspaces.find(w => w.id === t.workspace)?.proof), // the Proof card: its last checked turn's
     openProof: (t, path) => openFile({ ws: t.workspace, path, storage: true }),
+    turnChips: (t, marks) => <TurnChips marks={marks} widgets={view?.widgets ?? []} open={m => setDialog({ widget: m.widget, turn: { tab: t.id, at: m.at }, back: dialog })} />,
     ...(!view?.managed?.allowRules && { alwaysAllow: t => void alwaysAllow(t).catch(() => {}) }),
     answer: (tab, n, label) => void call('answer', { tab, n, label }).catch(() => {}), // label: a menu changed meanwhile (the next of several questions) isn't answered by it (call's toast says so)
     review: () => ((turnNext.on = true), window.dispatchEvent(new CustomEvent('laki-scope', { detail: 'turn' })), showPanel('changes')), // Changes open already: the event; else turnNext as it mounts

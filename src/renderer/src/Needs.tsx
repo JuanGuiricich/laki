@@ -31,6 +31,7 @@ export type NeedsApi = {
   bulk?: (ts: TabView[], allow: boolean) => void // U8: Allow all (it asks first, naming each) and Deny all
   allowKey?: string // Allow all's key, for its tip
   openProof?: (t: TabView, path: string) => void // the Proof card's file (a script's output, a picture): its storage folder's
+  turnChips?: (t: TabView) => React.ReactNode // P5: its last turn's chips from turn place extensions
 }
 
 const EARLIER = 'laki.needsEarlier' // '1': the Earlier row unfolded
@@ -161,6 +162,7 @@ function NeedCard({ t, w, api, next, stale }: Need & { api: NeedsApi; next: bool
         <>
           {last && <div className="need-q need-last">{last}</div>}
           {w.proof?.tab === t.id && api.openProof && <ProofList p={w.proof} open={path => api.openProof!(t, path)} />}
+          {api.turnChips?.(t)}
           <div className="need-acts" onClick={stop}>
             {stat && (
               <span className="ws-stat">

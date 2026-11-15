@@ -51,6 +51,7 @@ const PRS = {
   green: { prs: [pr(450, 'Show tax in the cart', 'hubot', 'passing', 'Approved', '16T10:00:00', ['feature']), pr(451, 'Fix the date picker on Safari', 'octocat', 'passing', 'Approved', '15T10:00:00', ['bug']), pr(452, 'Retry webhooks with backoff', 'monalisa', 'passing', 'Approved', '17T10:00:00')] },
   one: { prs: [pr(460, 'Hotfix: payments time out after the deploy, roll back the client and add a retry around the charge call', 'defunkt', 'failing', 'Failing CI', '17T09:40:00', ['bug', 'p1'])] },
 }
+const TURN = { list: [{ path: 'src/cart.ts', add: 42, del: 7 }, { path: 'test/cart.test.ts', add: 18, del: 0 }], files: 2, add: 60, del: 7, tone: 'muted' }
 const toast = (what: string) => `printf '{"toast": "${what}: %s"}' "$WIDGET_ARG"`
 
 const NOTE = `## This week
@@ -80,7 +81,7 @@ const LAUNCH = {
   ],
 }
 
-export const STARTER_KINDS = ['number', 'list', 'table', 'chart', 'note', 'launcher', 'button', 'form', 'panel', 'workspace', 'stream', 'tool', 'pullmain', 'context', 'onefile'] as const
+export const STARTER_KINDS = ['number', 'list', 'table', 'chart', 'note', 'launcher', 'button', 'form', 'panel', 'workspace', 'turn', 'stream', 'tool', 'pullmain', 'context', 'onefile'] as const
 export type StarterKind = (typeof STARTER_KINDS)[number]
 
 export const STARTERS: Record<StarterKind, Starter> = {
@@ -246,6 +247,26 @@ one short line each. Never put secrets in a note.
         'README.md': readme(id, name, ' Its `add` action is a tool for agents (`"tool"` in widget.json, `AGENTS.md` says when to use it): `laki widget tools` lists it, `laki widget tool ' + id + ' add \'{"text": "hi"}\'` runs it, after you allow it.\n\nA tool that calls an API takes its token as a secret setting: in widget.json, `"config": { "apiToken": { "type": "secret", "label": "API token" } }`; you fill it in Settings › Extensions, its command gets `$WIDGET_APITOKEN` (`curl -H "Authorization: Bearer $WIDGET_APITOKEN" …`), and nothing else sees it: not its page, the app or agents.'),
       }
     },
+  },
+  turn: {
+    title: 'After each turn',
+    blurb: 'Per workspace: a chip under each agent turn with what is uncommitted, files and lines; a click lists them',
+    files: (id, name) => ({
+      'widget.json': json({ $schema: WIDGET_SCHEMA_URL, name, description: 'A chip under each agent turn: the worktree’s uncommitted changes as it ended', scope: 'workspace', place: 'turn', every: 1440, on: { 'turn.done': 'refresh' }, fetch: 'sh fetch.sh', label: '{{files}} files', badge: '+{{add}}', tip: '+{{add}} −{{del}} in {{files}} files, uncommitted', ui: { type: 'table', each: 'list', columns: [{ title: 'File', value: '{{path}}' }, { title: '+', value: '{{add}}', tone: 'good' }, { title: '−', value: '{{del}}', tone: 'bad' }] }, sample: TURN }),
+      'fetch.sh': `#!/bin/sh
+# After each agent turn (on: turn.done, refresh): the workspace's uncommitted changes against HEAD, a chip under that turn
+# (place: turn). tone: warn past 400 lines. $LAKI_PATH is the workspace's folder.
+cd "$LAKI_PATH" || exit 1
+git diff --numstat HEAD 2>/dev/null | awk -F '\\t' -v q='"' '
+{ a = ($1 == "-") ? 0 : $1; d = ($2 == "-") ? 0 : $2; add += a; del += d; p = $3; gsub(/["\\\\]/, "", p)
+  list = list (NR > 1 ? "," : "") "{" q "path" q ": " q p q ", " q "add" q ": " a ", " q "del" q ": " d "}" }
+END { printf "{%slist%s: [%s], %sfiles%s: %d, %sadd%s: %d, %sdel%s: %d, %stone%s: %s%s%s}\\n", q, q, list, q, q, NR, q, q, add, q, q, del, q, q, q, (add + del > 400 ? "warn" : "muted"), q }'
+`,
+      'fixtures/sample.json': json(TURN),
+      'fixtures/empty.json': json({ list: [], files: 0, add: 0, del: 0, tone: 'muted' }),
+      ...variants({ one: { list: [{ path: 'README.md', add: 1, del: 1 }], files: 1, add: 1, del: 1, tone: 'muted' }, big: { list: [{ path: 'src/api/orders.ts', add: 380, del: 120 }, { path: 'src/api/purchases.ts', add: 512, del: 0 }], files: 2, add: 892, del: 120, tone: 'warn' }, deletes: { list: [{ path: 'src/legacy/cart.js', add: 0, del: 840 }], files: 1, add: 0, del: 840, tone: 'warn' } }),
+      'README.md': readme(id, name, ' Per workspace, it shows as a chip under each agent turn (the Reader, Needs you): its `turn.done` handler fetches, and that data stays with the turn.'),
+    }),
   },
   pullmain: {
     title: 'Pull main',

@@ -68,7 +68,8 @@
             "foot",
             "desk",
             "panel",
-            "row"
+            "row",
+            "turn"
           ],
           "description": "side (the sidebar), top or status (a bar, a line high), rail or foot (a button), desk (My Desk), panel (a tab in the side panel), row (a mark on each workspace’s row: per workspace only)"
         },
@@ -83,7 +84,8 @@
               "foot",
               "desk",
               "panel",
-              "row"
+              "row",
+              "turn"
             ],
             "description": "side (the sidebar), top or status (a bar, a line high), rail or foot (a button), desk (My Desk), panel (a tab in the side panel), row (a mark on each workspace’s row: per workspace only)"
           }

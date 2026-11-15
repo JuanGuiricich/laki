@@ -70,7 +70,8 @@ number; put the words in \`tip\`. Add them only when the user asks.
   ½ high), \`rail\` or \`foot\` (a button, below), \`desk\` (a Desk tile, its full view when it has one), \`panel\` (a
   tab of the side panel, its full view as wide as the panel), \`row\` (per workspace only: a mark on each workspace's
   row in the sidebar, its \`badge\` (else \`label\`) filled from that workspace's data, its \`tip\` on hover, \`click\`
-  runs there; every live workspace's is fetched, so keep it cheap).
+  runs there; every live workspace's is fetched, so keep it cheap), \`turn\` (per workspace: a chip under each agent turn
+  its \`"on": { "turn.done": "refresh" }\` gave data for, its label, badge and tone; a click shows that turn's data).
 - \`config\`: the settings the user fills in: a default (text, \`true\`/\`false\`, a number) or \`{ "type": text | number |
   bool | choice | list | secret, "label", "hint", "default", "choices", "required" }\`. Never hard-code a repo, login or token: make it a
   setting; a token, key or password is \`"type": "secret"\` (only its fetch and actions get it; its ui and page see it empty).

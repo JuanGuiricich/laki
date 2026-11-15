@@ -7,14 +7,14 @@
 // run one of its actions.
 // Only what's on screen is rendered: a folded grid, or a closed dialog, holds nothing.
 import { type CSSProperties, type DragEvent as RDrag, type KeyboardEvent as RKey, type MouseEvent, type PointerEvent as RPointer, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { placesOf, RETRY_KINDS, type WidgetFail, type WidgetPlace, type WidgetView } from '../../shared/types'
+import { placesOf, RETRY_KINDS, type TurnMark, type WidgetFail, type WidgetPlace, type WidgetView } from '../../shared/types'
 import { ago, type SayModal, sayOf, uiBehave, WIDGET_CSS, type WidgetButton, type WidgetSay } from '../../shared/widget'
 import { DO, type UiDo, uiHtml, type UiSpec } from '../../shared/widgetUi'
 import { daemonBase } from './api'
 import { ask, escapes, Icon, IconButton, isIconName, type MenuItem, act as press } from './ui'
 
 export type WidgetApi = {
-  render: (id: string, full: boolean, sample?: boolean | string, cells?: [number, number], ws?: string) => Promise<string | null> // sample: widget.json's made-up data (a name: fixtures/<name>.json's); cells: where it shows (the UI kit's size); ws: a per-workspace one's instance
+  render: (id: string, full: boolean, sample?: boolean | string, cells?: [number, number], ws?: string, turn?: TurnAt) => Promise<string | null> // turn (P5): a turn chip's data; sample: widget.json's made-up data (a name: fixtures/<name>.json's); cells: where it shows (the UI kit's size); ws: a per-workspace one's instance
   run: (id: string, ws?: string) => Promise<unknown>
   open: (url: string) => void // http(s), mailto, laki://
   copy: (text: string) => void
@@ -144,7 +144,7 @@ function act(m: Record<string, unknown>, w: WidgetView, full: boolean, api: Widg
 
 // one widget's preview or full view; a click on a preview (not a link or button) opens the full view. sample: with its
 // made-up data, as it would look (nothing it shows does anything). cells: where it shows, across and down (½: a bar)
-export function WidgetBody({ w, full, api, sample, cells, onSize }: { w: WidgetView; full: boolean; api: WidgetApi; sample?: boolean | string; cells?: [number, number]; onSize?: (px: number) => void }) {
+export function WidgetBody({ w, full, api, sample, cells, onSize, turn }: { w: WidgetView; full: boolean; api: WidgetApi; sample?: boolean | string; cells?: [number, number]; onSize?: (px: number) => void; turn?: TurnAt }) {
   const host = useRef<HTMLDivElement>(null)
   const frame = useRef<HTMLIFrameElement>(null)
   const [err, setErr] = useState('')
@@ -167,11 +167,11 @@ export function WidgetBody({ w, full, api, sample, cells, onSize }: { w: WidgetV
       return
     }
     if (w.js) {
-      if (w.key) daemonBase().then(b => live && setSrc(`${b}/widget/${encodeURIComponent(w.id)}?key=${w.key}${full ? '&full=1' : ''}${sample ? `&sample=${sample === true ? 1 : encodeURIComponent(sample)}` : ''}${size ? `&cells=${size}` : ''}${w.here ? `&ws=${encodeURIComponent(w.here)}` : ''}&at=${w.at ?? 0}&rev=${w.rev}&h=${hide}&net=${w.net ? 1 : 0}&c=${cfg}&theme=${encodeURIComponent(theme)}`))
+      if (w.key) daemonBase().then(b => live && setSrc(`${b}/widget/${encodeURIComponent(w.id)}?key=${w.key}${full ? '&full=1' : ''}${sample ? `&sample=${sample === true ? 1 : encodeURIComponent(sample)}` : ''}${size ? `&cells=${size}` : ''}${w.here ? `&ws=${encodeURIComponent(w.here)}` : ''}${turn ? `&turn=${turn.tab}:${turn.at}` : ''}&at=${w.at ?? 0}&rev=${w.rev}&h=${hide}&net=${w.net ? 1 : 0}&c=${cfg}&theme=${encodeURIComponent(theme)}`))
       return () => void (live = false)
     }
     const root = rootOf(host.current!)
-    api.render(w.id, full, sample, cells, wsOf(w)).then(
+    api.render(w.id, full, sample, cells, wsOf(w), turn).then(
       html => {
         if (!live) return
         const style = document.createElement('style')
@@ -181,7 +181,7 @@ export function WidgetBody({ w, full, api, sample, cells, onSize }: { w: WidgetV
       e => live && setErr(String(e?.message ?? e)),
     )
     return () => void (live = false)
-  }, [w.id, w.js, w.at, w.fx, w.rev, w.icons, w.net, w.here, none, full, config, w.key, theme, sample, size, hide]) // fx: its facts changed; icons: the pack, width or size Settings picked (the daemon draws a template's); net: Network access's CSP needs the page loaded again; hide: drawn without what it hides
+  }, [w.id, w.js, w.at, w.fx, w.rev, w.icons, w.net, w.here, none, full, config, w.key, theme, sample, size, hide, turn?.tab, turn?.at]) // fx: its facts changed; icons: the pack, width or size Settings picked (the daemon draws a template's); net: Network access's CSP needs the page loaded again; hide: drawn without what it hides
   // a template widget's clicks: uiBehave in its shadow root; made-up data: nothing it shows does anything (a button
   // clicked is done at once: uiBehave waits on what this returns)
   useEffect(() => {
@@ -382,6 +382,25 @@ export function WidgetPeek({ widgets, api }: { widgets: WidgetView[]; api: Widge
   )
 }
 
+// P5: a tab's turn chips (the turn place's): each extension's face as that turn ended, its tone; a click opens its full
+// view on that turn's data. Off or gone: none
+export type TurnAt = { tab: string; at: number }
+export function TurnChips({ marks, widgets, open }: { marks: TurnMark[]; widgets: WidgetView[]; open: (m: TurnMark) => void }) {
+  const shown = marks.flatMap(m => (w => (w?.on ? [{ m, w }] : []))(widgets.find(x => x.id === m.widget)))
+  if (!shown.length) return null
+  return (
+    <div className="turn-chips" onClick={e => e.stopPropagation()}>
+      {shown.map(({ m, w }) => (
+        <button key={`${m.widget}:${m.at}`} type="button" className={`turn-chip small ${m.tone ? `t-${m.tone}` : ''}`} data-tip={m.tip ?? w.name} aria-label={`${w.name}: ${m.tip ?? m.label ?? ''}`} onClick={() => open(m)}>
+          <Glyph w={w} size={12} />
+          <span>{m.label ?? w.name}</span>
+          {m.badge && <span className="widget-badge">{m.badge}</span>}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // a widget as a button (its view's button: a rail or foot place, or no preview of its own): a click runs its click
 // action, else opens its full view, else fetches it now (else its settings)
 export const click = (w: WidgetView, api: WidgetApi) =>
@@ -548,7 +567,7 @@ export function WidgetStrip({ widgets, api, place }: { widgets: WidgetView[]; ap
 }
 
 // a widget's full view: a dialog over the app
-export function WidgetDialog({ w, api, onClose }: { w: WidgetView; api: WidgetApi; onClose: () => void }) {
+export function WidgetDialog({ w, api, onClose, turn }: { w: WidgetView; api: WidgetApi; onClose: () => void; turn?: TurnAt }) {
   useEffect(() => {
     const f = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', f)
@@ -559,15 +578,15 @@ export function WidgetDialog({ w, api, onClose }: { w: WidgetView; api: WidgetAp
       <div className={`modal widget-modal ${w.view ?? 'm'}`} role="dialog" aria-label={w.name}>
         <div className="widget-modal-head">
           <b>{w.name}</b>
-          <span className={`small ${failed(w) && !w.running ? 'warn' : 'muted'}`}>{status(w)}</span>
-          {!w.running && <FixButton w={w} api={api} />}
+          {turn ? <span className="small muted">After the turn of {new Date(turn.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> : <span className={`small ${failed(w) && !w.running ? 'warn' : 'muted'}`}>{status(w)}</span>}
+          {!w.running && !turn && <FixButton w={w} api={api} />}
           <span className="spacer" />
-          {w.every !== undefined && !w.hide?.refresh && <IconButton icon="refresh" title="Fetch now" onClick={() => void api.run(w.id, wsOf(w)).catch(() => {})} />}
+          {w.every !== undefined && !w.hide?.refresh && !turn && <IconButton icon="refresh" title="Fetch now" onClick={() => void api.run(w.id, wsOf(w)).catch(() => {})} />}
           <IconButton icon="settings" title="Edit: its settings, preview, Laki AI" onClick={() => api.settings(w.id)} />
           <IconButton icon="x" title="Close (Esc)" onClick={onClose} />
         </div>
         <div className="widget-full">
-          <WidgetBody w={w} full api={api} />
+          <WidgetBody w={w} full api={api} turn={turn} />
         </div>
       </div>
     </div>

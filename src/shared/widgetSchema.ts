@@ -402,6 +402,8 @@ export function manifestCheck(m: Record<string, unknown>): UiProblem[] {
   if (m.every !== undefined && !(Number.isInteger(m.every) && (m.every as number) >= 1 && (m.every as number) <= 1440)) say('error', 'widget.json every', `minutes, 1 to 1440, not ${JSON.stringify(m.every)}`)
   if (m.view !== undefined && !VIEWS.includes(m.view as string)) say('error', 'widget.json view', `s, m or l, not ${JSON.stringify(m.view)}`)
   if ((Array.isArray(m.place) ? m.place : [m.place]).includes('row') && m.scope !== 'workspace') say('error', 'widget.json place', 'row is a mark on each workspace’s row: it needs "scope": "workspace"')
+  if ((Array.isArray(m.place) ? m.place : [m.place]).includes('turn') && m.scope !== 'workspace') say('error', 'widget.json place', 'turn is a chip under an agent’s turn: it needs "scope": "workspace"')
+  if ((Array.isArray(m.place) ? m.place : [m.place]).includes('turn') && !(m.on && typeof m.on === 'object' && 'turn.done' in m.on)) say('warn', 'widget.json place', 'turn shows what its "turn.done" handler leaves: add "on": { "turn.done": "refresh" }')
   for (const p of m.place === undefined ? [] : Array.isArray(m.place) ? m.place : [m.place])
     if (!(WIDGET_PLACES as readonly string[]).includes(p as string)) say('error', 'widget.json place', `${JSON.stringify(p)} isn't a place: ${WIDGET_PLACES.join(', ')}${(n => (n ? ` (did you mean ${n}?)` : ''))(near(String(p), WIDGET_PLACES))}`)
   if (m.fetch && m.script) say('error', 'widget.json', 'fetch or script, not both')

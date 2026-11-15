@@ -616,6 +616,7 @@ the daemon either way.
 | `desk` | a tile on the Desk page, sized there | its full view, else its preview |
 | `panel` | a tab of the right panel (⌥⌘B), after Info, Files, Changes, Review and Preview | its full view, else its preview, the panel's width |
 | `row` | a mark on each workspace's row in the sidebar (per workspace only) | its `badge` (else `label`), its `tip` on hover, colored by its data's `tone` |
+| `turn` | a chip under each agent turn in the Reader and on Needs you's card (per workspace only) | its `label`, `badge` and `tip` from what its `turn.done` handler left, colored by `tone`; a click shows that turn's data |
 
 `widget.json`'s `place` is where it starts; the user moves it in its settings (Settings › Extensions › the extension ›
 *Sidebar / Top bar / Status bar / Rail / Sidebar foot / Desk / Right panel / Workspace rows*, one or several). For the
@@ -632,6 +633,10 @@ only; a click there opens it. `"hide": { "tip": true }` turns the peek off with 
 To show nothing for now (no PR on this branch, no deploy running), its data says `"hidden": true` (a fetch's, a push's, a
 stream's line, an action's `data`): it vanishes from every place until data without it comes, a per-workspace one in
 that workspace only. Settings › Extensions still lists it, tagged *hidden*, and its page still previews it.
+
+A `turn` extension answers `"on": { "turn.done": "refresh" }` (or an action that returns `{ "data": … }`): what that
+leaves is kept with the turn, the last 20 turns of each tab (until Laki restarts), and its chip shows under the turn it
+ended. *After each turn* (`laki widget new --kind turn`) is one: the worktree's uncommitted files and lines.
 
 A `row` extension is fetched for every live workspace, not only the one on screen (4 at a time; the rest at the next
 ticks): keep its fetch cheap and its `every` long. Its data's own `tone` colors the mark: one of the kit's tones,

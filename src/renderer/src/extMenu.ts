@@ -16,12 +16,13 @@ export const PLACES: [WidgetPlace, string, string][] = [
   ['desk', 'My Desk', 'A tile on the My Desk page, sized there'],
   ['panel', 'Side panel', 'A tab of the side panel (⌥⌘B), beside Info and Files'],
   ['row', 'Workspace rows', 'A mark on each workspace’s row in the sidebar: its badge (per workspace only)'],
+  ['turn', 'Agent turns', 'A chip under each agent turn in the Reader and Needs you: what its turn.done handler found (per workspace only)'],
 ]
 export const BARS: WidgetPlace[] = ['side', 'top', 'status']
 
 export function extMenuItems(w: WidgetView, api: WidgetsApi): MenuItem[] {
   const places = placesOf(w)
-  const offered = PLACES.filter(([v]) => (v !== 'desk' || api.desk || places.includes('desk')) && (v !== 'row' || w.scope === 'workspace'))
+  const offered = PLACES.filter(([v]) => (v !== 'desk' || api.desk || places.includes('desk')) && ((v !== 'row' && v !== 'turn') || w.scope === 'workspace'))
   const flip = (v: WidgetPlace) => (next => next.length && void api.set(w.id, { place: next }))(places.includes(v) ? places.filter(x => x !== v) : [...places, v])
   const size = w.size.join('x')
   return [

@@ -292,7 +292,7 @@ export function Pages({ app }: { app: AppCtx }) {
             onClose={() => setReply(null)}
           />
         ))(reply ? byId(reply.tab) : undefined)}
-      {(w => w && <WidgetDialog w={w} api={widgetApi} onClose={() => setDialog(dialog && typeof dialog === 'object' && 'widget' in dialog ? (dialog.back ?? null) : null)} />)(dialog && typeof dialog === 'object' && 'widget' in dialog ? shownWidgets.find(x => x.id === dialog.widget) : undefined)}
+      {(w => w && <WidgetDialog w={w} api={widgetApi} turn={dialog && typeof dialog === 'object' && 'widget' in dialog ? dialog.turn : undefined} onClose={() => setDialog(dialog && typeof dialog === 'object' && 'widget' in dialog ? (dialog.back ?? null) : null)} />)(dialog && typeof dialog === 'object' && 'widget' in dialog ? shownWidgets.find(x => x.id === dialog.widget) : undefined)}
       <LayoutBar onDone={() => editLayout(false)} />
       <WidgetPeek widgets={view.widgets ?? []} api={widgetApi} />
       {(w => w && extModal && <WidgetModal key={extModal.n} w={w} ws={extModal.ws} m={extModal.m} api={widgetApi} onClose={m => setExtModal(x => (!m || x?.m === m ? null : x))} />)(extModal ? view.widgets?.find(x => x.id === extModal.wid) : undefined)}

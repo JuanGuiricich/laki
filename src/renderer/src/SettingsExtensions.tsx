@@ -328,7 +328,7 @@ export function WidgetCard({ w, api }: { w: WidgetView; api: WidgetsApi }) {
   const [hot, setHot] = useState<WidgetPlace>() // the place pill under the mouse: lit brighter in the map
   const options = w.options ?? Object.keys(w.config).map(key => ({ key, type: 'text' as const })) // an older daemon's: text only
   const places = placesOf(w)
-  const offered = PLACES.filter(([v]) => (v !== 'desk' || api.desk || places.includes('desk')) && (v !== 'row' || w.scope === 'workspace'))
+  const offered = PLACES.filter(([v]) => (v !== 'desk' || api.desk || places.includes('desk')) && ((v !== 'row' && v !== 'turn') || w.scope === 'workspace'))
   // a place each click turns on or off; the last one stays
   const flip = (v: WidgetPlace) => (next => next.length && void api.set(w.id, { place: next }))(places.includes(v) ? places.filter(x => x !== v) : [...places, v])
   const fetches = w.every !== undefined
