@@ -317,6 +317,24 @@ generator (`export default async function* ({ config }) { … yield data … }`)
 tail -F /var/log/deploy.log | jq -c --unbuffered '{last: .message, at: .time}'
 ```
 
+## Its own store
+
+Each extension has a key-value store of its own for what it remembers between runs (the last ID it saw, a cursor, a
+choice): JSON values, 1 MB in all, a per-workspace one's per workspace. A JS page has `laki.store`; a script's default
+export gets `store`, synchronous:
+
+```js
+export default ({ store }) => {
+  const seen = store.get('seen') ?? []
+  store.set('seen', [...seen, Date.now()].slice(-20))
+  return { runs: seen.length + 1 }
+}
+```
+
+A shell command has `laki widget store get|rm <key>`, `set <key> <json>` (or text; `-`: stdin) and `keys` (in its
+own commands `$LAKI_WIDGET` says which; elsewhere `--widget <id>`). The inspector's Data tab shows it. Deleting the
+extension takes it to the trash with it; Remix starts without one. An agent's `set` or `rm` is asked each time.
+
 ## Push (`laki widget push`)
 
 Something else can put the data there, with no fetch: a cron job, a git hook, CI on this Mac, another app (as
@@ -615,6 +633,7 @@ A `widget.html` with a `<script>` is a JS extension: a page of its own in a sand
 | `toast(text)`, `modal({ title, text, ui, data, buttons })`, `close(id?)` | as an action's JSON ([dialogs](#dialogs)) |
 | `ui(spec, data?)`, `mount(el, spec, data?)` | the UI kit's HTML for an element, or put in `el` (both promises) |
 | `log(...args)` | a line in its [log](#logs) (src `page`), any time; 50 a second, 2 KB a line at most |
+| `store.get(key)`, `store.set(key, value)`, `store.delete(key)`, `store.keys()` | its own [store](#its-own-store) (promises), any time; a sample's preview only reads |
 
 These work right after a click in the page. By default the page has no network: everything inline, its data from its
 fetch. **Network access** (a switch per extension in Settings › Extensions, off until you turn it on) lets its page

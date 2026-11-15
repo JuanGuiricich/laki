@@ -19,6 +19,7 @@ export type WidgetApi = {
   open: (url: string) => void // http(s), mailto, laki://
   copy: (text: string) => void
   full: (id: string, ws?: string) => void // ws: that workspace's instance (a row mark's: it's selected)
+  store?: (id: string, op: string, key: unknown, value: unknown, ws?: string) => Promise<unknown> // M1: a JS page's laki.store
   close: () => void // the full view's dialog (Esc in a JS widget's frame)
   action: (id: string, action: string, arg: string, label?: string, ws?: string) => Promise<false | void> // a button's data-run: one of widget.json's actions, done when it is (false: it failed)
   say: (id: string, s: WidgetSay, ws?: string) => void // a toast, a dialog with buttons
@@ -197,6 +198,14 @@ export function WidgetBody({ w, full, api, sample, cells, onSize, turn }: { w: W
       const win = frame.current?.contentWindow
       if (e.source !== win || !e.data || typeof e.data !== 'object') return
       const m = e.data as Record<string, unknown>
+      // M1: its own store, any time (its own id only); a sample's page reads it, never writes
+      if (m.laki === 'store') {
+        const reply = (r: Record<string, unknown>) => win?.postMessage({ laki: 'store', req: m.req, ...r }, '*')
+        const op = String(m.op)
+        if (!now.current.api.store) return reply({ error: 'this Laki has no store' })
+        if (now.current.sample && op !== 'get' && op !== 'keys') return reply({ error: 'a preview on sample data: its store is read only' })
+        return void now.current.api.store(now.current.w.id, op, m.key, m.value, wsOf(now.current.w)).then(r => reply(r as Record<string, unknown>), e => reply({ error: String(e?.message ?? e) }))
+      }
       if (m.laki === 'ui') return win?.postMessage({ laki: 'ui', req: m.req, html: uiHtml(m.spec, m.ctx && typeof m.ctx === 'object' ? (m.ctx as Record<string, unknown>) : {}, { full, cells: now.current.cells }) }, '*')
       if (m.laki === 'close' && full) return api.close()
       if (m.laki === 'log') return sample || api.log?.(w.id, String(m.text ?? '').slice(0, 2048), wsOf(w)) // any time, as a page's console: 50 a second at most (the daemon's)

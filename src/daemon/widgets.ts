@@ -178,6 +178,11 @@ export function setSecrets(id: string, f: (s: Record<string, string>) => void) {
 }
 
 const instDir = (id: string) => join(dir, 'widget-data', id, 'ws')
+// M1: an extension's own key-value store: values as JSON, KV_MAX in all; a per-workspace one's per workspace. Its
+// script's store helper (RUN_JS) writes the same file ($LAKI_WIDGET_KV), widgetStore the rest: a JS page's laki.store
+// (through the app, its own id only), laki widget store. The trash takes it with the extension; Remix doesn't copy it
+export const KV_MAX = 1 << 20
+export const kvPath = (id: string, ws?: string) => (ws ? join(instDir(id), `${ws}.kv.json`) : join(dir, 'widget-data', `${id}.kv.json`))
 const instPath = (id: string, ws: string) => join(instDir(id), `${ws}.json`)
 const readInst = (id: string, ws: string): Inst => readJson<Inst>(instPath(id, ws)) ?? {}
 function writeInst(id: string, ws: string, s: Inst) {
@@ -224,7 +229,7 @@ const SAMPLE_WS = { id: 'sample', name: 'fix-login', project: 'web', branch: 'fi
 const infoEnv = (i: WsInfo, gone = false): Record<string, string> => ({ LAKI_WORKSPACE: i.id, LAKI_WORKSPACE_NAME: i.name, LAKI_PROJECT: i.project ?? '', LAKI_BRANCH: i.branch ?? '', LAKI_BASE: i.base ?? '', LAKI_PATH: i.path, ...(!gone && { PORT: String(i.port ?? '') }), LAKI_PR: i.pr ?? '', ...(!gone && i.storage && { LAKI_STORAGE_FOLDER: i.storage }), LAKI_WIDGET_WS: JSON.stringify(i) })
 export function wsEnv(w: Entry, x?: Workspace, gone?: WsInfo): Record<string, string> {
   if (gone) return { ...infoEnv(gone, true), LAKI_WIDGET_FILE: '' }
-  return x ? { ...infoEnv(wsInfo(x)), LAKI_WIDGET_FILE: instPath(w.id, x.id), ...(factNames(w).length && { LAKI_FACTS: JSON.stringify(factsIn(w, x.id) ?? {}) }) } : {}
+  return x ? { ...infoEnv(wsInfo(x)), LAKI_WIDGET_FILE: instPath(w.id, x.id), LAKI_WIDGET_KV: kvPath(w.id, x.id), ...(factNames(w).length && { LAKI_FACTS: JSON.stringify(factsIn(w, x.id) ?? {}) }) } : {}
 }
 
 // ---------- a workspace's facts (widget.json's facts, widgetSchema.ts' FACTS): read for a per-workspace one's instance
@@ -914,6 +919,34 @@ export function widgetPage(id: string, query: URLSearchParams): { code: number; 
   }
 }
 
+// M1: its store, by op: get, set (a JSON value), delete, keys, all (the inspector's). Only an on one's; a per-workspace
+// one's in its workspace. An agent's set or delete (laki widget store in its tab) is asked each time, as its actions are
+export async function widgetStore(o: { id: string; op: string; key?: unknown; value?: unknown; ws?: string; from?: { ws?: string; tab?: string } }) {
+  const w = find(o.id)
+  if (!onOf(w)) throw new Error(OFF(w))
+  const x = scoped(w) ? wsOf(w, o.ws) : undefined
+  const file = kvPath(w.id, x?.id)
+  const all = readJson<Record<string, unknown>>(file) ?? {}
+  if (o.op === 'keys') return { keys: Object.keys(all) }
+  if (o.op === 'all') return { values: all, bytes: Buffer.byteLength(JSON.stringify(all)), max: KV_MAX }
+  const key = typeof o.key === 'string' && o.key && o.key.length <= 200 && o.key !== '__proto__' ? o.key : undefined
+  if (!key) throw new Error('a store key: 1 to 200 characters')
+  if (o.op === 'get') return Object.hasOwn(all, key) ? { value: all[key] } : {}
+  if (o.op !== 'set' && o.op !== 'delete') throw new Error(`no store op ${o.op}: get, set, delete, keys`)
+  if (o.op === 'set' && o.value === undefined) throw new Error('set: a value, any JSON')
+  if (agentCaller(o.from)) {
+    const tab = state.tabs.find(t => t.id === o.from!.tab)
+    await approve(w, `store ${o.op}`, { description: `Its store: ${o.op} ${key}`, ask: 'always', input: { key, ...(o.op === 'set' && { value: o.value }) }, ws: x?.id ?? tab?.workspace, tab: tab?.id, agent: tab?.name })
+  }
+  if (o.op === 'set') all[key] = o.value
+  else delete all[key]
+  const text = JSON.stringify(all)
+  if (Buffer.byteLength(text) > KV_MAX) throw new Error(`${w.m.name || w.id}'s store is full: 1 MB at most`)
+  mkdirSync(dirname(file), { recursive: true })
+  writeAtomic(file, text)
+  return { ok: true }
+}
+
 // P6: an extension's notes on a workspace's diff lines: an action's JSON or a fetch's data (per workspace) with
 // "annotations": [{ file, line, level, text, fix }], ANNOT_MAX at most, each file inside the workspace (an absolute one
 // made relative to it). Kept per workspace and extension, in memory, until its next run that has the key ([] clears
@@ -1111,6 +1144,7 @@ export function envOf(w: Entry, extra: Record<string, string>) {
     LAKI_CLI: launcher(),
     LAKI_WIDGET: w.id,
     LAKI_WIDGET_FILE: storePath(w.id),
+    LAKI_WIDGET_KV: kvPath(w.id),
     LAKI_WIDGET_CONFIG: JSON.stringify(typedOf(w, true)),
     ...extra,
   }
@@ -1228,14 +1262,20 @@ export function ran(id: string, r: Run, stderr?: string) {
 // a script's default export gets { config, last, workspace } (a scope workspace one's) and returns the data (an async
 // generator: each yield a line, a stream's); one without prints it. What it throws is the
 // error, its message alone (node would print the stack, then its version)
-export const RUN_JS = `import { readFileSync, writeSync } from 'node:fs'
+export const RUN_JS = `import { mkdirSync, readFileSync, renameSync, writeFileSync, writeSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
+const kv = process.env.LAKI_WIDGET_KV
+const kvRead = () => { try { return JSON.parse(readFileSync(kv, 'utf8')) } catch { return {} } }
+const kvWrite = o => { const t = JSON.stringify(o); if (Buffer.byteLength(t) > ${KV_MAX}) throw new Error('its store is full: 1 MB at most'); mkdirSync(dirname(kv), { recursive: true }); writeFileSync(kv + '.' + process.pid, t); renameSync(kv + '.' + process.pid, kv) }
+const keyOk = k => { if (typeof k !== 'string' || !k || k.length > 200 || k === '__proto__') throw new Error('a store key: 1 to 200 characters'); return k }
+const store = { get: k => (o => (Object.hasOwn(o, keyOk(k)) ? o[k] : undefined))(kvRead()), set: (k, v) => { const o = kvRead(); o[keyOk(k)] = v; kvWrite(o) }, delete: k => { const o = kvRead(); delete o[keyOk(k)]; kvWrite(o) }, keys: () => Object.keys(kvRead()) }
 try {
   const m = await import(pathToFileURL(process.argv[1]).href)
   if (typeof m.default === 'function') {
     let last
     try { last = JSON.parse(readFileSync(process.env.LAKI_WIDGET_FILE, 'utf8')).data } catch {}
-    const r = m.default({ config: JSON.parse(process.env.LAKI_WIDGET_CONFIG || '{}'), last, workspace: process.env.LAKI_WIDGET_WS ? JSON.parse(process.env.LAKI_WIDGET_WS) : undefined, facts: process.env.LAKI_FACTS ? JSON.parse(process.env.LAKI_FACTS) : undefined })
+    const r = m.default({ config: JSON.parse(process.env.LAKI_WIDGET_CONFIG || '{}'), last, store, workspace: process.env.LAKI_WIDGET_WS ? JSON.parse(process.env.LAKI_WIDGET_WS) : undefined, facts: process.env.LAKI_FACTS ? JSON.parse(process.env.LAKI_FACTS) : undefined })
     if (r && typeof r[Symbol.asyncIterator] === 'function') for await (const x of r) writeSync(1, JSON.stringify(x ?? null) + '\\n') // a stream: a line per yield
     else process.stdout.write(JSON.stringify((await r) ?? null))
   }

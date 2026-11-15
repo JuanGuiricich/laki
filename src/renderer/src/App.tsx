@@ -2456,6 +2456,7 @@ export function App() {
   const openPort = (port: number) => openExternal(`http://localhost:${port}`)
   // widgets: the sidebar's grid and a widget's dialog (Widgets.tsx)
   const widgetApi: WidgetApi = {
+    store: (id, op, key, value, ws) => api.call('widgetStore', { id, op, key, value, ws }),
     render: (id, full, sample, cells, ws, turn) => api.call<string | null>('widgetRender', { id, full, ...(sample && { sample }), ...(cells && { cells }), ws, ...(turn && { turn }) }),
     run: (id, ws) => call('widgetRun', { id, ws }),
     open: url => (/^laki:\/\//i.test(url) ? setLink(url) : openExternal(url)),
@@ -2693,6 +2694,7 @@ export function App() {
   // Settings › Extensions' and the Extension page's: each one's settings, page, folder, logs
   const extCfg: WidgetsApi = {
     editLayout: hasCap(view, 'widget.order') ? () => editLayout(true) : undefined,
+    ...(hasCap(view, 'widget.store') && { storeAll: (id: string, ws?: string) => call('widgetStore', { id, op: 'all', ws }) }),
     list: view?.widgets ?? [],
     projects: view?.projects.filter(p => !p.kind).map(p => ({ id: p.id, name: p.name })),
     ungated: view?.tabs.filter(t => t.ungated).length,

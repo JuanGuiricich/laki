@@ -106,8 +106,9 @@ export const USAGE = `laki: coding agents in parallel git worktrees
   laki widget kit [element|icons] [--json]    the UI kit (widget.json's "ui"): its elements, one's props and a sample, or every icon
   laki widget dev [folder]                    dev mode: link your extension's folder (on, watched), then its runs as they come
   laki widget dev --off <id|folder> | --list  unlink one | the linked folders
-  laki widget new <name> [--kind <k>] [--dir <folder>]  a starter (number, list, table, chart, note, launcher, button, form, panel, workspace, stream, tool, pullmain, context, onefile), on
+  laki widget new <name> [--kind <k>] [--dir <folder>]  a starter (number, list, table, chart, note, launcher, button, form, panel, workspace, turn, stream, tool, pullmain, context, onefile), on
   laki widget push <id> [json | -] [--ws <ws>] [--merge]  its data from a cron job, a git hook, CI: no fetch (stdin with -)
+  laki widget store get|rm <key> | set <key> [json | -] | keys [--widget <id>]  its own store, from its commands ($LAKI_WIDGET): JSON values, 1 MB
   laki widget tools [--json]                  the extensions' tools for agents: each one's input and when to use it
   laki widget tool <id> <action> [json] [--ws <ws>]  call one: Laki asks you first, unless it says never; its output back
   laki widget check [id|folder] [--no-run] [--ws <ws>]  what's wrong with one: widget.json, its ui against its data, its fetch once

@@ -240,7 +240,9 @@ ${examples()}
   \`window.laki\`: \`data\`, \`config\`, \`at\`, \`error\`, \`full\`, \`workspace\`, \`facts\`, \`refresh()\`, \`open(url)\`, \`expand()\`, \`run(action, arg)\`, \`do(cmd)\`,
   \`send(text)\` (to the workspace's agent) and \`ai(text)\` (to Laki AI), both asked first,
   \`toast(text)\`, \`modal({…})\`, \`close(id?)\` (these right after a click), \`ui(spec, data)\` and \`mount(el, spec, data)\` (the kit's
-  HTML). Inline everything; draw a canvas at a fixed size.
+  HTML), \`store.get/set/delete/keys\` (its own store, promises). Inline everything; draw a canvas at a fixed size.
+- Its own store (JSON values, 1 MB, per workspace for a per-workspace one): a script's default export gets \`store\`
+  (\`get\`, \`set\`, \`delete\`, \`keys\`), a command \`laki widget store get|set|rm <key> [json]\`.
 `
 
 // the prompt to paste into any AI chat: what's wanted, then all of the format, then how to answer; home: where the

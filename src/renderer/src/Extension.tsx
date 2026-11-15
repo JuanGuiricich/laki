@@ -930,6 +930,27 @@ const bytes = (b: number) => (b < 1024 ? `${b} B` : b < 1 << 20 ? `${(b / 1024).
 // the inspector's tabs: Data (its JSON, editable: Apply keeps it as sample data; a fixture; Live), Runs (newest first,
 // a click shows its stderr), Env (what a fetch is given, secrets masked), Files (and its folder). Read again as its
 // data or files change, and every 2 s while Runs shows
+// M1: its own store (laki.store, a script's store, laki widget store), as it is now; Read again for later writes
+function StoreCard({ w, cfg }: { w: WidgetView; cfg: WidgetsApi }) {
+  const [s, setS] = useState<{ values: Record<string, unknown>; bytes: number; max: number } | string>()
+  const read = () => void cfg.storeAll!(w.id, w.here ?? undefined).then(setS, e => setS(String(e?.message ?? e)))
+  useEffect(read, [w.id, w.here])
+  const n = typeof s === 'object' ? Object.keys(s.values).length : 0
+  return (
+    <section className="ext-card">
+      <div className="ext-card-head">
+        <b>Store</b>
+        <span className="muted small">{typeof s === 'object' ? `${n} key${n === 1 ? '' : 's'}, ${Math.ceil(s.bytes / 1024)} KB of ${s.max >> 10}` : 'what it keeps for itself: laki.store, a script’s store, laki widget store'}</span>
+        <span className="grow" />
+        <button className="sm" onClick={read}>
+          Read again
+        </button>
+      </div>
+      {typeof s === 'string' ? <p className="warn small">{s}</p> : s && (n ? <pre className="ext-json mono">{JSON.stringify(s.values, null, 2).slice(0, 64 << 10)}</pre> : <p className="muted small">Empty.</p>)}
+    </section>
+  )
+}
+
 function Inspector({ w, cfg, tab, draft, setDraft, copy }: { w: WidgetView; cfg: WidgetsApi; tab: Exclude<ExtTab, 'overview' | 'build' | 'check' | 'logs'>; draft: Draft | null; setDraft: (d: Draft | null) => void; copy: (t: string) => void }) {
   const [x, setX] = useState<WidgetRuns | null>(null)
   const [files, setFiles] = useState<Record<string, string> | null>(null)
@@ -1008,6 +1029,7 @@ function Inspector({ w, cfg, tab, draft, setDraft, copy }: { w: WidgetView; cfg:
             <DataTree data={parsedData(x.data)} copy={copy} />
           </section>
         )}
+        {cfg.storeAll && w.on && <StoreCard w={w} cfg={cfg} />}
         <Examples w={w} cfg={cfg} files={files} onShown={() => setText(null)} />
       </>
     )

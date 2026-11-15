@@ -6,7 +6,7 @@ import { basename, dirname, join, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import { needsSample } from '../shared/widgetSchema.ts'
 import { copyTree, move, readJson, writeAtomic } from '../shared/conn.ts'
-import { agents, AI_MAY, find, type Manifest, pathOf, readStore, refetch, repoSays, running, scanWidgets, secretsOf, setSecrets, stopAgents, storePath, widgetHome, widgets, widgetsView, wLog, writeStore } from './widgets.ts'
+import { agents, AI_MAY, find, kvPath, type Manifest, pathOf, readStore, refetch, repoSays, running, scanWidgets, secretsOf, setSecrets, stopAgents, storePath, widgetHome, widgets, widgetsView, wLog, writeStore } from './widgets.ts'
 import { filesHash, hashes, runsOf } from './widgetTrust.ts'
 import { fixturesOf } from './widgetDev.ts'
 import { dir } from './dir.ts'
@@ -295,6 +295,7 @@ const trashDir = () => join(dir, 'widget-trash')
 // what of an extension is kept beside its folder, and its name in the trash
 const keptOf = (id: string): [string, string][] => [
   [storePath(id), 'store.json'],
+  [kvPath(id), 'kv.json'], // M1: its store (a per-workspace one's: in its instances' folder)
   [join(dir, 'widget-data', id), 'inst'], // its workspaces' instances
   [histDir(id), 'history'], // the studio's Undo
   [join(dir, 'widget-data', `widget:${id}.chat.json`), 'chat.json'],

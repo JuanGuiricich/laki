@@ -989,6 +989,24 @@ async function main() {
         const line = (e: EventSent) => [new Date(e.at).toLocaleTimeString(), e.event, e.ws && `ws ${e.ws}`, e.from?.widget && `from ${e.from.widget}`, e.from?.agent && `by ${e.from.agent}`, e.hops && `${e.hops} hops`, `→ ${[...e.widgets, ...e.flows.map(f => `workflow ${f}`)].join(', ') || 'nothing'}`, ...(e.refused ?? []).map(x => `✗ ${x}`)].filter(Boolean).join('  ')
         return out(r, r.map(line).join('\n') || 'no events yet')
       }
+      if (sub === 'store') {
+        // M1: its own store, from its commands ($LAKI_WIDGET, a per-workspace one's $LAKI_WORKSPACE): a value as JSON,
+        // else as text; get prints a text as it is
+        const op = id === 'rm' ? 'delete' : id
+        const ext = typeof flags.widget === 'string' ? flags.widget : process.env.LAKI_WIDGET
+        if (!ext || !['get', 'set', 'delete', 'keys'].includes(op ?? '') || (op !== 'keys' && !action)) throw new Error("usage: laki widget store get|rm <key> | set <key> [json | -] | keys  (in an extension's command; else --widget <id>)")
+        let value: unknown
+        if (op === 'set') {
+          const text = !arg.length || arg[0] === '-' ? (await stdinText()).replace(/\n$/, '') : arg.join(' ')
+          try {
+            value = JSON.parse(text)
+          } catch {
+            value = text
+          }
+        }
+        const r = await rpc('widgetStore', { id: ext, op, key: action, value, ws: ws ?? process.env.LAKI_WORKSPACE, from: caller() })
+        return out(r, op === 'keys' ? r.keys.join('\n') : op === 'get' ? (!('value' in r) ? '' : typeof r.value === 'string' ? r.value : JSON.stringify(r.value)) : 'ok')
+      }
       if (sub === 'push') {
         // its data from a cron job, a git hook, CI: JSON as an argument, or on stdin (- or none)
         if (!id) throw new Error('usage: laki widget push <id> [json | -] [--ws <workspace>] [--merge]')

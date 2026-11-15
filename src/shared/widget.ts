@@ -830,10 +830,13 @@ export function pageOf(body: string, ctx: Record<string, unknown>, vars: Record<
   return `<!doctype html><html><head><meta charset="utf-8"><style>:root { ${theme} } html { height: 100%; } ${WIDGET_CSS}</style><script>
 const say = m => parent.postMessage(m, '*')
 const uiWait = new Map()
+const storeWait = new Map()
+const stored = (op, key, value) => new Promise((ok, no) => { const req = Math.random(); storeWait.set(req, [ok, no]); say({ laki: 'store', req, op, key, value }) })
 window.laki = { ...${json}, refresh: () => say({ laki: 'refresh' }), open: url => say({ laki: 'open', url: String(url) }), expand: () => say({ laki: 'full' }), run: (action, arg, label) => say({ laki: 'run', action: String(action), arg: arg === undefined ? '' : String(arg), label: label === undefined ? '' : String(label) }), toast: text => say({ laki: 'say', toast: String(text) }), modal: m => say({ laki: 'say', modal: m }), close: id => say({ laki: 'say', close: id === undefined ? true : String(id) }), do: (cmd, label) => say({ laki: 'do', cmd, label: label === undefined ? '' : String(label) }), send: (text, label) => laki.do({ do: 'send', prompt: String(text) }, label), ai: (text, label) => laki.do({ do: 'ai', prompt: String(text) }, label),
   log: (...a) => say({ laki: 'log', text: a.map(x => (typeof x === 'string' ? x : (() => { try { return JSON.stringify(x) } catch { return String(x) } })())).join(' ').slice(0, 2048) }),
   ui: (spec, data) => new Promise(ok => { const req = uiWait.size + Math.random(); uiWait.set(req, ok); say({ laki: 'ui', req, spec, ctx: { data: data === undefined ? laki.data : data, config: laki.config, at: laki.at, error: laki.error, full: laki.full, workspace: laki.workspace, facts: laki.facts } }) }),
-  mount: (el, spec, data) => laki.ui(spec, data).then(html => { el.innerHTML = html }) }
+  mount: (el, spec, data) => laki.ui(spec, data).then(html => { el.innerHTML = html }),
+  store: { get: key => stored('get', String(key)), set: (key, value) => stored('set', String(key), value), delete: key => stored('delete', String(key)), keys: () => stored('keys') } }
 ;(${String(uiBehave)})(window, say)
 addEventListener('keydown', e => e.key === 'Escape' && !e.defaultPrevented && say({ laki: 'close' })) // not one that closed a popover or dropdown
 // a preview's content width, for a bar's Auto: the page at max-content for a moment (no paint between), said as it changes:
@@ -856,6 +859,7 @@ if (!laki.full) addEventListener('DOMContentLoaded', () => {
 addEventListener('message', e => {
   if (e.source !== parent || !e.data) return
   if (e.data.laki === 'ui' && uiWait.has(e.data.req)) uiWait.get(e.data.req)(String(e.data.html ?? '')), uiWait.delete(e.data.req)
+  if (e.data.laki === 'store' && storeWait.has(e.data.req)) (([ok, no]) => (e.data.error ? no(new Error(e.data.error)) : ok(e.data.keys ?? e.data.value)))(storeWait.get(e.data.req)), storeWait.delete(e.data.req)
   if (e.data.laki === 'done') document.querySelectorAll('[data-run][data-busy]').forEach(r => r.getAttribute('data-run') === e.data.action && (r.hasAttribute('data-submit') || r.hasAttribute('data-input') || (r.getAttribute('data-arg') ?? '') === e.data.arg) && r.removeAttribute('data-busy'))
 })
 </script></head><body>${body}</body></html>`

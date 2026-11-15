@@ -195,3 +195,4 @@ needs no bump: `settingsSet` keeps any field.
 187: `widgetFromTerm` (C1: a shell tab's *Make a tile from this command*: an extension, off, whose script runs the selected or last OSC 133-marked command; the `widget.term` cap).
 188: `widgetNew`'s `ui` and `sample` (C4: the UI kit's *Make an extension from this*: that ui over that sample, a static source; the `widget.ui` cap).
 189: `widgetSet`'s `order` and the view's (P3: Edit layout: where an extension goes among the others in its places; the `widget.order` cap).
+190: `widgetStore` (M1: an extension's own key-value store: a JS page's `laki.store`, `laki widget store`, the inspector's Data tab; the `widget.store` cap).

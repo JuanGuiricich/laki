@@ -2794,6 +2794,7 @@ laki widget dev --off <id|folder> | --list              # unlink one | the linke
 laki widget new <name> [--kind <k>] [--dir <folder>]     # a starter: number, list, table, chart, note, launcher, button, form, panel, workspace, stream, tool, pullmain, context, onefile
 laki widget check [id|folder] [--no-run] [--ws <ws>]    # what's wrong with one: widget.json, ui, fixtures, its fetch once
 laki widget push <id> [json | -] [--ws <ws>] [--merge]   # its data from a cron job, a git hook, CI (stdin with -)
+laki widget store get|rm <key> | set <key> [json | -] | keys   # its own store, from its commands ($LAKI_WIDGET; else --widget <id>)
 laki widget what <id>                                   # what turning it on runs, and its hash: laki widget on <id> --seen <hash>
 laki widget logs <id> [-n 100] [-f] [--level error]     # its log (when it keeps one); -f follows it
 laki widget emit <name> [json | -] [--ws <ws>]          # an event of your own (custom.<name>): extensions and workflows on it run

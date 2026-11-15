@@ -41,6 +41,7 @@ export type WidgetsApi = {
   kit?: (icons?: boolean) => void // the UI kit's page: its elements and their samples; icons: its icon gallery
   runs?: (id: string, ws?: string) => Promise<WidgetRuns> // the inspector's: its runs, env, fixtures
   mock?: (id: string, o: { data?: unknown; fixture?: string; off?: boolean; ws?: string }) => Promise<unknown> // sample data by hand, or Live again
+  storeAll?: (id: string, ws?: string) => Promise<{ values: Record<string, unknown>; bytes: number; max: number }> // M1: its store, for the Data tab
   files?: (id: string) => Promise<Record<string, string>> // its folder's files: each one's text
   save?: (id: string, path: string, text: string, was: string, force?: boolean) => Promise<unknown> // one of them edited by hand (the page's Files)
   make?: (kind: StarterKind) => Promise<unknown> // New ▾'s starters (widgetNew): yours, on, its page opened
