@@ -491,7 +491,12 @@ paints it (and the theme's variables a JS page can use), *Typography* every text
 its label beside it), `pie`, `donut` (its total in the middle) and `scatter` (`x` and `y` numbers). One number per row
 (`y`) or `series: [{ "label", "y", "color" }]`; `colors: ["blue", "orange", "#d73a4a"]` in order (default: the
 palette); a row's own `color` template, or a `tone` map over its `x`, colors a slice or a bar; `legend` (on with
-several series, a pie and a donut), `unit`, `min`, `max`, `height`, `label`.
+several series, a pie and a donut), `unit`, `min`, `max`, `height`, `label`. Hovering a point, a bar or a slice shows
+its label and exact number. `ticks: 4` draws about that many lines across at round steps, their numbers beside them;
+`xticks: 5` that many labels along the bottom; `xlabel` and `ylabel` say what each measures. `threshold: [{ "value":
+400, "label": "SLO", "tone": "bad" }]` draws a dashed line at each (kept in sight). A line or area whose rows each have
+an `at` (ISO or ms; or `at: "{{time}}"`) places them by time, unevenly spaced as they came. `run: "open"` makes a click
+on a point run that action with the point's row as its arg (JSON).
 
 **Laki commands.** A button's `do` asks Laki to do something; Laki says what and asks first:
 

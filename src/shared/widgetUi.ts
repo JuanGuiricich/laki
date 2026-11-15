@@ -168,6 +168,13 @@ export const UI = {
       unit: p('text', 'After each number: ms, %, $'),
       label: p('text', 'Its title, above it with the last value (a donut: in its middle, with the total)'),
       legend: p('bool', 'A legend: on by default with several series and for pie and donut'),
+      ticks: p('number', 'Lines across with their numbers, about this many, at round steps (default: the top and bottom only)'),
+      xticks: p('number', 'Labels along the bottom, about this many (default: the first and last in the full view)'),
+      xlabel: p('text', 'What the bottom measures, under it'),
+      ylabel: p('text', 'What the numbers are, over them'),
+      threshold: p('items', 'Dashed lines across: [{ "value", "label", "tone" }]: a target, a budget, a limit'),
+      at: p('text', 'A row’s time, ISO or ms (default: its at): line and area placed by it, gaps as they were'),
+      run: p('text', 'An action a click on a point (a bar, a slice) runs, its row as the arg (JSON)'),
     },
   },
   spark: { group: 'Charts', blurb: 'A small line of numbers.', props: { values: p('path', 'A list of numbers'), color: COLOR } },
@@ -565,9 +572,19 @@ export function chartPoints(ys: number[], lo: number, hi: number) {
 const PALETTE = ['blue', 'orange', 'green', 'purple', 'pink', 'teal', 'yellow', 'red']
 const numOf = (v: string) => (v.trim() === '' ? NaN : Number(v))
 const f1 = (x: number) => x.toFixed(1)
+// K6: a threshold: a number, or { value, label, tone or color }, or a list of them: a dashed line across at it
+const thresholdsOf = (v: unknown, s: S) =>
+  (Array.isArray(v) ? v : v === undefined ? [] : [v])
+    .map(t => (obj(t) ? { v: n(t.value, s), label: txt(t.label, s), c: hue(t.color, s) || colorCss(toneWord(t, '', s) || 'warn') } : { v: n(t, s), label: '', c: colorCss('warn') }))
+    .filter((t): t is { v: number; label: string; c: string } => t.v !== undefined)
+// K6: a scale's step for about count ticks: 1, 2 or 5 × 10ⁿ, the nearest
+const stepOf = (span: number, count: number) => (x => (p => (x / p < 1.5 ? 1 : x / p < 3 ? 2 : x / p < 7 ? 5 : 10) * p)(10 ** Math.floor(Math.log10(x))))(span / Math.max(1, count - 1) || 1)
+// K6: a time on the axis: its hour within two days, else its day
+const whenOf = (t: number, span: number) => (d => (span < 2 * 86400_000 ? d.toTimeString().slice(0, 5) : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })))(new Date(t))
 const legendOf = (keys: [string, string, string?][]) => `<div class="k-legend">${keys.map(([label, c, v]) => `<span><i style="background:${c}"></i>${esc(label)}${v ? `<b>${esc(v)}</b>` : ''}</span>`).join('')}</div>`
 function chart(e: El, s: S) {
-  const rs = listAt(e.each ?? e.items, s).map((item, i) => inner(s, item, i))
+  const items = listAt(e.each ?? e.items, s)
+  const rs = items.map((item, i) => inner(s, item, i))
   const kind = (CHARTS as readonly string[]).includes(String(e.kind)) ? String(e.kind) : 'line'
   const given = (Array.isArray(e.colors) ? e.colors : []).map(c => hue(c, s)).filter(Boolean)
   const pal = (k: number) => (given.length ? given[k % given.length] : colorCss(PALETTE[k % PALETTE.length]))
@@ -580,6 +597,9 @@ function chart(e: El, s: S) {
   const headOf = (v?: string) => (label || v ? `<div class="k-ch-head"><span>${esc(label)}</span>${v ? `<b>${esc(v)}</b>` : ''}</div>` : '')
   // a row's own color (pie, donut, hbars, one series' bars): its color template, its tone, else the palette's next
   const rowColor = (i: number) => hue(e.color, rs[i]) || (w => (w ? colorCss(w) : ''))(toneWord(e, xs[i], rs[i])) || pal(i)
+  // K6: a point's tooltip (uiBehave's, by it), and its click: run with its row as the arg
+  const tipOf = (t: string) => ` data-tip="${esc(t)}"`
+  const runOf = (i: number) => (e.run === undefined || s.line ? '' : (r => (r ? ` data-run="${esc(r)}" data-arg="${esc(JSON.stringify(items[i] ?? null))}"` : ''))(txt(e.run, rs[i]).trim()))
 
   if (kind === 'pie' || kind === 'donut' || kind === 'hbars') {
     const vals = rs.map(r => numOf(txt(e.y, r)))
@@ -589,7 +609,7 @@ function chart(e: El, s: S) {
     if (kind === 'hbars') {
       const top = n(e.max, s) ?? Math.max(...ok.map(([v]) => v))
       const max = cap(e, s, 18)
-      const rows = ok.map(([v, i], k) => (k >= max && !s.full ? '' : `<div class="k-hb" data-row${k >= max ? ' data-extra hidden' : ''} title="${esc(`${xs[i]}: ${fmt(v)}`)}"><span class="k-hb-l">${esc(xs[i])}</span><span class="k-hb-t"><i style="width:${f1(Math.min(100, (v / (top || 1)) * 100))}%;background:${rowColor(i)}"></i></span><b>${esc(fmt(v))}</b></div>`)).join('')
+      const rows = ok.map(([v, i], k) => (k >= max && !s.full ? '' : `<div class="k-hb" data-row${k >= max ? ' data-extra hidden' : ''}${tipOf(`${xs[i]}: ${fmt(v)}`)}${runOf(i)}><span class="k-hb-l">${esc(xs[i])}</span><span class="k-hb-t"><i style="width:${f1(Math.min(100, (v / (top || 1)) * 100))}%;background:${rowColor(i)}"></i></span><b>${esc(fmt(v))}</b></div>`)).join('')
       return wrap(`<div class="k-hbars" data-rows>${rows}${s.line ? '' : more(ok.length - Math.min(max, ok.length))}</div>`, headOf())
     }
     const pie = kind === 'pie'
@@ -598,7 +618,7 @@ function chart(e: El, s: S) {
     const slices = ok
       .map(([v, i]) => {
         const pct = (v / total) * 100
-        const c = `<circle cx="21" cy="21" r="${r}" fill="none" stroke="currentColor" style="color:${rowColor(i)}" stroke-width="${pie ? 15.9155 : 6}" pathLength="100" stroke-dasharray="${f1(pct)} ${f1(100 - pct)}" stroke-dashoffset="${f1(-off)}" transform="rotate(-90 21 21)"><title>${esc(`${xs[i] ? `${xs[i]}: ` : ''}${fmt(v)} (${Math.round(pct)}%)`)}</title></circle>`
+        const c = `<circle cx="21" cy="21" r="${r}" fill="none" stroke="currentColor" style="color:${rowColor(i)}" stroke-width="${pie ? 15.9155 : 6}" pathLength="100" stroke-dasharray="${f1(pct)} ${f1(100 - pct)}" stroke-dashoffset="${f1(-off)}" transform="rotate(-90 21 21)"${tipOf(`${xs[i] ? `${xs[i]}: ` : ''}${fmt(v)} (${Math.round(pct)}%)`)}${runOf(i)}></circle>`
         off += pct
         return c
       })
@@ -616,11 +636,33 @@ function chart(e: El, s: S) {
   const colorOfSe = (se: El, k: number) => hue(se.color, s) || (w => (w ? colorCss(w) : ''))(toneWord(se, '', s)) || pal(k)
   const stacked = kind === 'stacked'
   const sums = rs.map((_, i) => ys.reduce((a, y) => a + Math.max(0, Number.isFinite(y[i]) ? y[i] : 0), 0))
-  let lo = n(e.min, s) ?? (stacked ? 0 : Math.min(...all))
-  const hi = n(e.max, s) ?? (stacked ? Math.max(...sums) : Math.max(...all))
+  const ths = s.line ? [] : thresholdsOf(e.threshold, s)
+  const thv = ths.map(t => t.v) // in sight unless min or max says otherwise
+  let lo = n(e.min, s) ?? (stacked ? 0 : Math.min(...all, ...thv))
+  let hi = n(e.max, s) ?? Math.max(...(stacked ? sums : all), ...thv)
   if (kind === 'bars' && e.min === undefined) lo = Math.min(0, lo)
+  // K6: ticks at round steps, the scale widened to them (not past a min or max given)
+  const tn = s.line ? undefined : n(e.ticks, s)
+  const ticks: number[] = []
+  if (tn !== undefined) {
+    const step = stepOf(hi - lo, Math.min(10, Math.max(2, Math.round(tn))))
+    if (n(e.min, s) === undefined) lo = Math.floor(lo / step) * step
+    if (n(e.max, s) === undefined) hi = Math.max(Math.ceil(hi / step) * step, lo + step)
+    for (let v = Math.ceil(lo / step) * step; v <= hi + step / 1e6 && ticks.length < 12; v += step) ticks.push(Number(v.toPrecision(12)))
+  }
   const yOf = (v: number) => chartPoints([v], lo, hi)[0][1]
-  let plot = [2, H / 2, H - 2].map(y => `<line class="grid" x1="0" x2="100" y1="${y}" y2="${y}" vector-effect="non-scaling-stroke"/>`).join('')
+  let plot = (ticks.length ? ticks.map(v => f1(yOf(v))) : [2, H / 2, H - 2]).map(y => `<line class="grid" x1="0" x2="100" y1="${y}" y2="${y}" vector-effect="non-scaling-stroke"/>`).join('')
+  plot += ths.map(t => (y => `<line class="k-ch-th" x1="0" x2="100" y1="${y}" y2="${y}" stroke="currentColor" stroke-dasharray="4 3" vector-effect="non-scaling-stroke" style="color:${t.c}"/>`)(f1(yOf(t.v)))).join('')
+  // K6: a line or area over time: each row placed by its at (its own, ISO or ms), when every row has one
+  const line = kind === 'line' || kind === 'area'
+  const times = line ? items.map((x, i) => (t => (t === undefined ? NaN : +new Date(t)))(timeOf(String(e.at !== undefined ? txt(e.at, rs[i]) : obj(x) ? (x.at ?? '') : '').trim()))) : []
+  const byTime = rs.length > 1 && times.length > 0 && times.every(Number.isFinite) && Math.max(...times) > Math.min(...times)
+  const [t0, t1] = byTime ? [Math.min(...times), Math.max(...times)] : [0, 0]
+  const xAt = (i: number) => (byTime ? ((times[i] - t0) / (t1 - t0)) * 100 : rs.length === 1 ? 50 : (i / (rs.length - 1)) * 100)
+  const xl = (i: number) => xs[i] || (byTime ? whenOf(times[i], t1 - t0) : '')
+  const order = rs.map((_, i) => i).sort((a, b) => xAt(a) - xAt(b))
+  const rank: number[] = []
+  order.forEach((i, k) => (rank[i] = k))
   let dots = ''
   const slot = 100 / Math.max(1, rs.length)
   if (kind === 'scatter') {
@@ -632,7 +674,7 @@ function chart(e: El, s: S) {
       ys[k].forEach((v, i) => {
         if (!Number.isFinite(v)) return
         const x = (((byX ? xn[i] : i) - xlo) / (xhi - xlo || 1)) * 100
-        dots += `<i class="k-sc-dot" style="left:${f1(x)}%;top:${f1((yOf(v) / H) * 100)}%;background:${colorOfSe(se, k)}" title="${esc(`${xs[i] ? `${xs[i]}: ` : ''}${series.length > 1 ? `${txt(se.label, s)} ` : ''}${fmt(v)}`)}"></i>`
+        dots += `<i class="k-sc-dot" style="left:${f1(x)}%;top:${f1((yOf(v) / H) * 100)}%;background:${colorOfSe(se, k)}"${tipOf(`${xs[i] ? `${xs[i]}: ` : ''}${series.length > 1 ? `${txt(se.label, s)} ` : ''}${fmt(v)}`)}${runOf(i)}></i>`
       }),
     )
   } else if (kind === 'bars' || stacked) {
@@ -653,19 +695,47 @@ function chart(e: El, s: S) {
     series.forEach((se, k) => {
       const c = colorOfSe(se, k)
       const vals = ys[k]
-      const pts = chartPoints(vals.map(v => (Number.isFinite(v) ? v : lo)), lo, hi).filter((_, i) => Number.isFinite(vals[i]))
-      const line = pts.map(([x, y]) => `${f1(x)},${f1(y)}`).join(' ')
-      if (kind === 'area' && pts.length) plot += `<polygon points="${f1(pts[0][0])},${H} ${line} ${f1(pts.at(-1)![0])},${H}" fill="currentColor" fill-opacity="0.15" style="color:${c}"/>`
-      plot += `<polyline points="${line}" fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" style="color:${c}"/>`
+      const pts = order.filter(i => Number.isFinite(vals[i])).map(i => [xAt(i), yOf(vals[i])] as [number, number])
+      const poly = pts.map(([x, y]) => `${f1(x)},${f1(y)}`).join(' ')
+      if (kind === 'area' && pts.length) plot += `<polygon points="${f1(pts[0][0])},${H} ${poly} ${f1(pts.at(-1)![0])},${H}" fill="currentColor" fill-opacity="0.15" style="color:${c}"/>`
+      plot += `<polyline points="${poly}" fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" style="color:${c}"/>`
       const last = pts.at(-1)
       if (last && k === 0) dots = `<i class="k-ch-dot" style="left:${f1(last[0])}%;top:${f1((last[1] / H) * 100)}%;background:${c}"></i>`
     })
-  // each point's tooltip: a slot across the plot
-  if (kind !== 'scatter') plot += rs.map((_, i) => `<rect x="${f1(i * slot)}" y="0" width="${f1(slot)}" height="${H}" fill="transparent"><title>${esc(xs[i] ? `${xs[i]}: ` : '')}${esc(series.map((se, k) => `${series.length > 1 ? `${txt(se.label, s)} ` : ''}${Number.isFinite(ys[k][i]) ? fmt(ys[k][i]) : '–'}`).join(', '))}</title></rect>`).join('')
-  const lastV = stacked ? sums.at(-1) : ys[0].filter(Number.isFinite).at(-1)
+  // each point's tooltip and click: a slot across the plot (a line's: from halfway to the point before to halfway to
+  // the next), its words its label and each series' number; a line's marks where its dot goes
+  const tip = (i: number) => `${xl(i) ? `${xl(i)}\n` : ''}${series.map((se, k) => `${series.length > 1 ? `${txt(se.label, s) || txt(se.y, s)}: ` : ''}${Number.isFinite(ys[k][i]) ? fmt(ys[k][i]) : '–'}`).join('\n')}`
+  const span = (i: number): [number, number] => {
+    if (!line) return [i * slot, slot]
+    const k = rank[i]
+    const a = k ? (xAt(order[k - 1]) + xAt(i)) / 2 : 0
+    return [a, (k < order.length - 1 ? (xAt(i) + xAt(order[k + 1])) / 2 : 100) - a]
+  }
+  if (kind !== 'scatter') plot += rs.map((_, i) => (([x, w]) => `<rect class="k-ch-slot" x="${f1(x)}" y="0" width="${f1(w)}" height="${H}" fill="transparent"${tipOf(tip(i))}${line && Number.isFinite(ys[0][i]) ? ` data-px="${f1(xAt(i))}" data-py="${f1((yOf(ys[0][i]) / H) * 100)}"` : ''}${runOf(i)}/>`)(span(i))).join('')
+  const lastI = order.findLast(i => Number.isFinite(stacked ? sums[i] : ys[0][i]))
+  const lastV = lastI === undefined ? undefined : stacked ? sums[lastI] : ys[0][lastI]
   const legend = (e.legend ?? series.length > 1) === true ? legendOf(series.map((se, k) => [txt(se.label, s) || txt(e.y, s), colorOfSe(se, k)])) : ''
-  const xAxis = s.full && xs.some(Boolean) && kind !== 'scatter' ? `<div class="k-ch-x"><span>${esc(xs[0])}</span><span>${esc(xs.at(-1)!)}</span></div>` : ''
-  return wrap(`<div class="k-ch-body" style="height:${height}px">${s.line ? '' : `<div class="k-ch-axis"><span>${esc(fmt(hi))}</span><span>${esc(fmt(lo))}</span></div>`}<div class="k-ch-plot"><svg viewBox="0 0 100 ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(label || 'chart')}">${plot}</svg>${dots}</div></div>${xAxis}`, kind === 'scatter' ? headOf() : headOf(lastV !== undefined ? fmt(lastV) : undefined), legend)
+  // K6: x ticks: about xticks labels (evenly in time over time), in the plot's width; else the first and last in the full view
+  const xn = s.line || kind === 'scatter' ? undefined : n(e.xticks, s)
+  const xPct = (i: number) => (line ? xAt(i) : (i + 0.5) * slot)
+  const xMarks: [number, string][] = []
+  if (xn !== undefined && rs.length) {
+    const c = Math.min(12, Math.max(2, Math.round(xn)))
+    const m = Math.min(c, rs.length)
+    if (byTime) for (let k = 0; k < c; k++) xMarks.push([(k / (c - 1)) * 100, whenOf(t0 + ((t1 - t0) * k) / (c - 1), t1 - t0)])
+    else for (const i of new Set(Array.from({ length: m }, (_, k) => order[Math.round((k * (rs.length - 1)) / Math.max(1, m - 1))]))) xMarks.push([xPct(i), xl(i)])
+  }
+  const xTicks = xMarks.length ? `<div class="k-ch-xt">${xMarks.map(([x, l], k) => `<span${k === 0 ? ' class="first"' : k === xMarks.length - 1 ? ' class="last"' : ''} style="left:${f1(x)}%">${esc(l)}</span>`).join('')}</div>` : ''
+  const ends = [order[0], order.at(-1)!]
+  const xAxis = !xMarks.length && s.full && (xs.some(Boolean) || byTime) && kind !== 'scatter' ? `<div class="k-ch-x"><span>${esc(xl(ends[0]))}</span><span>${esc(xl(ends[1]))}</span></div>` : ''
+  const axis = s.line ? '' : ticks.length ? `<div class="k-ch-axis ticks"><span class="k-ch-w">${esc(ticks.map(fmt).reduce((a, b) => (b.length > a.length ? b : a)))}</span>${ticks.map(v => `<span style="top:${f1((yOf(v) / H) * 100)}%">${esc(fmt(v))}</span>`).join('')}</div>` : `<div class="k-ch-axis"><span>${esc(fmt(hi))}</span><span>${esc(fmt(lo))}</span></div>`
+  const thl = ths.filter(t => t.label).map(t => `<span class="k-ch-thl" style="top:${f1((yOf(t.v) / H) * 100)}%;color:${t.c}">${esc(t.label)}</span>`).join('')
+  const [yl, xlab] = s.line ? ['', ''] : [txt(e.ylabel, s), txt(e.xlabel, s)]
+  return wrap(
+    `${yl ? `<div class="k-ch-yl">${esc(yl)}</div>` : ''}<div class="k-ch-body${xTicks ? ' xt' : ''}" style="height:${height}px">${axis}<div class="k-ch-plot" data-hc="${esc(colorOfSe(series[0], 0))}"><svg viewBox="0 0 100 ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(label || 'chart')}">${plot}</svg>${dots}${thl}${xTicks}</div></div>${xAxis}${xlab ? `<div class="k-ch-xl">${esc(xlab)}</div>` : ''}`,
+    kind === 'scatter' ? headOf() : headOf(lastV !== undefined ? fmt(lastV) : undefined),
+    legend,
+  )
 
   // one series' bars: each its own color only when the chart says how (a color template or a tone map)
   function rowColorOr(i: number, c: string) {
@@ -1863,6 +1933,10 @@ export function uiCheck(spec: unknown, data?: unknown, o: { actions?: string[] }
     if (['button', 'toggle', 'segmented', 'stepper', 'range', 'select', 'input', 'swap', 'pagination', 'menu', 'command', 'combobox', 'datepicker', 'split', 'radio'].includes(type)) runs(el, here, true)
     if (type === 'textarea') runs({ ...el, prompt: '', ...(typeof el.do === 'string' && !['new', 'send', 'ai'].includes(el.do) && { do: undefined }) }, here, true) // what's typed is its prompt; a wrong do: its kind says it
     if (type === 'term' && (typeof el.run !== 'string' || !el.run.trim())) say('error', here, 'term: its run, the command it runs')
+    if (type === 'chart') {
+      runs({ run: el.run }, `${here}.run`, true)
+      if (Array.isArray(el.threshold)) el.threshold.forEach((t, i) => obj(t) ? t.value === undefined && say('error', `${here}.threshold[${i}]`, 'its value, where the line goes') : typeof t !== 'number' && say('error', `${here}.threshold[${i}]`, '{ "value", "label", "tone" }'))
+    }
     if (type === 'diagram' && (typeof el.code !== 'string' || !el.code.trim())) say('error', here, 'diagram: its code, mermaid’s words (flowchart LR; A --> B)')
     if (type === 'qr' && (typeof el.value !== 'string' || !el.value)) say('error', here, 'qr: its value, what the code holds')
     if (type === 'qr' && typeof el.value === 'string' && !el.value.includes('{{') && new TextEncoder().encode(el.value).length > 2331) say('error', here, 'qr: value is too long for a QR code (2,331 bytes at most)')
@@ -1896,7 +1970,7 @@ export function uiCheck(spec: unknown, data?: unknown, o: { actions?: string[] }
         if (items.length && def.rows) {
           const fields = new Set(items.flatMap(x => (obj(x) ? Object.keys(x) : [])))
           const outer = new Set(scopes.flatMap(sc => Object.keys(sc)))
-          const skip = new Set(['each', 'items', 'empty', 'bulk', 'select', 'sortable', 'limit', 'filter', 'sort', 'kind', 'height', 'min', 'max', 'label', 'unit', 'if', 'unless', 'tip', 'series', 'colors', 'legend', 'rows', 'count', 'nested', 'open', 'wrap', 'placeholder', 'seconds', ...(type === 'board' || type === 'matrix' ? ['columns'] : []), ...(type === 'log' ? ['value'] : []), ...(type === 'meter' ? ['title'] : []), ...(type === 'uptime' ? ['title', 'value'] : [])])
+          const skip = new Set(['each', 'items', 'empty', 'bulk', 'select', 'sortable', 'ticks', 'xticks', 'xlabel', 'ylabel', 'threshold', 'limit', 'filter', 'sort', 'kind', 'height', 'min', 'max', 'label', 'unit', 'if', 'unless', 'tip', 'series', 'colors', 'legend', 'rows', 'count', 'nested', 'open', 'wrap', 'placeholder', 'seconds', ...(type === 'board' || type === 'matrix' ? ['columns'] : []), ...(type === 'log' ? ['value'] : []), ...(type === 'meter' ? ['title'] : []), ...(type === 'uptime' ? ['title', 'value'] : [])])
           if (['meter', 'tree', 'steps', 'breadcrumbs', 'links', 'menu', 'command', 'marquee', 'snippet', 'clock', 'funnel', 'swatches'].includes(type)) skip.delete('label') // a row's name there, not a title
           if (type === 'endpoints') skip.delete('count') // a row's calls
           for (const [k, val] of Object.entries(el)) {
@@ -1981,7 +2055,7 @@ const SAMPLES: Record<UiType, { spec: UiElement; data?: unknown }> = {
     spec: { type: 'table', each: 'prs', sort: 'number desc', filter: true, sortable: true, select: true, bulk: [{ label: 'Merge', run: 'merge', style: 'primary', confirm: 'Merge the picked PRs?' }, { label: 'Close', run: 'close' }], columns: [{ title: 'PR', value: '#{{number}} {{title}}', subtitle: '{{author}}', avatar: '{{author}}', href: '{{url}}' }, { title: 'Review', progress: '{{approvals}}', max: 2, value: '{{approvals}}/2', sortBy: 'approvals', hide: 'narrow' }, { title: 'CI', tag: '{{ci}}', tone: { failing: 'bad', passing: 'good', pending: 'warn' } }, { title: 'Updated', value: '{{ago updated}}', align: 'right', hide: 'narrow' }] },
     data: { prs: PRS.map((x, i) => ({ ...x, id: x.number, approvals: [0, 2, 1][i] })) },
   },
-  chart: { spec: { type: 'chart', kind: 'area', each: 'days', x: '{{day}}', y: '{{ms}}', unit: ' ms', label: 'p95 latency' }, data: { days: [{ day: 'Mon', ms: 320 }, { day: 'Tue', ms: 280 }, { day: 'Wed', ms: 410 }, { day: 'Thu', ms: 300 }, { day: 'Fri', ms: 260 }] } },
+  chart: { spec: { type: 'chart', kind: 'area', each: 'days', x: '{{day}}', y: '{{ms}}', unit: ' ms', label: 'p95 latency', ticks: 4, threshold: [{ value: 400, label: 'SLO', tone: 'bad' }] }, data: { days: [{ day: 'Mon', ms: 320 }, { day: 'Tue', ms: 280 }, { day: 'Wed', ms: 410 }, { day: 'Thu', ms: 300 }, { day: 'Fri', ms: 260 }] } },
   spark: { spec: { type: 'spark', values: 'cpu', tone: 'accent' }, data: { cpu: [12, 30, 22, 48, 35, 60, 41] } },
   progress: { spec: { type: 'progress', value: '{{done}}', max: '{{total}}', label: 'Sprint 42' }, data: { done: 18, total: 25 } },
   loading: { spec: { type: 'stack', children: [{ type: 'loading', label: 'Deploying {{version}}…' }, { type: 'loading', style: 'dots', label: 'Waiting for CI', color: 'orange' }, { type: 'loading', style: 'bar', label: 'Indexing the repo' }] }, data: { version: 'v2.4.0' } },

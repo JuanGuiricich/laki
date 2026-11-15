@@ -5233,6 +5233,56 @@
         "legend": {
           "type": "boolean",
           "description": "A legend: on by default with several series and for pie and donut"
+        },
+        "ticks": {
+          "type": [
+            "number",
+            "string"
+          ],
+          "description": "Lines across with their numbers, about this many, at round steps (default: the top and bottom only)"
+        },
+        "xticks": {
+          "type": [
+            "number",
+            "string"
+          ],
+          "description": "Labels along the bottom, about this many (default: the first and last in the full view)"
+        },
+        "xlabel": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "What the bottom measures, under it"
+        },
+        "ylabel": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "What the numbers are, over them"
+        },
+        "threshold": {
+          "type": "array",
+          "description": "Dashed lines across: [{ \"value\", \"label\", \"tone\" }]: a target, a budget, a limit"
+        },
+        "at": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "A row’s time, ISO or ms (default: its at): line and area placed by it, gaps as they were"
+        },
+        "run": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "An action a click on a point (a bar, a slice) runs, its row as the arg (JSON)"
         }
       }
     },

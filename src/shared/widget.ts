@@ -249,7 +249,12 @@ ${[1, 2, 3, 4, 5, 6, 7, 8].map(i => `.k-tabs:has(> .k-tabbar > label:nth-child($
 .k[data-kit=preview] .k-table :is(th, td) { padding: 3px 6px; } .k-table .al-right { text-align: right; } .k-table .al-center { text-align: center; } .k-table tr[data-open] { cursor: pointer; } .k-table tr[data-open]:hover td { background: var(--hover, #1b2029); }
 @container kit (max-width: 360px) { .k-table .hide-narrow { display: none; } }
 .k[data-line] .k-table thead, .k[data-line] :is(.k-gh, .k-filter, .k-more, .k-sh, .k-ch-head, .k-ch-axis, .k-legend) { display: none; } .k[data-line] .k-stack { flex-direction: row; align-items: center; } .k[data-line] .k-stack > :is(.k-row, .k-chl) { flex-shrink: 0; } /* their min-width 0 would let a bar's line squeeze them to nothing, the words over the next */ .k[data-line] .k-table :is(th, td) { padding: 0 6px; border: 0; }
-.k-chart { display: flex; flex-direction: column; gap: 2px; min-width: 0; color: var(--accent, #7aa2f7); } .k > .k-chart { flex: 1; }
+.k-chart { position: relative; display: flex; flex-direction: column; gap: 2px; min-width: 0; color: var(--accent, #7aa2f7); }
+.k-ch-tip { position: absolute; z-index: 5; padding: 4px 7px; border: 1px solid var(--line, #232833); border-radius: 6px; background: var(--panel, #161a21); color: var(--fg, #d5d9e3); box-shadow: 0 4px 14px rgb(0 0 0 / 0.3); font-size: 11px; line-height: 1.35; font-variant-numeric: tabular-nums; white-space: pre; pointer-events: none; } .k-ch-hov { position: absolute; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; box-shadow: 0 0 0 2px var(--bg, #0f1117); pointer-events: none; }
+.k-ch-slot:hover { fill: var(--fg, #d5d9e3); fill-opacity: 0.05; } .k-chart [data-run] { cursor: pointer; } .k-ch-thl { position: absolute; right: 2px; transform: translateY(-100%); font-size: 9.5px; line-height: 1.2; pointer-events: none; }
+.k-ch-axis.ticks { position: relative; display: block; } .k-ch-axis.ticks > span { position: absolute; right: 0; transform: translateY(-50%); } .k-ch-axis.ticks > .k-ch-w { position: static; visibility: hidden; transform: none; }
+.k-ch-body.xt { margin-bottom: 13px; } .k-ch-xt { position: absolute; top: calc(100% + 3px); right: 0; left: 0; color: var(--muted, #7a8294); font-size: 9.5px; line-height: 1; } .k-ch-xt > span { position: absolute; transform: translateX(-50%); white-space: nowrap; } .k-ch-xt > .first { transform: none; } .k-ch-xt > .last { transform: translateX(-100%); }
+.k-ch-yl, .k-ch-xl { color: var(--muted, #7a8294); font-size: 9.5px; } .k-ch-xl { text-align: center; } .k > .k-chart { flex: 1; }
 .k-ch-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; color: var(--muted, #7a8294); font-size: 11px; } .k-ch-head b { margin-left: auto; color: var(--fg, #d5d9e3); font-variant-numeric: tabular-nums; }
 .k-ch-body { display: flex; flex: 1; gap: 4px; min-height: 0; } .k-ch-axis { display: flex; flex-direction: column; justify-content: space-between; color: var(--muted, #7a8294); font-size: 9.5px; line-height: 1; text-align: right; font-variant-numeric: tabular-nums; }
 .k-ch-plot { position: relative; flex: 1; min-width: 0; } .k-ch-plot svg { display: block; width: 100%; height: 100%; overflow: visible; } .k-ch-plot .grid { stroke: var(--line, #232833); }
@@ -848,7 +853,37 @@ export function uiBehave(root: { addEventListener: (t: string, f: (e: any) => vo
   }
   // a hover card: open while the pointer is on it, unless a click pinned it (data-hov: opened by the pointer); it goes
   // a moment after the pointer leaves, so the pointer can cross the gap to the card
+  // K6: a chart's tooltip: its point's (a slot's, a bar's, a slice's) data-tip by it, a line's dot where it is
+  const chartTip = (e: MouseEvent) => {
+    const t = (e.target as Element | null)?.closest?.('.k-chart [data-tip]')
+    const ch = t?.closest('.k-chart')
+    if (!t || !ch) return
+    if (e.type === 'mouseout') {
+      if (!(e.relatedTarget as Element | null)?.closest?.('.k-chart [data-tip]')) ch.querySelectorAll('.k-ch-tip, .k-ch-hov').forEach(x => x.remove())
+      return
+    }
+    const doc = ch.ownerDocument
+    const tip = ch.querySelector<HTMLElement>('.k-ch-tip') || ch.appendChild(Object.assign(doc.createElement('div'), { className: 'k-ch-tip' }))
+    tip.setAttribute('role', 'tooltip')
+    tip.textContent = t.getAttribute('data-tip')
+    const plot = t.closest('.k-ch-plot')
+    const px = t.getAttribute('data-px')
+    let dot = ch.querySelector<HTMLElement>('.k-ch-hov')
+    if (plot && px !== null) {
+      dot = dot || plot.appendChild(Object.assign(doc.createElement('i'), { className: 'k-ch-hov' }))
+      dot.style.left = `${px}%`
+      dot.style.top = `${t.getAttribute('data-py')}%`
+      dot.style.background = plot.getAttribute('data-hc') || ''
+    } else if (dot) (dot.remove(), (dot = null))
+    const cb = ch.getBoundingClientRect()
+    const r = (dot || t).getBoundingClientRect()
+    const big = !dot && r.width > 24 // a bar's slot, a slice, a row: by the pointer
+    const x = (big ? e.clientX : r.left + r.width / 2) - cb.left
+    tip.style.left = `${Math.max(0, Math.min(cb.width - tip.offsetWidth, x - tip.offsetWidth / 2))}px`
+    tip.style.top = `${Math.max(0, (big ? e.clientY - 6 : r.top - 4) - cb.top - tip.offsetHeight)}px`
+  }
   const hover = (e: any) => {
+    chartTip(e)
     const pop = e.target && e.target.closest ? e.target.closest('.k-pop.hover') : null
     const b = pop && pop.querySelector('[popover]')
     if (!b || (e.relatedTarget && pop.contains(e.relatedTarget))) return

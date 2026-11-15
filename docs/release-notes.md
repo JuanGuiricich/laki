@@ -5,6 +5,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
+- Charts in extensions show a point's exact number on hover, can draw round-numbered ticks, axis labels and dashed threshold lines, place a line's points by their time, and run an action on a click on a point.
 - The UI kit draws diagrams (`diagram`: mermaid's flowcharts, sequences and Gantt charts, in the theme's colors) and QR codes (`qr`: a link to open on a phone).
 - Tables in an extension's full view sort by a click on a header (numbers and dates as such), can pick rows for its bulk buttons, keep their header in sight and show long lists as you scroll. A click in a table after *+N more* works again.
 - The UI kit has a `term` element: a live terminal running a command in an extension's cell, typed into from its full view (Settings › Resources lists it).

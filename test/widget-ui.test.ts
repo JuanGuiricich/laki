@@ -218,7 +218,7 @@ test('UI kit: data is escaped everywhere, never a template of its own', () => {
   assert.match(html, /data-arg="&lt;script&gt;/)
   assert.match(html, /data-confirm="&lt;script&gt;/)
   assert.match(html, /data-copy="&lt;script&gt;/)
-  assert.match(html, /<title>&lt;script&gt;/, "a chart point's tooltip")
+  assert.match(html, /data-tip="&lt;script&gt;/, "a chart point's tooltip")
   assert.doesNotMatch(html, /data-open="javascript/, 'a link only http(s), mailto or laki://')
 })
 
@@ -270,7 +270,7 @@ test('UI kit: charts in SVG, an empty series draws nothing', () => {
   assert.deepEqual(chartPoints([3, 5, 4], 3, 5), [[0, 38], [50, 2], [100, 20]])
   const html = uiHtml({ type: 'chart', each: 'd', x: '{{x}}', y: '{{y}}', unit: 'ms', label: 'p95' }, { data: { d: [{ x: 'a', y: 3 }, { x: 'b', y: 5 }, { x: 'c', y: 4 }] } }, { full: true })
   assert.match(html, /<polyline points="0.0,38.0 50.0,2.0 100.0,20.0"[^>]*style="color:var\(--tc-blue, #7aa2f7\)"/)
-  assert.match(html, /<title>b: 5ms<\/title>/)
+  assert.match(html, /data-tip="b\n5ms"/)
   assert.match(html, /k-ch-dot" style="left:100.0%;top:50.0%;background:var\(--tc-blue/, 'the last point marked')
   assert.match(html, /<b>4ms<\/b>/, 'the last value')
   assert.match(html, /<span>5ms<\/span><span>3ms<\/span>/, 'max and min')
@@ -360,7 +360,7 @@ test('UI kit: colors, every chart kind, the examples', () => {
   }
   const pie = uiHtml({ type: 'chart', kind: 'donut', each: 'd', x: '{{x}}', y: '{{y}}', label: 'tickets', colors: ['green', 'red'] }, { data: d }, { full: true })
   assert.equal(pie.match(/<circle /g)?.length, 3, 'a slice per row')
-  assert.match(pie, /stroke-dasharray="30.0 70.0" stroke-dashoffset="0.0"[^>]*><title>a: 3 \(30%\)/, 'its share of the whole')
+  assert.match(pie, /stroke-dasharray="30.0 70.0" stroke-dashoffset="0.0"[^>]* data-tip="a: 3 \(30%\)"/, 'its share of the whole')
   assert.match(pie, /color:var\(--tc-green[\s\S]*color:var\(--tc-red[\s\S]*color:var\(--tc-green/, 'colors in order, again from the first')
   assert.match(pie, /<div class="k-pie-mid"><b>10<\/b><span>tickets<\/span>/, 'the total in the middle')
   assert.match(pie, /class="k-legend"><span><i style="background:var\(--tc-green[^>]*><\/i>a<b>30%<\/b>/)
