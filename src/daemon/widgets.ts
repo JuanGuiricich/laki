@@ -12,7 +12,7 @@ import { homedir, tmpdir } from 'node:os'
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path'
 import { AI_SOURCE_EVERY, type Annotation, type Annotations, BUTTON_PLACES, RETRY_KINDS, type LogLevel, type Preset, WIDGET_SOURCES, type WidgetSource, type Workspace, type WidgetOption, type WidgetTool, type WidgetRun, type WidgetPlace, type WidgetSize, type WidgetView, type WidgetHide, type WidgetCtx, type ActionFile, type WidgetFail, type WidgetWhen, WIDGET_PLACES } from '../shared/types.ts'
 import { fill, hasFull, hasScript, openOk, pageOf, render, sayOf, templateError, viewOf, type WidgetSay } from '../shared/widget.ts'
-import { type Tone, TONES, uiHtml, uiTree } from '../shared/widgetUi.ts'
+import { termKey, termsOf, type Tone, TONES, uiHtml, uiTree } from '../shared/widgetUi.ts'
 import { actionCmd, actionMenu, aiActOf, type Fact, FACT_NAMES, gateOf, needsOf, SAMPLE_FACTS, SIZES_ACROSS, toolOf, whenOf } from '../shared/widgetSchema.ts'
 import { newer } from '../shared/update.ts'
 import { VERSION } from '../shared/version.ts'
@@ -21,10 +21,11 @@ import { iconTurns } from '../shared/icons.ts'
 import { WIDGET_EVERY } from '../shared/widgetGuide.ts'
 import { aiOnce } from './ai.ts'
 import { dir, realOf } from './dir.ts'
-import { agentCaller, annotAt, broadcast, git, ghSaid, imageSave, within, changed, cliArgv, cliEnv, clients, devKeep, devLog, plainEnv, prOf, presets, procs, q, rt, state, tabStatus, wsVars } from './core.ts'
+import { agentCaller, annotAt, broadcast, sessions, git, ghSaid, imageSave, within, changed, cliArgv, cliEnv, clients, devKeep, devLog, plainEnv, prOf, presets, procs, q, rt, state, tabStatus, wsVars } from './core.ts'
 import { headOf } from './pr.ts'
 import { diff, inside, stats } from './files.ts'
-import { execGroup, killGroup, own } from './resources.ts'
+import { execGroup, killGroup, own, ownPid } from './resources.ts'
+import { Session } from './session.ts'
 import { errAt, flushLogs, LOG_RUN, logOn, masker, masks, xlog } from './widgetLogs.ts'
 import { gatesOf, stopStream, streaming, streams, streamSync, toolGateFlag } from './widgetEvents.ts'
 export { toolGateOn } from './widgetEvents.ts'
@@ -919,6 +920,48 @@ export function widgetPage(id: string, query: URLSearchParams): { code: number; 
   }
 }
 
+// K1: a ui's term element: a live terminal (its run as written in widget.json, sh -c, in its cwd under its workspace,
+// a per-workspace one's, else its folder), started as a window first shows it, keyed by extension, element (termKey) and
+// workspace: a session of core's, not a tab (attach, input and resize by its id). In Resources (term:<id>); stopped as
+// the extension goes off or is deleted, or once no window looked at it for TERM_IDLE (an ended command's last screen
+// stays till then). Never a JS page's (the app asks, from the kit's HTML), nor an agent's or the phone's (gates.ts)
+const TERM_IDLE = 10 * 60_000
+const terms = new Map<string, { widget: string; seen: number; off: () => void }>()
+export function widgetTerm(o: { id: string; key: string; ws?: string }) {
+  const w = find(o.id)
+  if (!onOf(w)) throw new Error(OFF(w))
+  const el = termsOf(w.m.ui).find(e => termKey(e.run, e.cwd) === o.key)
+  if (!el) throw new Error(`${w.m.name || w.id} has no terminal ${o.key}`)
+  const x = scoped(w) ? wsOf(w, o.ws) : undefined
+  const id = `ext-${w.id}-${o.key}${x ? `-${x.id}` : ''}`
+  const t = terms.get(id)
+  if (t && sessions.has(id)) return (t.seen = Date.now()), { tab: id }
+  const root = x?.path ?? w.dir
+  const cwd = el.cwd ? resolve(root, el.cwd) : root
+  const s = new Session(id, '/bin/sh', ['-c', el.run], { cwd: existsSync(cwd) ? cwd : root, env: { ...envOf(w, wsEnv(w, x)), TERM: 'xterm-256color' }, cols: 100, rows: 24 })
+  sessions.set(id, s)
+  terms.set(id, { widget: w.id, seen: Date.now(), off: ownPid(s.pty.pid, `${w.m.name || w.id}: ${el.run.slice(0, 60)}`, `term:${id}`) })
+  wLog(w, `terminal: ${el.run}${x ? ` in ${x.name ?? x.id}` : ''}`)
+  return { tab: id }
+}
+export function termStop(id: string) {
+  const t = terms.get(id)
+  if (!t) throw new Error(`no terminal ${id}`)
+  terms.delete(id)
+  t.off()
+  sessions.get(id)?.kill()
+  sessions.delete(id)
+}
+export const termsStop = (widget: string) => [...terms].forEach(([id, t]) => t.widget === widget && termStop(id))
+function termTick(now: number) {
+  for (const [id, t] of terms) {
+    const s = sessions.get(id)
+    if (!s) terms.delete(id), t.off()
+    else if (s.attachedClients().length) t.seen = now
+    else if (now - t.seen > TERM_IDLE) termStop(id)
+  }
+}
+
 // M1: its store, by op: get, set (a JSON value), delete, keys, all (the inspector's). Only an on one's; a per-workspace
 // one's in its workspace. An agent's set or delete (laki widget store in its tab) is asked each time, as its actions are
 export async function widgetStore(o: { id: string; op: string; key?: unknown; value?: unknown; ws?: string; from?: { ws?: string; tab?: string } }) {
@@ -1027,7 +1070,7 @@ export function widgetSet(o: { id: string; seen?: string; log?: boolean; source?
   if (o.on === true) bins.clear(), needsRead(w) // its programs looked for again: one installed since
   if (o.on === true && !s.on) s.mock = undefined // turned on: live, not the sample data put there while it was off (the studio's)
   if (o.on !== undefined) s.on = !!o.on
-  if (o.on === false) ungrant(w.id), stopAgents(w.id), [...annots.keys()].forEach(ws => annotate(w, state.workspaces.find(x => x.id === ws), [])) // off: its tools' Always go, its agents stop, its diff notes go
+  if (o.on === false) ungrant(w.id), stopAgents(w.id), termsStop(w.id), [...annots.keys()].forEach(ws => annotate(w, state.workspaces.find(x => x.id === ws), [])) // off: its tools' Always go, its agents stop, its diff notes go
   if (o.source !== undefined) stopAgents(w.id, true) // an answer for the source it had would land over the new one's (its actions run on)
   if (o.size) s.size = [clamp(o.size[0], 1, ACROSS, 1), down(o.size[1])]
   if (o.fit !== undefined) s.fit = o.fit === true || undefined
@@ -1572,6 +1615,7 @@ export async function widgetAction(o: { id: string; action: string; arg?: string
 // at a time (the rest at the next ticks)
 export function widgetTick(now = Date.now(), reason: 'schedule' | 'open' | 'select' = 'schedule') {
   streamSync(now)
+  termTick(now)
   if (!shown()) return
   for (const w of widgets.values()) {
     if (outside(w, now)) {

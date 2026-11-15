@@ -2457,6 +2457,7 @@ export function App() {
   // widgets: the sidebar's grid and a widget's dialog (Widgets.tsx)
   const widgetApi: WidgetApi = {
     store: (id, op, key, value, ws) => api.call('widgetStore', { id, op, key, value, ws }),
+    ...(hasCap(view, 'kit.term') && { term: (id: string, key: string, ws?: string) => api.call<{ tab: string }>('widgetTerm', { id, key, ws }) }),
     render: (id, full, sample, cells, ws, turn) => api.call<string | null>('widgetRender', { id, full, ...(sample && { sample }), ...(cells && { cells }), ws, ...(turn && { turn }) }),
     run: (id, ws) => call('widgetRun', { id, ws }),
     open: url => (/^laki:\/\//i.test(url) ? setLink(url) : openExternal(url)),

@@ -196,3 +196,5 @@ needs no bump: `settingsSet` keeps any field.
 188: `widgetNew`'s `ui` and `sample` (C4: the UI kit's *Make an extension from this*: that ui over that sample, a static source; the `widget.ui` cap).
 189: `widgetSet`'s `order` and the view's (P3: Edit layout: where an extension goes among the others in its places; the `widget.order` cap).
 190: `widgetStore` (M1: an extension's own key-value store: a JS page's `laki.store`, `laki widget store`, the inspector's Data tab; the `widget.store` cap).
+191: `widgetTerm` (K1: the UI kit's `term` element, a live terminal started as a window shows it; `term:<id>` in `resourceStop`; the `kit.term` cap).
+191: `widgetTerm` (K1: the UI kit's `term` element, a live terminal started as a window shows it; `term:<id>` in `resourceStop`; the `kit.term` cap).

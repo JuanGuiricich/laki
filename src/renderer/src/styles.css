@@ -4031,3 +4031,7 @@ button.proof-line:not(:disabled):hover .mono { text-decoration: underline; }
 .dl-annot-row.warn { border-left-color: var(--waiting); background: color-mix(in srgb, var(--waiting) 8%, var(--panel)); }
 .dl-annot-row.error { border-left-color: var(--error); background: color-mix(in srgb, var(--error) 8%, var(--panel)); }
 .dl-annot-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+/* K1: an extension's terminal, in its term element's slot */
+.ext-term { display: block; position: relative; height: 100%; background: var(--term-bg); }
+/* K1: an extension's terminal, in its term element's slot */
+.ext-term { display: block; position: relative; height: 100%; background: var(--term-bg); }

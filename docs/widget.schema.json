@@ -935,6 +935,9 @@
           "$ref": "#/definitions/json"
         },
         {
+          "$ref": "#/definitions/term"
+        },
+        {
           "$ref": "#/definitions/log"
         },
         {
@@ -3971,6 +3974,86 @@
             "string"
           ],
           "description": "Levels open at first (1)"
+        }
+      }
+    },
+    "term": {
+      "type": "object",
+      "description": "term: A live terminal running a command: a cell shows it, the full view types into it. The app’s only: a JS page shows the command.",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "term"
+        },
+        "if": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "Show it only when this path or template is truthy (an empty list is false)"
+        },
+        "unless": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "Show it only when this path or template is falsy"
+        },
+        "each": {
+          "type": [
+            "string",
+            "array"
+          ],
+          "description": "Repeat it once per item of this list (or object); inside, the item’s fields, this and @index. A list, table, chart… takes its rows from it instead"
+        },
+        "tip": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "A tooltip"
+        },
+        "tone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          ],
+          "description": "good, bad, warn, accent or muted, or a map from its text to one: { \"failed\": \"bad\", \"live\": \"good\" }"
+        },
+        "run": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "The command (sh -c), as written: never filled from data"
+        },
+        "cwd": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "Where it runs: relative to its workspace (per workspace) or its folder"
+        },
+        "rows": {
+          "type": [
+            "number",
+            "string"
+          ],
+          "description": "Its height in lines (10; 24 in the full view)"
         }
       }
     },

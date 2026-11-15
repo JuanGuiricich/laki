@@ -5,6 +5,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
+- The UI kit has a `term` element: a live terminal running a command in an extension's cell, typed into from its full view (Settings › Resources lists it).
 - Each extension has a store of its own for what it remembers between runs: `laki.store` in a JS page, `store` in a script, `laki widget store` in a command; the inspector's Data tab shows it.
 - Extensions can put notes on lines of a workspace's diff (`annotations`: a linter's, a coverage tool's): the Review tab and Changes mark each line and show them; *Add to comments* sends them to the agent with your own.
 - An extension can put a chip under each agent turn (place *Agent turns*): what its `turn.done` handler found then, such as the new starter *After each turn*'s files and lines. A click shows that turn's data; the Reader and Needs you show them.

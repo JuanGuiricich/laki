@@ -138,6 +138,7 @@ export const UI = {
   snippet: { group: 'Code', blurb: 'A command or code with Copy, in tabs: npm, pnpm, yarn and bun; curl and httpie; a file each.', rows: true, props: { items: p('items', 'The tabs: [{ "label", "value" }] (none: one block of value)'), label: p('text', 'With each: a tab’s name'), value: p('text', 'The code (with each: a tab’s)'), title: p('text', 'A file name or title over one block'), prompt: p('bool', 'A $ before each line: commands to type'), copy: p('bool', 'A copy button: on by default') } },
   diff: { group: 'Code', blurb: 'A diff, git’s: added lines green, removed red, hunks and files marked, how many of each.', props: { value: p('text', 'The unified diff (git diff’s, a patch)'), limit: p('number', 'Lines at most (a preview: as many as fit), then +N more') } },
   json: { group: 'Code', blurb: 'Any value as JSON that folds: what a fetch printed, an API’s answer.', props: { value: p('path', 'What to show: a path (data, data.items); data by default'), open: p('number', 'Levels open at first (1)') } },
+  term: { group: 'Code', blurb: 'A live terminal running a command: a cell shows it, the full view types into it. The app’s only: a JS page shows the command.', props: { run: p('text', 'The command (sh -c), as written: never filled from data'), cwd: p('text', 'Where it runs: relative to its workspace (per workspace) or its folder'), rows: p('number', 'Its height in lines (10; 24 in the full view)') } },
   log: { group: 'Code', blurb: 'Log lines in the monospace font, the newest last, errors red and warnings yellow.', rows: true, props: { value: p('text', 'The whole log as text, a line each (instead of each)'), text: p('text', 'With each: a line ({{text}} by default)'), time: p('text', 'With each: when (an ISO date or ms: shown as 09:10:03)'), level: p('text', 'With each: error, warn, info or debug (default: read off the line)'), limit: p('number', 'Lines at most, the newest (a preview: as many as fit), then +N more'), wrap: p('bool', 'Wrap long lines') } },
   secret: { group: 'Code', blurb: 'A token, a password, a key: dots until a click shows it, a copy button.', props: { value: p('text', 'The secret'), label: p('text', 'What it is'), copy: p('bool', 'A copy button: on by default') } },
   env: { group: 'Code', blurb: 'Environment variables, KEY=value: secrets as dots until a click, a copy button, an environment each.', rows: true, props: { items: p('items', 'The variables: [{ "key", "value", "secret", "tag" }]'), key: p('text', 'With each: its name ({{key}} by default)'), value: p('text', 'With each: its value ({{value}} by default)'), secret: p('text', 'A path or template: dots when truthy (default: names with KEY, TOKEN, SECRET, PASSWORD or PRIVATE)'), tag: p('text', 'With each: a pill: its environment (production, preview)'), copy: p('bool', 'A copy button by each value: on by default') } },
@@ -1091,6 +1092,14 @@ const R: Record<UiType, (e: El, s: S) => string> = {
     }
     return `<div${at({ tip: e.tip }, s, `k-log${e.wrap === true ? ' wrap' : ''}`)} data-rows>${s.line ? '' : more(from)}${lines.map((x, i) => (i < from && !s.full ? '' : row(x, i))).join('')}</div>${empty(e, s, lines.length)}`
   },
+  // K1: the app puts a live terminal in the slot (Widgets.tsx' TermSlots: the daemon's widgetTerm, its run found by its
+  // key in widget.json); anywhere else (a JS page, a sample, the phone) the command shows
+  term: (e, s) => {
+    const run = typeof e.run === 'string' ? e.run : ''
+    const k = termKey(run, typeof e.cwd === 'string' ? e.cwd : '')
+    const rows = Math.min(60, Math.max(2, Math.round(n(e.rows, s) ?? (s.full ? 24 : 10))))
+    return `<div${at({ tip: e.tip }, s, 'k-term')} data-term="${k}" style="height:${rows * 17 + 12}px"><slot name="term-${k}"><pre class="k-term-cmd"><code>$ ${esc(run)}</code></pre></slot></div>`
+  },
   json: (e, s) => (v => (s.line ? `<span${at({ tip: e.tip }, s, 'k-json mono')}>${esc((JSON.stringify(v) ?? 'null').slice(0, 300))}</span>` : `<div${at({ tip: e.tip }, s, 'k-json')}>${jsonHtml(v, Math.max(0, Math.round(n(e.open, s) ?? 1)))}</div>`))(valueAt(e.value ?? 'data', s.scopes)),
   rating: (e, s) => {
     const max = Math.min(10, Math.max(1, Math.round(n(e.max, s) ?? 5)))
@@ -1680,6 +1689,21 @@ export function uiHtml(spec: unknown, ctx: Record<string, unknown>, o: { full?: 
 // Laki's own names (config, workspace, at…) aren't its data. ponytail: a name a helper takes is its last word
 const NOT_DATA = /^(config|workspace|facts|at|error|full|sample|else|@index)(\.|$)/
 const PATH = /^[A-Za-z_@][\w@.-]*$/
+// K1: a term element's key (its run and cwd, FNV-1a), and every term element in a ui (preview, full, nested)
+export const termKey = (run: string, cwd = '') => {
+  let h = 0x811c9dc5
+  for (const c of `${run}\0${cwd}`) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193)
+  return (h >>> 0).toString(16).padStart(8, '0')
+}
+export function termsOf(ui: unknown, out: { run: string; cwd?: string }[] = []) {
+  if (Array.isArray(ui)) ui.forEach(x => termsOf(x, out))
+  else if (obj(ui)) {
+    if (ui.type === 'term' && typeof ui.run === 'string' && ui.run.trim()) out.push({ run: ui.run, ...(typeof ui.cwd === 'string' && { cwd: ui.cwd }) })
+    for (const v of Object.values(ui)) if (v && typeof v === 'object') termsOf(v, out)
+  }
+  return out
+}
+
 export function readsOf(el: unknown, prefix = ''): { reads: string[]; scope: string } {
   if (!obj(el)) return { reads: [], scope: prefix }
   const j = (a: string, b: string) => (a && b ? `${a}.${b}` : a || b)
@@ -1801,6 +1825,8 @@ export function uiCheck(spec: unknown, data?: unknown, o: { actions?: string[] }
     for (const c of [el.color, el.ring, ...(Array.isArray(el.colors) ? el.colors : []), ...(Array.isArray(el.series) ? el.series.map(x => (obj(x) ? x.color : undefined)) : [])]) if (!colorOk(c)) say('warn', here, `color ${c}: a tone (${TONES.join(', ')}), one of ${COLORS.join(', ')}, or a hex${mean(String(c), [...TONES, ...COLORS])}`)
     if (['button', 'toggle', 'segmented', 'stepper', 'range', 'select', 'input', 'swap', 'pagination', 'menu', 'command', 'combobox', 'datepicker', 'split', 'radio'].includes(type)) runs(el, here, true)
     if (type === 'textarea') runs({ ...el, prompt: '', ...(typeof el.do === 'string' && !['new', 'send', 'ai'].includes(el.do) && { do: undefined }) }, here, true) // what's typed is its prompt; a wrong do: its kind says it
+    if (type === 'term' && (typeof el.run !== 'string' || !el.run.trim())) say('error', here, 'term: its run, the command it runs')
+    if (type === 'term' && typeof el.run === 'string' && el.run.includes('{{')) say('warn', here, 'term: run is used as written, {{…}} isn’t filled')
     if ((type === 'menu' || type === 'command') && Array.isArray(el.items)) el.items.forEach((b, i) => runs(b, `${here}.items[${i}]`))
     if (type === 'swap' && Array.isArray(el.icons)) for (const v of el.icons) if (!iconOk(v)) say('warn', here, noIcon(v))
     if (type === 'form') runs(el.submit, `${here}.submit`)
@@ -1935,6 +1961,7 @@ const SAMPLES: Record<UiType, { spec: UiElement; data?: unknown }> = {
   },
   tree: { spec: { type: 'tree', each: 'files', label: '{{name}}', text: '{{size}}', icon: '{{#if children}}folder{{else}}file{{/if}}' }, data: { files: [{ name: 'src', size: '', children: [{ name: 'main.ts', size: '4 KB' }, { name: 'ui', size: '', children: [{ name: 'App.tsx', size: '12 KB' }, { name: 'theme.css', size: '3 KB' }] }] }, { name: 'package.json', size: '1 KB' }, { name: 'README.md', size: '2 KB' }] } },
   log: { spec: { type: 'log', each: 'lines', text: '{{text}}', time: '{{at}}', level: '{{level}}' }, data: { lines: LOG } },
+  term: { spec: { type: 'term', run: 'top -o cpu -n 8 -s 3 -stats pid,command,cpu,mem', rows: 12 }, data: {} },
   json: { spec: { type: 'json', value: 'data', open: 2 }, data: { repo: 'acme/web', open: 6, ci: { passing: true, took: 412 }, labels: ['bug', 'docs'], owner: null } },
   toggle: {
     spec: { type: 'stack', children: [{ type: 'toggle', label: 'Maintenance mode', text: 'Shows the banner on {{site}}', on: 'maintenance', run: 'maintenance', confirm: 'Turn maintenance mode {{#if maintenance}}off{{else}}on{{/if}}?' }, { type: 'toggle', label: 'Deploys', text: 'Merges to main ship at once', on: 'deploys', run: 'deploys' }] },

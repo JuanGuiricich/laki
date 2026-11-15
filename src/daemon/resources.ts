@@ -216,6 +216,8 @@ export function execGroup(cmd: string, args: string[], o: { cwd?: string; env?: 
 // what this daemon runs besides tabs, by pid, for Resources: Laki AI's agent, a tunnel, remote access, an SSH host's
 // connection, a widget's fetch; stop: main.ts' resourceStop key. Dropped as it exits
 const owned = new Map<number, { name: string; stop?: string }>()
+// K1: a process that isn't a ChildProcess (an extension's terminal, node-pty's): by its pid, the remover back
+export const ownPid = (pid: number, name: string, stop?: string) => (owned.set(pid, { name, ...(stop && { stop }) }), () => void owned.delete(pid))
 export function own(c: ChildProcess, name: string, stop?: string) {
   const pid = c.pid
   if (!pid) return

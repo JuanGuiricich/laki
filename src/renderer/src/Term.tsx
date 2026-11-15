@@ -55,6 +55,7 @@ export function Term({
   image,
   text,
   cwd,
+  readOnly = false,
 }: {
   tab: string
   active?: boolean
@@ -73,6 +74,7 @@ export function Term({
   image?: (path: string) => Promise<string | undefined | null> // a hovered picture's data URL (an absolute path); null: no card
   text?: (path: string) => Promise<string | undefined | null> // a hovered Markdown file's text (an absolute path); null: no card
   cwd?: string // the workspace's folder: a relative picture path's
+  readOnly?: boolean // K1: an extension's terminal in a cell: shown, no keys
 }) {
   const copy = useRef(copyOnSelect)
   copy.current = copyOnSelect
@@ -295,8 +297,9 @@ export function Term({
       }
       return e.type === 'keydown' ? (down = true) : e.type === 'keyup' ? !(down = false) : down
     })
-    term.onData(d => api.send('input', { tab, data: d }))
-    term.onBinary(d => api.send('input', { tab, data: d }))
+    if (readOnly) term.options.disableStdin = true
+    term.onData(d => readOnly || api.send('input', { tab, data: d }))
+    term.onBinary(d => readOnly || api.send('input', { tab, data: d }))
     term.onResize(({ cols, rows }) => api.send('resize', { tab, cols, rows }))
     // a selection goes to the clipboard as you make it (Settings: Copy selected text)
     term.onSelectionChange(() => {

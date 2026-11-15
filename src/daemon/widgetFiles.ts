@@ -6,7 +6,7 @@ import { basename, dirname, join, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import { needsSample } from '../shared/widgetSchema.ts'
 import { copyTree, move, readJson, writeAtomic } from '../shared/conn.ts'
-import { agents, AI_MAY, find, kvPath, type Manifest, pathOf, readStore, refetch, repoSays, running, scanWidgets, secretsOf, setSecrets, stopAgents, storePath, widgetHome, widgets, widgetsView, wLog, writeStore } from './widgets.ts'
+import { agents, AI_MAY, find, kvPath, termsStop, type Manifest, pathOf, readStore, refetch, repoSays, running, scanWidgets, secretsOf, setSecrets, stopAgents, storePath, widgetHome, widgets, widgetsView, wLog, writeStore } from './widgets.ts'
 import { filesHash, hashes, runsOf } from './widgetTrust.ts'
 import { fixturesOf } from './widgetDev.ts'
 import { dir } from './dir.ts'
@@ -259,6 +259,7 @@ export async function widgetRm(o: { id: string }) {
   const w = find(o.id)
   if (w.project) throw new Error(repoSays(w, 'remove it'))
   if (w.dev) throw new Error(`${w.m.name || w.id} is your code, linked by laki widget dev: unlink it instead (laki widget dev --off ${w.id})`)
+  termsStop(w.id) // K1: its terminals
   if (agents.has(w.id)) {
     stopAgents(w.id) // an agent at work: stopped, and its run ends before its files go
     for (let i = 0; i < 50 && (agents.has(w.id) || fetching(w.id)); i++) await new Promise(r => setTimeout(r, 100))

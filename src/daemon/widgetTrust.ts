@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { actionCmd, gateOf, globMatch } from '../shared/widgetSchema.ts'
 import { hasScript } from '../shared/widget.ts'
+import { termsOf } from '../shared/widgetUi.ts'
 import { type Entry, find, guarded, type Manifest, manifestOf, oneFile, onOf, scanWidgets, sourceOf, under, widgets } from './widgets.ts'
 import { gatesOf } from './widgetEvents.ts'
 
@@ -33,7 +34,8 @@ export function widgetWhat(id: string) {
   const fence = '`'.repeat(Math.max(3, ...[...(code ?? '').matchAll(/`+/g)].map(m => m[0].length + 1))) // longer than any run in it
   const events = Object.keys(w.m.on ?? {}).map(e => `\`${e.replace(/`/g, '')}\``) // its actions run on these, unclicked
   const holds = [...new Set(gatesOf(w).flatMap(([, a]) => gateOf(a)))] // its gates: it can hold these
-  const text = `It ${runs}${code ? `:\n\n${fence}\n${code}\n${fence}` : '.'}${events.length ? `\n\nThese events run its actions too: ${events.join(', ')}.` : ''}${holds.some(g => g !== 'tool') ? `\n\nIt can hold a workspace's ${holds.filter(g => g !== 'tool').join(', ')}: its gate runs before each.` : ''}${holds.includes('tool') ? "\n\nIt sees each tool call Claude makes in a workspace, before it runs (the command, the file and what it writes): it can refuse it, or change it, which Claude then asks you about." : ''}${shown?.text ?? ''}`
+  const terms = [...new Set(termsOf(w.m.ui).map(e => e.run))] // K1: what its terminals run as a window shows them
+  const text = `It ${runs}${code ? `:\n\n${fence}\n${code}\n${fence}` : '.'}${events.length ? `\n\nThese events run its actions too: ${events.join(', ')}.` : ''}${terms.length ? `\n\nIts terminals run these while a window shows them:\n\n${(f => `${f}\n${terms.join('\n')}\n${f}`)('`'.repeat(Math.max(3, ...[...terms.join('\n').matchAll(/`+/g)].map(m => m[0].length + 1))))}` : ''}${holds.some(g => g !== 'tool') ? `\n\nIt can hold a workspace's ${holds.filter(g => g !== 'tool').join(', ')}: its gate runs before each.` : ''}${holds.includes('tool') ? "\n\nIt sees each tool call Claude makes in a workspace, before it runs (the command, the file and what it writes): it can refuse it, or change it, which Claude then asks you about." : ''}${shown?.text ?? ''}`
   return { name: w.m.name || w.id, on: onOf(w), text, hash, ...(shown?.cut.length && { cut: shown.cut }) }
 }
 

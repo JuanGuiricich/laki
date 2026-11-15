@@ -6,6 +6,8 @@
 // the daemon's page for it, sandboxed, that talks to the app only in messages: open a link, refresh, the full view,
 // run one of its actions.
 // Only what's on screen is rendered: a folded grid, or a closed dialog, holds nothing.
+import { createPortal } from 'react-dom'
+import { Term } from './Term'
 import { type CSSProperties, type DragEvent as RDrag, type KeyboardEvent as RKey, type MouseEvent, type PointerEvent as RPointer, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { placesOf, RETRY_KINDS, type TurnMark, type WidgetFail, type WidgetPlace, type WidgetView } from '../../shared/types'
 import { ago, type SayModal, sayOf, uiBehave, WIDGET_CSS, type WidgetButton, type WidgetSay } from '../../shared/widget'
@@ -20,6 +22,7 @@ export type WidgetApi = {
   copy: (text: string) => void
   full: (id: string, ws?: string) => void // ws: that workspace's instance (a row mark's: it's selected)
   store?: (id: string, op: string, key: unknown, value: unknown, ws?: string) => Promise<unknown> // M1: a JS page's laki.store
+  term?: (id: string, key: string, ws?: string) => Promise<{ tab: string }> // K1: a term element's terminal (widgetTerm)
   close: () => void // the full view's dialog (Esc in a JS widget's frame)
   action: (id: string, action: string, arg: string, label?: string, ws?: string) => Promise<false | void> // a button's data-run: one of widget.json's actions, done when it is (false: it failed)
   say: (id: string, s: WidgetSay, ws?: string) => void // a toast, a dialog with buttons
@@ -145,11 +148,12 @@ function act(m: Record<string, unknown>, w: WidgetView, full: boolean, api: Widg
 
 // one widget's preview or full view; a click on a preview (not a link or button) opens the full view. sample: with its
 // made-up data, as it would look (nothing it shows does anything). cells: where it shows, across and down (½: a bar)
-export function WidgetBody({ w, full, api, sample, cells, onSize, turn }: { w: WidgetView; full: boolean; api: WidgetApi; sample?: boolean | string; cells?: [number, number]; onSize?: (px: number) => void; turn?: TurnAt }) {
+export function WidgetBody({ w, full, api, sample, cells, onSize, turn, still }: { w: WidgetView; full: boolean; api: WidgetApi; sample?: boolean | string; cells?: [number, number]; onSize?: (px: number) => void; turn?: TurnAt; still?: boolean /* looked at only (a peek): its terminals take no keys */ }) {
   const host = useRef<HTMLDivElement>(null)
   const frame = useRef<HTMLIFrameElement>(null)
   const [err, setErr] = useState('')
   const [src, setSrc] = useState('')
+  const [terms, setTerms] = useState<string[]>([]) // K1: its term elements' keys, a terminal each in its slot
   const config = JSON.stringify(w.config)
   const cfg = [...config].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0) // a frame's address changes with it
   const theme = w.js ? JSON.stringify(themeVars()) : '' // and with the theme: read at each render (the app's renders follow a change of theme)
@@ -178,6 +182,8 @@ export function WidgetBody({ w, full, api, sample, cells, onSize, turn }: { w: W
         const style = document.createElement('style')
         style.textContent = WIDGET_CSS
         root.replaceChildren(style, clean(html ?? ''))
+        const keys = sample || turn || !now.current.api.term ? [] : [...new Set([...root.querySelectorAll<HTMLElement>('.k-term[data-term]')].map(e => e.dataset.term!))]
+        setTerms(t => (t.join() === keys.join() ? t : keys))
       },
       e => live && setErr(String(e?.message ?? e)),
     )
@@ -222,7 +228,27 @@ export function WidgetBody({ w, full, api, sample, cells, onSize, turn }: { w: W
     <>
       {w.js && !none ? src && <iframe ref={frame} className="widget-frame" title={w.name} src={src} sandbox="allow-scripts" referrerPolicy="no-referrer" data-widget={w.id} data-view={full ? 'full' : 'preview'} data-sample={sample ? '' : undefined} /> : <div ref={host} className="widget-body" data-widget={w.id} data-view={full ? 'full' : 'preview'} data-sample={sample ? '' : undefined} />}
       {err && <div className="widget-msg warn small">{err}</div>}
+      {!w.js && !none && host.current && terms.map(k => createPortal(<TermSlot key={k} w={w} k={k} live={full && !still} api={api} />, host.current!, k))}
     </>
+  )
+}
+// K1: a term element's terminal, in the host's light DOM: its slot shows it in the kit's HTML, the app's CSS (xterm's)
+// applies. Live in the full view (keys, focus); a cell, a peek: shown only
+function TermSlot({ w, k, live, api }: { w: WidgetView; k: string; live: boolean; api: WidgetApi }) {
+  const [tab, setTab] = useState<string>()
+  const [err, setErr] = useState('')
+  useEffect(() => {
+    let on = true
+    api.term?.(w.id, k, wsOf(w)).then(
+      r => on && setTab(r.tab),
+      e => on && setErr(String(e?.message ?? e)),
+    )
+    return () => void (on = false)
+  }, [w.id, k, w.here])
+  return (
+    <div slot={`term-${k}`} className="ext-term">
+      {err ? <div className="muted small pad">{err}</div> : tab && <Term key={`${tab}:${live}`} tab={tab} active={live} readOnly={!live} />}
+    </div>
   )
 }
 
@@ -385,7 +411,7 @@ export function WidgetPeek({ widgets, api }: { widgets: WidgetView[]; api: Widge
         <b>{w.name}</b> <span className="muted">{status(w)}</span>
       </div>
       <div className="ext-peek-body">
-        <WidgetBody w={w} full api={api} />
+        <WidgetBody w={w} full still api={api} />
       </div>
     </div>
   )
