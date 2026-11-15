@@ -297,7 +297,8 @@ export function FullReview({ ws, base, branch, pr, linked, empty, worktree, api:
   const annots = all ? NO_ANNOTS : annotsAll // the worktree's lines: not a PR's diff
   const noteOf = (path: string, a: Annot, l: DiffLine): ReviewNote => ({ id: Math.random().toString(36).slice(2), path, line: a.line, side: 'RIGHT', body: `${a.name}: ${a.text}${a.fix ? `\nFix: ${a.fix}` : ''}`, quote: l.text })
   const addAnnot = (path: string, a: Annot, l: DiffLine) => (setNotes(n => [...n, noteOf(path, a, l)]), setSide('mine'), hideNotes(false))
-  const shownAnnots = [...annots].flatMap(([path, by]) => (fd => (fd ? [...by].flatMap(([n, as]) => (l => (l ? as.map(a => noteOf(path, a, l)) : []))(fd.lines.find(l => l.new === n && !l.text.startsWith('@@')))) : []))(byFile.get(path))) // on a line of the diff
+  // on a line of the diff; kept while the notes and the diff stay (not each keystroke in a box)
+  const shownAnnots = useMemo(() => [...annots].flatMap(([path, by]) => (fd => (fd ? [...by].flatMap(([n, as]) => (l => (l ? as.map(a => noteOf(path, a, l)) : []))(fd.lines.find(l => l.new === n && !l.text.startsWith('@@')))) : []))(byFile.get(path))), [annots, byFile])
   const addAll = () => (setNotes(n => [...n, ...shownAnnots.filter(x => !n.some(y => y.path === x.path && y.line === x.line && y.body === x.body))]), setSide('mine'))
   const boxFor = (path: string) => (at?.path === path ? (byFile.get(path)?.lines.find(l => sameLine(l, at.line)) ?? byFile.get(path)?.lines.at(-1)) : undefined)
   // a click on a line: its box; a drag from one line to another of the file: the range, on the side of the last
