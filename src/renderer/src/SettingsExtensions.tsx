@@ -18,7 +18,7 @@ import { describeHours, parseHours } from '../../shared/when'
 export type WidgetsApi = {
   list: WidgetView[]
   home?: string // Laki's own widgets folder
-  set: (id: string, p: { on?: boolean; seen?: string; log?: boolean; size?: [number, number]; fit?: boolean; every?: number; view?: WidgetSize; place?: WidgetPlace | WidgetPlace[]; net?: boolean; hide?: WidgetHide; config?: Record<string, string>; ai?: boolean; source?: WidgetSource | null; name?: string; allow?: string[]; hours?: string; when?: WidgetWhen | null }) => Promise<unknown> // when (P2): {} always, null widget.json's again; hours: its own working hours ('': Settings'); seen: the files hash of what the user was shown (on only while it's that); ai: Laki AI may rewrite it (an hour); source: where its data comes from; name: widget.json's; allow: the tools its agent may use unasked
+  set: (id: string, p: { on?: boolean; seen?: string; log?: boolean; size?: [number, number]; fit?: boolean; every?: number; view?: WidgetSize; place?: WidgetPlace | WidgetPlace[]; net?: boolean; hide?: WidgetHide; config?: Record<string, string>; ai?: boolean; source?: WidgetSource | null; name?: string; allow?: string[]; hours?: string; when?: WidgetWhen | null; order?: number | null }) => Promise<unknown> // when (P2): {} always, null widget.json's again; hours: its own working hours ('': Settings'); seen: the files hash of what the user was shown (on only while it's that); ai: Laki AI may rewrite it (an hour); source: where its data comes from; name: widget.json's; allow: the tools its agent may use unasked
   desk?: boolean // Desk is on: a place too
   ungated?: number // S8: claude tabs started before a tool gate was on
   gateRestart?: () => Promise<{ restarted: number; left: number }> // the idle ones again, their chats resumed
@@ -31,6 +31,7 @@ export type WidgetsApi = {
   chats?: StudioChat[] // Laki AI's extension chats with nothing made yet, or at work: where you left off (Laki AI on)
   chatRm?: (id: string) => Promise<unknown> // a session let go of (asked first)
   reload: () => Promise<unknown>
+  editLayout?: () => void // P3: Edit layout mode (a daemon with order)
   projects?: { id: string; name: string }[] // P2: Show when…'s project picker
   page: (id: string) => void // its own page (Extension.tsx): preview, settings, Laki AI's chat; '': a new one
   folder?: (id: string, at: MouseEvent<HTMLButtonElement> | DOMRect) => void // its folder's Open in menu, at a button or where one was
@@ -717,6 +718,12 @@ export function WidgetsSection({ api, dirs, onDirs, hours, onHours, onAgent, onL
           </button>
           <span className="muted small">Reads the folders again and fetches each extension that's on: changes show without a restart.</span>
         </div>
+        {api.editLayout && (
+          <div className="row">
+            <button onClick={api.editLayout}>Edit layout</button>
+            <span className="muted small">Drag extensions between the sidebar, the bars, the rail and the foot, and resize the sidebar's.</span>
+          </div>
+        )}
       </Group>
       <Group title="Working hours">
         <label>

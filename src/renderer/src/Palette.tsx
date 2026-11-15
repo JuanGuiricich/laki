@@ -9,6 +9,7 @@ import { type Action, wsName } from './appCtx'
 import { aiOn, HOME_ACCOUNT, AGENT_NAMES } from '../../shared/types'
 const LAB_PAGES = [['calendar', 'Calendar', 'calendar'], ['desk', 'My Desk', 'desk'], ['notes', 'Notes', 'note'], ['todoList', 'To-dos', 'listChecks'], ['specs', 'Specs & Brainstorms', 'spec'], ['workflows', 'Workflows', 'flow']] as const
 import { cmdMap, keyShow } from '../../shared/keys'
+import { hasCap } from '../../shared/caps'
 import { LAYOUT_PRESETS } from '../../shared/layout'
 import { api, bridge, openExternal } from './api'
 import { tabGlyph, prNum, appIcon, SCRIPT_ICONS } from './appCtx'
@@ -122,7 +123,7 @@ export function Palette({ items, onClose, forName }: { items: PaletteItem[]; onC
 
 // ⌘K's items: for the workspace you're in first, then every workspace, tab and action
 export function paletteItems(app: AppCtx): PaletteItem[] {
-  const { accountsOf, achKept, aiDock, allows, call, canOverlap, checkOverlaps, closePreview, closeTabs, copyTab, devRunning, devTab, dock, done, fail, editor, editScripts, extMenus, extRun, find, floated, floatTab, flowItems, flowMenu, flowsHere, flowsOn, full, gallery, git, hereCtx, keyText, kh, layoutMenu, live, needing, newTabActions, newWs, nextNeed, openIn, openPort, openProject, order, prAct, previewed, prFix, project, projOf, quickNew, restore, run, runFlow, runScript, selectTab, sendLater, setDialog, setFind, setFolded, setOnboard, setSharing, setSideOpen, setTimers, settings, setVideo, setWsId, showInfo, showPanel, sideOpen, specsOn, staleMin, tab, tabMenu, targets, timers, toast, toggleArtifacts, toggleFull, video, view, ws, wsActions, wsMenu } = app
+  const { accountsOf, achKept, aiDock, allows, call, canOverlap, checkOverlaps, closePreview, closeTabs, copyTab, devRunning, devTab, dock, done, fail, editLayout, editor, editScripts, extMenus, extRun, find, floated, floatTab, flowItems, flowMenu, flowsHere, flowsOn, full, gallery, git, hereCtx, keyText, kh, layoutMenu, live, needing, newTabActions, newWs, nextNeed, openIn, openPort, openProject, order, prAct, previewed, prFix, project, projOf, quickNew, restore, run, runFlow, runScript, selectTab, sendLater, setDialog, setFind, setFolded, setOnboard, setSharing, setSideOpen, setTimers, settings, setVideo, setWsId, showInfo, showPanel, sideOpen, specsOn, staleMin, tab, tabMenu, targets, timers, toast, toggleArtifacts, toggleFull, video, view, ws, wsActions, wsMenu } = app
   const items: PaletteItem[] = []
   const cmds = cmdMap(settings.cmdKeys)
   const a = (x: Action & { id?: string }) => items.push({ ...x, hint: (x.id && cmds[x.id] && keyShow(cmds[x.id])) || (x.hint ?? 'action') }) // id: a key can be given it (Settings › Keys)
@@ -201,6 +202,7 @@ export function paletteItems(app: AppCtx): PaletteItem[] {
   a({ id: 'extensions', label: 'Extensions (plugins): settings, reload, delete', icon: 'panel', run: () => setDialog({ section: 'widgets' }) })
   a({ id: 'newExtension', label: aiOn(settings) ? 'New extension…: make one with Laki AI, on its page' : 'New extension…: its page, the prompt for any AI chat', icon: 'plus', run: () => setDialog({ extension: '' }) })
   a({ id: 'starters', label: 'New extension from a starter…: each one shown on its sample data', icon: 'plus', run: () => setDialog('starters') })
+  if (hasCap(view, 'widget.order') && view?.widgets?.some(w => w.on)) a({ id: 'editLayout', label: "Edit extensions' layout: drag them between the sidebar, the bars, the rail and the foot", icon: 'panel', run: () => editLayout(true) })
   a({ id: 'uikit', label: 'UI kit: the elements an extension is made of, each with its JSON', icon: 'panel', run: () => setDialog({ uikit: true }) })
   a({ id: 'icons', label: 'Icons: every icon an extension can use, by name', icon: 'smile', run: () => setDialog({ uikit: true, icons: true }) })
   a({ id: 'resources', label: 'Resources: memory and CPU by tab', icon: 'memory', run: () => setDialog({ section: 'resources' }) })

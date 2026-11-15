@@ -156,6 +156,7 @@ export type AppBase = {
   editorName: string
   editScripts: () => void | undefined
   extCfg: WidgetsApi
+  editLayout: (on: boolean) => void // P3: Edit layout mode on or off
   extInserts: (ctx?: WidgetCtx, project?: string) => Inserts
   extItems: (show: string, x: WorkspaceView | undefined | null, ctx: WidgetCtx, file?: string) => MenuItem[]
   extMenus: (show: string, x?: WorkspaceView | null, file?: string) => { w: WidgetView; m: WidgetMenu }[]

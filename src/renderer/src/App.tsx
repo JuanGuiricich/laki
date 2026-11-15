@@ -25,7 +25,7 @@ import { completeOf, type Inserted, type Inserts, keepFile, VoiceBar } from './P
 import type { ProjectTab } from './Project' // a type alone: verbatimModuleSyntax keeps a { type } import's module in the bundle (E8)
 import { ACHIEVEMENTS, earnedBy, pageEarns, upsOf, wentUp } from '../../shared/achievements'
 import { hasCap } from '../../shared/caps'
-import { click as extClick, Glyph as ExtGlyph, imagesVia, insertMenus, inWs, status as extStatus, type WidgetApi, WidgetBody, WidgetButtons, WidgetModal, WidgetPanel, WidgetStrip } from './Widgets'
+import { click as extClick, Glyph as ExtGlyph, imagesVia, insertMenus, inWs, layoutEditor, setLayoutEdit, status as extStatus, type WidgetApi, WidgetBody, WidgetButtons, WidgetModal, WidgetPanel, WidgetStrip } from './Widgets'
 import type { SayModal, WidgetSay } from '../../shared/widget'
 import type { UiDo, UiProblem } from '../../shared/widgetUi'
 import { globMatch, whenOk } from '../../shared/widgetSchema'
@@ -2676,8 +2676,22 @@ export function App() {
       await choose(`${f}, in full`, full.text, [{ label: 'Back', primary: true }])
     }
   }
+  // P3: Edit layout (⌘K, Settings › Extensions): Widgets.tsx' store while it's on, Done or Esc ends it (a resize's Esc
+  // its own)
+  const [layoutOn, setLayoutOn] = useState(false)
+  const widgetsNow = useRef<WidgetView[]>([])
+  widgetsNow.current = view?.widgets ?? []
+  useEffect(() => {
+    if (!layoutOn) return
+    setLayoutEdit(layoutEditor(() => widgetsNow.current, (id, o) => call('widgetSet', { id, ...o })))
+    const k = (e: KeyboardEvent) => e.key === 'Escape' && !document.querySelector('.ext-resizing') && (e.preventDefault(), e.stopPropagation(), setLayoutOn(false))
+    window.addEventListener('keydown', k, true)
+    return () => (window.removeEventListener('keydown', k, true), setLayoutEdit(null))
+  }, [layoutOn])
+  const editLayout = (on: boolean) => (on && setDialog(null), setLayoutOn(on))
   // Settings › Extensions' and the Extension page's: each one's settings, page, folder, logs
   const extCfg: WidgetsApi = {
+    editLayout: hasCap(view, 'widget.order') ? () => editLayout(true) : undefined,
     list: view?.widgets ?? [],
     projects: view?.projects.filter(p => !p.kind).map(p => ({ id: p.id, name: p.name })),
     ungated: view?.tabs.filter(t => t.ungated).length,
@@ -3788,7 +3802,7 @@ export function App() {
     budgetSaid, accountsOf, achAll, achHidden, achKept, achN, achRef, achSet, addTimer, aiDock, aiNames, allows, anchor, apps,
     archive, artMenu, artPage, artView, asFile, attachable, bgUrl, busyWith, byId, call, calOn, canLater, cfgSheet,
     checking, closePage, closePreview, closeTabs, reopenTab, stopAllAsk, copy, copyTab, costsOn, ctxLook, ctxOn, deskOn, devRunning, devTab,
-    dialog, dock, done, doStep, dropAgent, dropOn, dropProps, earn, editor, editorName, editScripts, extCfg,
+    dialog, dock, done, doStep, dropAgent, dropOn, dropProps, earn, editLayout, editor, editorName, editScripts, extCfg,
     extInserts, extItems, extMenus, extModal, extOn, extRun, extWs, fail, find, findIn, fitFoot, floated, floatTab,
     flowItems, flowMenu, flowsHere, flowsOn, fold, folded, fontSize, footButtons, forkWs, full, gallery, gated, git,
     going, group, groupMoves, groups, held, hereCtx, hist, histNav, historyOn, hotkey, quickKey, tellKey, talkKey, inBrowser, info, inReader,

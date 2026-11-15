@@ -622,6 +622,13 @@ the daemon either way.
 bars, design it ½ high: a number and a word, a few links. In a bar its width is its cells across, or *Auto* (its Size):
 as wide as its words need, 4 cells at most (a JS page: as wide as its content measures; its cells until it has loaded).
 
+*Edit layout* (⌘K, or Settings › Extensions) arranges them all at once: drag an extension before another or onto a
+place's *Drop here*, between the sidebar, the bars, the rail and the foot too; the arrow keys move the focused one; a
+sidebar tile's corner resizes it. Esc or *Done* ends it. Each place shows its extensions in the order you leave them.
+
+Hovering one in a bar, on the rail, in the foot or on a row shows its full view in a peek after a moment, looked at
+only; a click there opens it. `"hide": { "tip": true }` turns the peek off with the tooltip.
+
 To show nothing for now (no PR on this branch, no deploy running), its data says `"hidden": true` (a fetch's, a push's, a
 stream's line, an action's `data`): it vanishes from every place until data without it comes, a per-workspace one in
 that workspace only. Settings › Extensions still lists it, tagged *hidden*, and its page still previews it.

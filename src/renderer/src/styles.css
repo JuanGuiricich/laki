@@ -4004,3 +4004,15 @@ button.proof-line:not(:disabled):hover .mono { text-decoration: underline; }
 .proof-ok svg { color: var(--done); }
 .proof-bad svg { color: var(--error); }
 .rd-proof { margin: 0 0 var(--sp-4); padding: var(--sp-2) var(--sp-4); border: 1px solid var(--line); border-radius: var(--r-l); background: var(--panel); }
+/* P3: Edit layout: each extension in a place dragged by itself (its insides take no pointer), a place's room to drop on */
+[data-edit] { cursor: grab; outline: 1px dashed var(--accent); outline-offset: -1px; position: relative; }
+[data-edit]:focus-visible { outline-style: solid; }
+[data-edit] * { pointer-events: none; }
+[data-edit] .ext-resize { pointer-events: auto; position: absolute; right: 0; bottom: 0; width: var(--sp-5); height: var(--sp-5); cursor: nwse-resize; border-right: 2px solid var(--accent); border-bottom: 2px solid var(--accent); border-bottom-right-radius: var(--r-s); }
+.ext-zone { display: flex; align-items: center; justify-content: center; min-width: 64px; min-height: var(--h-s); padding: 0 var(--sp-3); border: 1px dashed var(--line); border-radius: var(--r-s); white-space: nowrap; }
+.widget-grid > .ext-zone { grid-column: span 4; }
+.ext-layout-bar { position: fixed; top: var(--sp-6); left: 50%; transform: translateX(-50%); z-index: var(--z-toast); display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-3) var(--sp-4); max-width: calc(100vw - 32px); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-m); box-shadow: var(--lift-2); font-size: var(--fs-2); }
+/* P4: a hover peek: the full view, looked at only; a click on it opens it */
+.ext-peek { position: fixed; z-index: var(--z-pop); max-height: min(320px, 60vh); display: flex; flex-direction: column; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-m); box-shadow: var(--lift-2); cursor: pointer; animation: ask-in 0.12s ease-out; }
+.ext-peek-head { padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--line); }
+.ext-peek-body { overflow: hidden; pointer-events: none; }

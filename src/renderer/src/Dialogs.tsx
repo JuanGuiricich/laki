@@ -14,7 +14,7 @@ import { DigestCard, NoticeCard, ShownDialog, ShownPops } from './Shown'
 import { SharePop } from './Tunnel'
 import { ReplyPop, About, Onboarding, moreOf, ScriptLogs, Logs, Fun, type Meme, NewWorkspace, ArtifactsBar, type Artifact, ArtifactView, AddProject, Prompt, Modal, TimerDialog, RemindDialog, SendLaterDialog, ProjectNotes, ImportChats, ImportWorktrees, CiLog } from './panels'
 import { xterms } from './Term'
-import { WidgetDialog, WidgetModal } from './Widgets'
+import { LayoutBar, WidgetDialog, WidgetModal, WidgetPeek } from './Widgets'
 import { Picker } from './Picker'
 import { DeskPage } from './Desk'
 import { CalendarPage } from './Calendar'
@@ -91,7 +91,7 @@ const StarterPicker = (p: Parameters<typeof StarterLazy>[0]) => (
 
 // the pages in the main area, over the panes
 export function Pages({ app }: { app: AppCtx }) {
-  const { nextNeed, achAll, achHidden, achKept, achN, achRef, achSet, aiNames, allows, apps, archive, artMenu, artPage, artView, asFile, bgUrl, busyWith, byId, call, calOn, cfgSheet, copy, deskOn, dialog, done, earn, extCfg, extInserts, extModal, extWs, fail, flowsOn, fontSize, full, gallery, going, held, hereCtx, hist, hotkey, quickKey, tellKey, inBrowser, inViewer, kb, layoutsOn, live, made, needsYou, newFor, newImages, newInit, newWs, notesOn, onboardDone, openFile, openIn, openMenu, openProject, order, own, pageZoom, picking, pinPlan, placeName, notices, answerNotice, pops, quickNew, rail, reply, replyTo, revealArt, rmWs, samePlan, schedulesFor, selectTab, setAiFloat, setArtsIn, setArtView, setDialog, setExtModal, setGallery, setMaking, setNewFor, setNewImages, setNewInit, setOnboard, setPicking, setPops, setReply, setReveal, setRunsSeen, setSeenSecs, setSharing, setShown, settings, settingsKey, setWsId, sharing, shotKey, shown, showNew, shownWidgets, showPanel, specsOn, stale, toast, todosOn, toggleFull, view, whereNow, widgetApi, ws, wsHere, termType, talkKey } = app
+  const { editLayout, nextNeed, achAll, achHidden, achKept, achN, achRef, achSet, aiNames, allows, apps, archive, artMenu, artPage, artView, asFile, bgUrl, busyWith, byId, call, calOn, cfgSheet, copy, deskOn, dialog, done, earn, extCfg, extInserts, extModal, extWs, fail, flowsOn, fontSize, full, gallery, going, held, hereCtx, hist, hotkey, quickKey, tellKey, inBrowser, inViewer, kb, layoutsOn, live, made, needsYou, newFor, newImages, newInit, newWs, notesOn, onboardDone, openFile, openIn, openMenu, openProject, order, own, pageZoom, picking, pinPlan, placeName, notices, answerNotice, pops, quickNew, rail, reply, replyTo, revealArt, rmWs, samePlan, schedulesFor, selectTab, setAiFloat, setArtsIn, setArtView, setDialog, setExtModal, setGallery, setMaking, setNewFor, setNewImages, setNewInit, setOnboard, setPicking, setPops, setReply, setReveal, setRunsSeen, setSeenSecs, setSharing, setShown, settings, settingsKey, setWsId, sharing, shotKey, shown, showNew, shownWidgets, showPanel, specsOn, stale, toast, todosOn, toggleFull, view, whereNow, widgetApi, ws, wsHere, termType, talkKey } = app
   // a page's own move that isn't a place of its own (a Settings section, an extension page's tab): the place it's at
   // says it, so Back or Forward to it opens there, not where it was opened
   // (after App's own effect: a page's first report comes from its effects, which run before App's records its place)
@@ -293,6 +293,8 @@ export function Pages({ app }: { app: AppCtx }) {
           />
         ))(reply ? byId(reply.tab) : undefined)}
       {(w => w && <WidgetDialog w={w} api={widgetApi} onClose={() => setDialog(dialog && typeof dialog === 'object' && 'widget' in dialog ? (dialog.back ?? null) : null)} />)(dialog && typeof dialog === 'object' && 'widget' in dialog ? shownWidgets.find(x => x.id === dialog.widget) : undefined)}
+      <LayoutBar onDone={() => editLayout(false)} />
+      <WidgetPeek widgets={view.widgets ?? []} api={widgetApi} />
       {(w => w && extModal && <WidgetModal key={extModal.n} w={w} ws={extModal.ws} m={extModal.m} api={widgetApi} onClose={m => setExtModal(x => (!m || x?.m === m ? null : x))} />)(extModal ? view.widgets?.find(x => x.id === extModal.wid) : undefined)}
       {(e => e && (
         <ExtensionPage

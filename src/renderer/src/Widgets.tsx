@@ -6,7 +6,7 @@
 // the daemon's page for it, sandboxed, that talks to the app only in messages: open a link, refresh, the full view,
 // run one of its actions.
 // Only what's on screen is rendered: a folded grid, or a closed dialog, holds nothing.
-import { type CSSProperties, type MouseEvent, useEffect, useRef, useState } from 'react'
+import { type CSSProperties, type DragEvent as RDrag, type KeyboardEvent as RKey, type MouseEvent, type PointerEvent as RPointer, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { placesOf, RETRY_KINDS, type WidgetFail, type WidgetPlace, type WidgetView } from '../../shared/types'
 import { ago, type SayModal, sayOf, uiBehave, WIDGET_CSS, type WidgetButton, type WidgetSay } from '../../shared/widget'
 import { DO, type UiDo, uiHtml, type UiSpec } from '../../shared/widgetUi'
@@ -237,6 +237,151 @@ function useParked() {
   return [[...parked], (id: string) => (parked.delete(id), parkSay())] as const
 }
 
+// P3: Edit layout (App's switch: ⌘K, Settings › Extensions): each extension in a place is dragged by itself, onto
+// another (before it) or a place's empty room (its end), across places too; arrows move the focused one; a sidebar
+// cell's corner resizes it. Clicks do nothing meanwhile. App keeps each change (widgetSet order, place, size)
+export type LayoutEdit = { move: (id: string, from: WidgetPlace, to: WidgetPlace, before: string | null) => void; nudge: (id: string, place: WidgetPlace, by: -1 | 1) => void; size: (id: string, size: [number, number]) => void }
+let editing: LayoutEdit | null = null
+const editSubs = new Set<() => void>()
+export const setLayoutEdit = (e: LayoutEdit | null) => ((editing = e), peekSet(null), editSubs.forEach(f => f()))
+const onEdit = (f: () => void) => (editSubs.add(f), () => void editSubs.delete(f))
+export const useLayoutEdit = () => useSyncExternalStore(onEdit, () => editing)
+export const byOrder = (a: WidgetView, b: WidgetView) => (a.order ?? 1e9) - (b.order ?? 1e9) // its order, then as listed
+const DRAG = 'laki/ext'
+const NUDGE: Record<string, -1 | 1 | undefined> = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }
+const dragOf = (ev: RDrag) => (t => (t ? (JSON.parse(t) as [string, WidgetPlace]) : undefined))(ev.dataTransfer.getData(DRAG))
+const editOf = (e: LayoutEdit | null, w: WidgetView, place: WidgetPlace) =>
+  e
+    ? {
+        draggable: true,
+        tabIndex: 0,
+        'data-edit': '',
+        'aria-label': `${w.name}: drag, or arrows, to move it`,
+        onClickCapture: (ev: MouseEvent) => (ev.preventDefault(), ev.stopPropagation()),
+        onDragStart: (ev: RDrag) => ((ev.dataTransfer.effectAllowed = 'move'), ev.dataTransfer.setData(DRAG, JSON.stringify([w.id, place]))),
+        onDragOver: (ev: RDrag) => ev.dataTransfer.types.includes(DRAG) && ev.preventDefault(),
+        onDrop: (ev: RDrag) => (d => d && (ev.preventDefault(), ev.stopPropagation(), d[0] !== w.id && e.move(d[0], d[1], place, w.id)))(dragOf(ev)),
+        onKeyDown: (ev: RKey) => (by => by && (ev.preventDefault(), e.nudge(w.id, place, by)))(NUDGE[ev.key]),
+      }
+    : {}
+const zoneOf = (e: LayoutEdit | null, place: WidgetPlace) => (e ? { 'data-zone': place, onDragOver: (ev: RDrag) => ev.dataTransfer.types.includes(DRAG) && ev.preventDefault(), onDrop: (ev: RDrag) => (d => d && (ev.preventDefault(), e.move(d[0], d[1], place, null)))(dragOf(ev)) } : {})
+// the changes, through widgetSet: a place's extensions numbered again in tens as they now go; a move across places swaps
+// the one it left for the one it's in. ponytail: one order per extension, shared by its places; per place if one in two
+// places ever needs each its own
+export function layoutEditor(list: () => WidgetView[], set: (id: string, o: { order?: number; place?: WidgetPlace[]; size?: [number, number] }) => Promise<unknown>): LayoutEdit {
+  const ids = (p: WidgetPlace) =>
+    list()
+      .filter(w => w.on && placesOf(w).includes(p))
+      .sort(byOrder)
+      .map(w => w.id)
+  const number = (order: string[]) => Promise.all(order.map((id, i) => list().find(w => w.id === id)?.order !== i * 10 && set(id, { order: i * 10 })))
+  return {
+    move: async (id, from, to, before) => {
+      const w = list().find(x => x.id === id)
+      if (!w) return
+      if (from !== to) await set(id, { place: [...new Set([...placesOf(w).filter(p => p !== from), to])] })
+      const order = ids(to).filter(x => x !== id)
+      const at = before ? order.indexOf(before) : -1
+      order.splice(at < 0 ? order.length : at, 0, id)
+      await number(order)
+    },
+    nudge: (id, place, by) => {
+      const order = ids(place)
+      const i = order.indexOf(id)
+      if (i < 0 || !order[i + by]) return
+      ;[order[i], order[i + by]] = [order[i + by], order[i]]
+      void number(order)
+    },
+    size: (id, size) => void set(id, { size }),
+  }
+}
+export function LayoutBar({ onDone }: { onDone: () => void }) {
+  if (!useLayoutEdit()) return null
+  return (
+    <div className="ext-layout-bar" role="status">
+      <span>Drag an extension to move it, between places too; arrows move the focused one; a sidebar tile's corner resizes it.</span>
+      <button type="button" className="primary" onClick={onDone}>
+        Done
+      </button>
+    </div>
+  )
+}
+const Zone = ({ e, place }: { e: LayoutEdit; place: WidgetPlace }) => (
+  <span className="ext-zone muted small" {...zoneOf(e, place)}>
+    Drop here
+  </span>
+)
+// a sidebar cell's corner: its size from where the pointer is over the grid (4 across, half rows of 32 px), drawn as it
+// goes, kept on release; Esc puts it back. ponytail: the Desk's own track has edge scrolling a cell this small needn't
+function resize(ev: RPointer, w: WidgetView, e: LayoutEdit) {
+  ev.preventDefault()
+  ev.stopPropagation()
+  const handle = ev.currentTarget as HTMLElement
+  const cell = handle.closest('.widget') as HTMLElement
+  const grid = cell?.parentElement
+  if (!cell || !grid) return
+  cell.classList.add('ext-resizing') // App's Esc leaves it to this
+  const cw = grid.clientWidth / 4
+  const box = cell.getBoundingClientRect()
+  let size = w.size
+  const was = [cell.style.gridColumn, cell.style.gridRow]
+  handle.setPointerCapture(ev.pointerId)
+  const move = (m: PointerEvent) => {
+    size = [Math.min(4, Math.max(1, Math.round((m.clientX - box.left) / cw))), Math.min(4, Math.max(0.5, Math.round((m.clientY - box.top) / 32) / 2))]
+    cell.style.gridColumn = `span ${size[0]}`
+    cell.style.gridRow = `span ${size[1] * 2}`
+  }
+  const off = () => (cell.classList.remove('ext-resizing'), handle.removeEventListener('pointermove', move), handle.removeEventListener('lostpointercapture', end), window.removeEventListener('keydown', key, true))
+  const end = () => (off(), (size[0] !== w.size[0] || size[1] !== w.size[1]) && e.size(w.id, size))
+  const key = (k: KeyboardEvent) => k.key === 'Escape' && (k.preventDefault(), k.stopPropagation(), off(), ([cell.style.gridColumn, cell.style.gridRow] = was), handle.releasePointerCapture(ev.pointerId))
+  handle.addEventListener('pointermove', move)
+  handle.addEventListener('lostpointercapture', end)
+  window.addEventListener('keydown', key, true)
+}
+
+// P4: a hover peek: 350 ms over a bar item, a row mark, a rail or foot button shows its full view, looked at only, in a
+// popover by it; the pointer may go into it, a click there opens the full view. Not for one off, with a setting still
+// unset, without a full view or a tooltip (tip: false), while the layout is edited, nor under reduced motion
+const PEEK_MS = 350
+type Peek = { w: WidgetView; at: DOMRect; side: 'below' | 'above' | 'right' }
+let peek: Peek | null = null
+let peekT: ReturnType<typeof setTimeout> | undefined
+const peekSubs = new Set<() => void>()
+const peekSet = (p: Peek | null) => ((peek = p), peekSubs.forEach(f => f()))
+const peekable = (w: WidgetView) => w.on && w.full && !w.hide?.tip && !w.missing?.length && w.here !== null && !editing && !matchMedia('(prefers-reduced-motion: reduce)').matches
+const peekOf = (w: WidgetView, side: Peek['side']) =>
+  peekable(w)
+    ? {
+        onMouseEnter: (ev: MouseEvent) => {
+          clearTimeout(peekT)
+          const el = ev.currentTarget as HTMLElement
+          peekT = setTimeout(() => el.isConnected && peekSet({ w, at: el.getBoundingClientRect(), side }), PEEK_MS)
+        },
+        onMouseLeave: () => (clearTimeout(peekT), (peekT = setTimeout(() => peekSet(null), 200))),
+      }
+    : {}
+export function WidgetPeek({ widgets, api }: { widgets: WidgetView[]; api: WidgetApi }) {
+  const p = useSyncExternalStore(
+    f => (peekSubs.add(f), () => void peekSubs.delete(f)),
+    () => peek,
+  )
+  const w = p && (x => x && inWs(x, p.w.here))(widgets.find(x => x.id === p.w.id))
+  if (!p || !w || !peekable(w)) return null
+  const W = 360
+  const left = Math.max(8, Math.min(innerWidth - W - 8, p.side === 'right' ? p.at.right + 6 : p.at.left))
+  const style: CSSProperties = p.side === 'below' ? { left, top: p.at.bottom + 6 } : p.side === 'above' ? { left, bottom: innerHeight - p.at.top + 6 } : { left, top: Math.max(8, Math.min(p.at.top, innerHeight - 320)) }
+  return (
+    <div className="ext-peek" style={{ ...style, width: W }} role="dialog" aria-label={`${w.name}: a click opens it`} onMouseEnter={() => clearTimeout(peekT)} onMouseLeave={() => peekSet(null)} onClick={() => (peekSet(null), api.full(w.id, w.here ?? undefined))}>
+      <div className="ext-peek-head small">
+        <b>{w.name}</b> <span className="muted">{status(w)}</span>
+      </div>
+      <div className="ext-peek-body">
+        <WidgetBody w={w} full api={api} />
+      </div>
+    </div>
+  )
+}
+
 // a widget as a button (its view's button: a rail or foot place, or no preview of its own): a click runs its click
 // action, else opens its full view, else fetches it now (else its settings)
 export const click = (w: WidgetView, api: WidgetApi) =>
@@ -266,11 +411,14 @@ export function CellButton({ w, api }: { w: WidgetView; api: WidgetApi }) {
 // foot's beside (words: the foot's labels). places: those shown here (the foot takes the rail's when there's no rail)
 // colors: the rail's (settings.railColors, by widget:<id>), its right click's swatches
 export function WidgetButtons({ widgets, api, places, look, words, colors }: { widgets: WidgetView[]; api: WidgetApi; places: WidgetPlace[]; look: 'rail' | 'foot'; words: boolean; colors?: Record<string, string> }) {
-  const on = widgets.filter(w => w.on && placesOf(w).some(p => places.includes(p)))
-  return on.map(w => {
+  const edit = useLayoutEdit()
+  const on = widgets.filter(w => w.on && placesOf(w).some(p => places.includes(p))).sort(byOrder)
+  const items = on.map(w => {
     const dot = w.running ? 'rail-dot' : failed(w) ? 'rail-dot bad' : ''
+    const here = placesOf(w).find(p => places.includes(p))!
+    const peeks = peekOf(w, 'right')
     return look === 'rail' ? (
-      <button key={`widget:${w.id}`} type="button" data-widget={w.id} data-view="button" className={`rail-kind nodrag ${w.here === null ? 'no-ws' : ''}`} aria-label={tipText(w)} data-tip={tipOf(w)} onClick={() => click(w, api)} onContextMenu={api.menu && (e => (e.stopPropagation(), api.menu!(w, e)))}>
+      <button key={`widget:${w.id}`} type="button" data-widget={w.id} data-view="button" className={`rail-kind nodrag ${w.here === null ? 'no-ws' : ''}`} aria-label={tipText(w)} data-tip={peeks.onMouseEnter ? undefined : tipOf(w)} onClick={() => click(w, api)} onContextMenu={api.menu && (e => (e.stopPropagation(), api.menu!(w, e)))} {...peeks} {...editOf(edit, w, here)}>
         <span className={`rail-icon ${colors?.[`widget:${w.id}`] ? 'tinted' : ''}`} style={colors?.[`widget:${w.id}`] ? ({ '--tab-c': `var(--tc-${colors[`widget:${w.id}`]})` } as CSSProperties) : undefined}>
           <Glyph w={w} size={18} />
           {w.badge ? <span className="rail-count">{w.badge}</span> : dot && <span className={dot} />}
@@ -278,24 +426,27 @@ export function WidgetButtons({ widgets, api, places, look, words, colors }: { w
         {words && <span className="rail-label">{w.label ?? w.name}</span>}
       </button>
     ) : (
-      <button key={`widget:${w.id}`} type="button" data-widget={w.id} data-view="button" className={`ib widget-foot ${words ? 'labeled' : ''} ${failed(w) && !w.running ? 'dot' : ''} ${w.here === null ? 'no-ws' : ''}`} aria-label={tipText(w)} data-tip={tipOf(w)} onClick={() => click(w, api)} onContextMenu={api.menu && (e => (e.stopPropagation(), api.menu!(w, e)))}>
+      <button key={`widget:${w.id}`} type="button" data-widget={w.id} data-view="button" className={`ib widget-foot ${words ? 'labeled' : ''} ${failed(w) && !w.running ? 'dot' : ''} ${w.here === null ? 'no-ws' : ''}`} aria-label={tipText(w)} data-tip={peeks.onMouseEnter ? undefined : tipOf(w)} onClick={() => click(w, api)} onContextMenu={api.menu && (e => (e.stopPropagation(), api.menu!(w, e)))} {...peeks} {...editOf(edit, w, here)}>
         <Glyph w={w} />
         {words && <span className="ib-label">{w.label ?? w.name}</span>}
         {w.badge && <span className="widget-badge">{w.badge}</span>}
       </button>
     )
   })
+  return edit ? [...items, <Zone key="zone" e={edit} place={places[0]} />] : items
 }
 
 // a widget in its place: its preview (or Stopped · load), and a dot while it fetches or after it failed
 // fit: a bar's Auto, its content's width, 4 cells at most (styles.css' .widget.fit, UI_CSS' :host-context); a JS page's
 // as the page says it, kept while Auto is off too (it says it once), its cells until then
-function Cell({ w, api, parked, load, style, cells, fit }: { w: WidgetView; api: WidgetApi; parked: boolean; load: () => void; style: CSSProperties; cells: [number, number]; fit?: boolean }) {
+function Cell({ w, api, parked, load, style, cells, fit, place }: { w: WidgetView; api: WidgetApi; parked: boolean; load: () => void; style: CSSProperties; cells: [number, number]; fit?: boolean; place: WidgetPlace }) {
   const [fw, setFw] = useState(0)
+  const edit = useLayoutEdit()
   const on = fit && (!w.js || w.button || fw > 0)
   const st = on ? ({ maxWidth: 'calc(4 * var(--widget-cell, 92px))', ...(fw > 0 && { '--fit-w': `${fw}px` }) } as CSSProperties) : style
+  const peeks = place === 'side' ? {} : peekOf(w, place === 'top' ? 'below' : 'above')
   return (
-    <div className={`widget ${w.full ? 'opens' : ''} ${w.button ? 'is-button' : ''} ${w.here === null ? 'no-ws' : ''} ${on ? 'fit' : ''}`} style={st} data-tip={tipOf(w)} onContextMenu={api.menu && (e => api.menu!(w, e))}>
+    <div className={`widget ${w.full ? 'opens' : ''} ${w.button ? 'is-button' : ''} ${w.here === null ? 'no-ws' : ''} ${on ? 'fit' : ''}`} style={st} data-tip={peeks.onMouseEnter ? undefined : tipOf(w)} onContextMenu={api.menu && (e => api.menu!(w, e))} {...peeks} {...editOf(edit, w, place)}>
       {w.tooNew || w.missingBins?.length ? (
         // R2: a program it runs isn't on this Mac, or it's for a newer Laki: say so, its page says more
         <button className="widget-parked muted small" data-tip={w.tooNew ?? `${w.missingBins!.join(', ')}: not on the PATH its commands get`} onClick={() => api.settings(w.id)}>
@@ -317,6 +468,7 @@ function Cell({ w, api, parked, load, style, cells, fit }: { w: WidgetView; api:
       )}
       {!w.missing?.length && (failed(w) || w.running || w.devError) && <span className={`widget-dot ${(failed(w) || w.devError) && !w.running ? 'bad' : ''}`} />}
       {w.mock ? <span className="widget-mock">Sample data</span> : w.error && offline(w.fail) && !w.running && <span className="widget-mock">{oldText(w.fail!)}</span>}
+      {edit && place === 'side' && <span className="ext-resize" aria-label="Drag to resize" onPointerDown={e => resize(e, w, edit)} />}
     </div>
   )
 }
@@ -348,7 +500,7 @@ export function RowMarks({ widgets, ws, api }: { widgets: WidgetView[]; ws: stri
         const i = w.inst![ws]
         const go = w.click ? () => runClick(w, api, ws) : w.full ? () => api.full(w.id, ws) : undefined
         return (
-          <span key={w.id} className={`ws-ext ${failed(i) ? 'bad' : i.tone ? `t-${i.tone}` : ''}`} data-tip={w.hide?.tip && !i.error ? undefined : `${i.tip ?? w.name}${i.error ? ` · ${i.fail?.hint ?? i.error}` : ''}`} {...press(go && ((e: React.MouseEvent) => (e.stopPropagation(), go())))}>
+          <span key={w.id} className={`ws-ext ${failed(i) ? 'bad' : i.tone ? `t-${i.tone}` : ''}`} data-tip={w.hide?.tip && !i.error ? undefined : `${i.tip ?? w.name}${i.error ? ` · ${i.fail?.hint ?? i.error}` : ''}`} {...peekOf(inWs(w, ws), 'right')} {...press(go && ((e: React.MouseEvent) => (e.stopPropagation(), go())))}>
             <Glyph w={w} size={10} />
             {i.badge || i.label}
           </span>
@@ -366,13 +518,15 @@ export const CELL_W = 60
 // (experimental), one placed only there too: else it would show nowhere
 export function WidgetGrid({ widgets, api, desk }: { widgets: WidgetView[]; api: WidgetApi; desk?: boolean }) {
   const [parked, load] = useParked()
-  const on = widgets.filter(w => w.on && (l => l.includes('side') || (!desk && l.every(p => p === 'desk')))(placesOf(w)))
-  if (!on.length) return null
+  const edit = useLayoutEdit()
+  const on = widgets.filter(w => w.on && (l => l.includes('side') || (!desk && l.every(p => p === 'desk')))(placesOf(w))).sort(byOrder)
+  if (!on.length && !edit) return null
   return (
-    <div className="widgets widget-grid">
+    <div className="widgets widget-grid" {...zoneOf(edit, 'side')}>
       {on.map(w => (
-        <Cell key={w.id} w={w} api={api} parked={parked.includes(w.id)} load={() => load(w.id)} cells={w.size} style={{ gridColumn: `span ${w.size[0]}`, gridRow: `span ${w.size[1] * 2}` /* half rows: ½ is a thin line */ }} />
+        <Cell key={w.id} w={w} api={api} place="side" parked={parked.includes(w.id)} load={() => load(w.id)} cells={w.size} style={{ gridColumn: `span ${w.size[0]}`, gridRow: `span ${w.size[1] * 2}` /* half rows: ½ is a thin line */ }} />
       ))}
+      {edit && <Zone e={edit} place="side" />}
     </div>
   )
 }
@@ -380,13 +534,15 @@ export function WidgetGrid({ widgets, api, desk }: { widgets: WidgetView[]; api:
 // the top bar's or the status bar's widgets: a line high, each as wide as its cells across (a ½-high one fits best)
 export function WidgetStrip({ widgets, api, place }: { widgets: WidgetView[]; api: WidgetApi; place: 'top' | 'status' }) {
   const [parked, load] = useParked()
-  const on = widgets.filter(w => w.on && placesOf(w).includes(place) && w.here !== null) // a per-workspace one with no workspace here (a terminal, a browser): nothing to show in a bar
-  if (!on.length) return null
+  const edit = useLayoutEdit()
+  const on = widgets.filter(w => w.on && placesOf(w).includes(place) && w.here !== null).sort(byOrder) // a per-workspace one with no workspace here (a terminal, a browser): nothing to show in a bar
+  if (!on.length && !edit) return null
   return (
-    <div className={`widget-strip ${place} nodrag`}>
+    <div className={`widget-strip ${place} nodrag`} {...zoneOf(edit, place)}>
       {on.map(w => (
-        <Cell key={w.id} w={w} api={api} parked={parked.includes(w.id)} load={() => load(w.id)} cells={[w.size[0], 0.5]} fit={w.fit} style={{ width: `calc(${w.size[0]} * var(--widget-cell, 92px))` }} />
+        <Cell key={w.id} w={w} api={api} place={place} parked={parked.includes(w.id)} load={() => load(w.id)} cells={[w.size[0], 0.5]} fit={w.fit} style={{ width: `calc(${w.size[0]} * var(--widget-cell, 92px))` }} />
       ))}
+      {edit && <Zone e={edit} place={place} />}
     </div>
   )
 }

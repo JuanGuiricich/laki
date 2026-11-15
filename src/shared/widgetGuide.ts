@@ -10,7 +10,10 @@ export const WIDGET_EVERY = 5 // minutes between fetches when widget.json doesn'
 // the UI kit's catalog, from its table: each element's props in a line, then its sample
 const catalog = () => UI_SAMPLES.map((s, i) => `${s.group !== UI_SAMPLES[i - 1]?.group ? `${i ? '\n' : ''}**${s.group}**: ${UI_GROUPS[s.group]}\n` : ''}- \`${s.type}\` (${Object.keys(UI[s.type].props).join(', ') || 'no props'}): ${s.blurb}\n  \`${JSON.stringify(s.spec)}\``).join('\n')
 // a few of the kit's examples: every chart kind, Laki's commands, a layout of a few elements
-const examples = () => UI_EXAMPLES.filter(x => x.title !== 'Colors').map(x => `- ${x.title}: \`${JSON.stringify(x.spec)}\``).join('\n')
+// the UI kit page's examples, less the ones the catalog's **Charts** line and samples already say (the guide has 60,000
+// characters: tools.ts' max)
+const SAID = new Set(['Colors', 'Horizontal bars', 'Pie', 'Donut', 'Scatter', 'Gauges in a grid'])
+const examples = () => UI_EXAMPLES.filter(x => !SAID.has(x.title)).map(x => `- ${x.title}: \`${JSON.stringify(x.spec)}\``).join('\n')
 
 // widget.json, its ui and widget.html: all a widget is
 export const widgetFormat = () => `## Before you write it
