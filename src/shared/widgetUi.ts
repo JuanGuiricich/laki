@@ -549,12 +549,12 @@ function table(e: El, s: S) {
     const head = `${lead}${words || sub ? `<div class="k-main"><span>${words}</span>${sub ? `<span class="k-sub">${esc(sub)}</span>` : ''}</div>` : ''}` // the link: its picture and words
     return `<td class="${cls(c)}"${sv(c, r, j)}><div class="k-tc">${href && head ? link(href, head, 'link k-tc-a') : head}${bar}${end}</div></td>`
   }
-  const idOf = (r: S) => (v => (typeof v === 'string' || typeof v === 'number' ? String(v) : ''))(valueAt('id', r.scopes))
+  const idOf = (item: unknown) => (v => (typeof v === 'string' || typeof v === 'number' ? String(v) : ''))(obj(item) ? item.id : undefined) // its own id, never the data's around it
   const body = items
     .map(({ item, i }, k) =>
       k >= max && !s.full
         ? ''
-        : (r => (id => `<tr data-row${k >= max ? ' data-extra hidden' : k >= LAZY && s.full ? ' data-lazy hidden' : ''}>${sel ? `<td class="k-sel">${id ? `<input type="checkbox" data-sel value="${esc(id)}" aria-label="Select">` : ''}</td>` : ''}${cols.map((c, j) => cell(c, r, j)).join('')}</tr>`)(sel ? idOf(r) : ''))(inner(s, item, i)),
+        : (r => (id => `<tr data-row${k >= max ? ' data-extra hidden' : k >= LAZY && s.full ? ' data-lazy hidden' : ''}>${sel ? `<td class="k-sel">${id ? `<input type="checkbox" data-sel value="${esc(id)}" aria-label="Select">` : ''}</td>` : ''}${cols.map((c, j) => cell(c, r, j)).join('')}</tr>`)(sel ? idOf(item) : ''))(inner(s, item, i)),
     )
     .join('')
   const bulk = sel ? `<div class="k-bulk" data-bulk hidden><span class="k-sub" data-bulk-n></span>${buttons(e.bulk, s).replace(/<button /g, '<button data-bulk-run ')}</div>` : ''

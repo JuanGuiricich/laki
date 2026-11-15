@@ -294,6 +294,8 @@ export const widgetEvents = () => [...sent].reverse()
 // that data and its face kept for that turn of that tab, in memory as Proof cards are, the last TURN_MARKS turns a tab
 // had marks for; the Reader's chip under the turn, Needs you's card; widgetRender's turn draws its full view
 export const TURN_MARKS = 20
+// ponytail: each kept turn holds its data whole (TURN_MARKS of them per tab and extension, in memory): a size cap per
+// mark if a turn extension's data ever runs to megabytes
 function turnMark(w: Entry, j: Job) {
   const s = dataOf(w, j.ws)
   if (s.error || s.data === undefined || !s.at || s.at < j.at || !state.tabs.some(t => t.id === j.tab)) return

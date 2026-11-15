@@ -638,7 +638,7 @@ export function uiBehave(root: { addEventListener: (t: string, f: (e: any) => vo
   // the rows of a box: those whose words have q (none: all but the extra ones, unless it's open)
   const sift = (box: any, q: string) => {
     const open = box.hasAttribute('data-unfolded')
-    box.querySelectorAll('[data-row]').forEach((x: any) => (x.hidden = q ? !said(x).toLowerCase().includes(q) : x.hasAttribute('data-extra') && !open))
+    box.querySelectorAll('[data-row]').forEach((x: any) => (x.hidden = q ? !said(x).toLowerCase().includes(q) : (x.hasAttribute('data-extra') && !open) || x.hasAttribute('data-lazy'))) // no words: a table's rows past 200 wait for its scroll again
     box.querySelectorAll('[data-group]').forEach((g: any) => (g.hidden = !g.querySelector('[data-row]:not([hidden])')))
     // a heading among its rows (a menu's): shown while a row up to the next one is
     box.querySelectorAll('[data-sect]').forEach((hd: any) => {
@@ -684,7 +684,8 @@ export function uiBehave(root: { addEventListener: (t: string, f: (e: any) => vo
   const scroll = (e: Event) => {
     const tbl = (t => (t?.matches?.('.k-table') ? t : null))(e.target as Element | null)
     if (!tbl || !tbl.querySelector('[data-lazy-more]') || tbl.scrollTop + tbl.clientHeight < tbl.scrollHeight - 300) return
-    ;[...tbl.querySelectorAll<HTMLElement>('tr[data-lazy]')].slice(0, 200).forEach(r => (r.removeAttribute('data-lazy'), (r.hidden = false)))
+    ;[...tbl.querySelectorAll<HTMLElement>('tr[data-lazy]')].slice(0, 200).forEach(r => r.removeAttribute('data-lazy'))
+    sift(tbl, String(tbl.querySelector<HTMLInputElement>('[data-filter]')?.value ?? '').trim().toLowerCase()) // shown as its filter says
     if (!tbl.querySelector('tr[data-lazy]')) tbl.querySelector('[data-lazy-more]')?.remove()
   }
   // a table drawn anew (new data): sorted again as it was

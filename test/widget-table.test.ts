@@ -26,6 +26,7 @@ test('table: a box per row with an id, the all box, the bulk bar with its button
   const full = uiHtml(spec, ctx({ r: rows }), { full: true })
   assert.equal((full.match(/data-sel value=/g) ?? []).length, 2, 'the row without an id: no box')
   assert.match(full, /<input type="checkbox" data-sel value="a"/)
+  assert.equal((uiHtml(spec, ctx({ id: 'repo', r: rows }), { full: true }).match(/data-sel value=/g) ?? []).length, 2, 'a row without an id of its own: no box, not the data’s id')
   assert.match(full, /data-sel-all/)
   assert.match(full, /<div class="k-bulk" data-bulk hidden><span class="k-sub" data-bulk-n><\/span><button data-bulk-run type="button"[^>]*data-run="close"/)
   const big = uiHtml({ type: 'table', each: 'r', columns: [{ value: '{{n}}' }] }, ctx({ r: Array.from({ length: 450 }, (_, n) => ({ n })) }), { full: true })
