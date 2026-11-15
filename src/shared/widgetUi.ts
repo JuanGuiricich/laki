@@ -1675,6 +1675,37 @@ export function uiHtml(spec: unknown, ctx: Record<string, unknown>, o: { full?: 
   return `<div class="k" data-kit="${o.full ? 'full' : 'preview'}"${line ? ' data-line' : ''}>${body}</div>`
 }
 
+// C2: the data paths an element reads, its own props only (not its children's): its templates' names and its path
+// props, under its each (items.*.title, items itself); prefix: the each scope it's under (scope: its children's).
+// Laki's own names (config, workspace, at…) aren't its data. ponytail: a name a helper takes is its last word
+const NOT_DATA = /^(config|workspace|facts|at|error|full|sample|else|@index)(\.|$)/
+const PATH = /^[A-Za-z_@][\w@.-]*$/
+export function readsOf(el: unknown, prefix = ''): { reads: string[]; scope: string } {
+  if (!obj(el)) return { reads: [], scope: prefix }
+  const j = (a: string, b: string) => (a && b ? `${a}.${b}` : a || b)
+  const each = typeof el.each === 'string' && !el.each.includes('{{') ? el.each.trim().replace(/^data(\.|$)/, '') : ''
+  const scope = each ? `${j(prefix, each)}.*` : prefix
+  const out = new Set<string>(each ? [j(prefix, each)] : [])
+  const add = (raw: string) => {
+    if (!PATH.test(raw)) return
+    if (raw === 'this' || raw === 'data') return void (scope && out.add(scope))
+    const p = raw.replace(/^(this|data)\./, '')
+    if (!NOT_DATA.test(p)) out.add(j(scope, p))
+  }
+  const walk = (v: unknown): void => {
+    if (typeof v === 'string') for (const m of v.matchAll(/\{\{\s*([^}]*?)\s*\}\}/g)) add(m[1].replace(/^[#/]\w+\s*/, '').split(/\s+/).filter(Boolean).pop() ?? '')
+    else if (Array.isArray(v)) v.forEach(walk)
+    else if (obj(v)) Object.values(v).forEach(walk)
+  }
+  const props: Record<string, Prop> = { ...COMMON, ...((UI as Record<string, Def>)[String(el.type)]?.props ?? {}) }
+  for (const [k, v] of Object.entries(el)) {
+    if (k === 'type' || k === 'each' || props[k]?.kind === 'children') continue
+    if (props[k]?.kind === 'path' && typeof v === 'string' && !v.includes('{{')) add(v.trim())
+    else walk(v)
+  }
+  return { reads: [...out], scope }
+}
+
 // ---------- what's wrong with a ui, for laki widget check, the inspector and agents: unknown elements and props,
 // props of the wrong kind, actions and icons that aren't there; with data (a fixture, the last fetch), each's lists
 // and the fields its rows use

@@ -25,13 +25,15 @@ import { extAgent, KitHero, SourceField, StudioSessions, WidgetCard, type Widget
 import { ask, askText, escapes, Icon, IconButton, ON, Page, Switch, useMenu } from './ui'
 import { extMenuItems } from './extMenu'
 import { CELL_W, CellButton, Glyph, inWs, status, type WidgetApi, WidgetBody } from './Widgets'
+import { bindable, Builder, DataTree } from './Builder'
 
 const WHERE: Record<string, string> = { side: 'In the sidebar', top: 'In the top bar', status: 'In the status bar', rail: 'On the rail', foot: "In the sidebar's foot", desk: 'On My Desk', panel: 'In the right panel', row: 'On each workspace’s row' }
 const half = (d: number) => (d === 0.5 ? '½' : String(d))
 
-export type ExtTab = 'overview' | 'data' | 'runs' | 'logs' | 'env' | 'files' | 'check'
+export type ExtTab = 'overview' | 'build' | 'data' | 'runs' | 'logs' | 'env' | 'files' | 'check'
 const TABS: [ExtTab, string][] = [
   ['overview', 'Overview'],
+  ['build', 'Build'], // C3: your own's ui, element by element
   ['data', 'Data'],
   ['runs', 'Runs'],
   ['logs', 'Logs'],
@@ -200,8 +202,8 @@ export function ExtensionPage({ id, tab: first, edit, start, widgets, cfg, api, 
         <div className="ext-main">
           {w ? (
             <>
-              <InspectHead w={w} cfg={cfg} tab={tab} setTab={setTab} wsName={spots.find(s => s.id === w.here)?.name} />
-              {tab === 'overview' ? <Preview w={w} api={api} cfg={cfg} pick={pick} setPick={setPick} spot={spot} field={edit} /> : tab === 'check' ? <Check w={w} cfg={cfg} /> : tab === 'logs' ? <Logs w={w} cfg={cfg} spots={spots} copy={api.copy} /> : <Inspector w={w} cfg={cfg} tab={tab} draft={draft} setDraft={setDraft} />}
+              <InspectHead w={w} cfg={cfg} tab={tab} setTab={setTab} wsName={spots.find(s => s.id === w.here)?.name} build={mine && !w.oneFile} />
+              {tab === 'build' && mine && !w.oneFile ? <Builder w={w} cfg={cfg} copy={api.copy} /> : tab === 'overview' || tab === 'build' ? <Preview w={w} api={api} cfg={cfg} pick={pick} setPick={setPick} spot={spot} field={edit} /> : tab === 'check' ? <Check w={w} cfg={cfg} /> : tab === 'logs' ? <Logs w={w} cfg={cfg} spots={spots} copy={api.copy} /> : <Inspector w={w} cfg={cfg} tab={tab} draft={draft} setDraft={setDraft} copy={api.copy} />}
             </>
           ) : cur ? (
             <div className="ext-wait muted">
@@ -734,11 +736,12 @@ function Preview({ w, api, cfg, pick, setPick, spot = 0, field }: { w: WidgetVie
 
 // the inspector's head: its tabs, Run now and Reload, a dot while laki widget dev watches it, and why its files don't
 // read now (the last good version runs on); on a phone the tabs and buttons are one ⋯ menu (.ext-more)
-function InspectHead({ w, cfg, tab, setTab, wsName }: { w: WidgetView; cfg: WidgetsApi; tab: ExtTab; setTab: (t: ExtTab) => void; wsName?: string }) {
+function InspectHead({ w, cfg, tab, setTab, wsName, build }: { w: WidgetView; cfg: WidgetsApi; tab: ExtTab; setTab: (t: ExtTab) => void; wsName?: string; build?: boolean }) {
   const [menu, openMenu] = useMenu()
+  const TABS_ = TABS.filter(([t]) => t !== 'build' || build)
   const runNow = () => void cfg.run(w.id, w.here ?? undefined).catch(() => {})
   const more = () => [
-    ...TABS.map(([t, label]) => ({ label, hint: tab === t ? ON : undefined, run: () => setTab(t) })),
+    ...TABS_.map(([t, label]) => ({ label, hint: tab === t ? ON : undefined, run: () => setTab(t) })),
     null,
     ...(w.every !== undefined && w.on && !w.running && w.here !== null ? [{ label: 'Run now', icon: 'refresh' as const, run: runNow }] : []),
     ...(w.agent && cfg.stop ? [{ label: 'Stop its agent', icon: 'stop' as const, run: () => void cfg.stop!(w.id).catch(() => {}) }] : []),
@@ -749,10 +752,10 @@ function InspectHead({ w, cfg, tab, setTab, wsName }: { w: WidgetView; cfg: Widg
       {menu}
       <div className="ext-tabs">
         <button className="sm ext-more" aria-label="Its page: tabs and actions" onClick={e => openMenu(e, more())}>
-          {TABS.find(([t]) => t === tab)?.[1]} <Icon name="more" size={12} />
+          {TABS_.find(([t]) => t === tab)?.[1]} <Icon name="more" size={12} />
         </button>
         <div className="seg" role="tablist" aria-label="Its page">
-          {TABS.map(([t, label]) => (
+          {TABS_.map(([t, label]) => (
             <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
               {label}
             </button>
@@ -927,7 +930,7 @@ const bytes = (b: number) => (b < 1024 ? `${b} B` : b < 1 << 20 ? `${(b / 1024).
 // the inspector's tabs: Data (its JSON, editable: Apply keeps it as sample data; a fixture; Live), Runs (newest first,
 // a click shows its stderr), Env (what a fetch is given, secrets masked), Files (and its folder). Read again as its
 // data or files change, and every 2 s while Runs shows
-function Inspector({ w, cfg, tab, draft, setDraft }: { w: WidgetView; cfg: WidgetsApi; tab: Exclude<ExtTab, 'overview' | 'check' | 'logs'>; draft: Draft | null; setDraft: (d: Draft | null) => void }) {
+function Inspector({ w, cfg, tab, draft, setDraft, copy }: { w: WidgetView; cfg: WidgetsApi; tab: Exclude<ExtTab, 'overview' | 'build' | 'check' | 'logs'>; draft: Draft | null; setDraft: (d: Draft | null) => void; copy: (t: string) => void }) {
   const [x, setX] = useState<WidgetRuns | null>(null)
   const [files, setFiles] = useState<Record<string, string> | null>(null)
   const [sel, setSel] = useState('')
@@ -995,6 +998,16 @@ function Inspector({ w, cfg, tab, draft, setDraft }: { w: WidgetView; cfg: Widge
           {x.big ? <p className="muted small">Over 256 KB: not shown here.</p> : <textarea className="ext-json mono" spellCheck={false} value={text ?? x.data ?? 'null'} onChange={e => setText(e.target.value)} />}
           {err && <p className="warn small">{err}</p>}
         </section>
+        {!x.big && x.data && (
+          // C2: a click on a path copies it ({{items.0.title}}, a list's bare path, its each form), or types it into a ui field being edited
+          <section className="ext-card">
+            <div className="ext-card-head">
+              <b>Paths</b>
+              <span className="muted small">click a key or value: its path, for ui and templates</span>
+            </div>
+            <DataTree data={parsedData(x.data)} copy={copy} />
+          </section>
+        )}
         <Examples w={w} cfg={cfg} files={files} onShown={() => setText(null)} />
       </>
     )
@@ -1076,9 +1089,23 @@ function Inspector({ w, cfg, tab, draft, setDraft }: { w: WidgetView; cfg: Widge
       ) : (
         <FileView w={w} cfg={cfg} files={files} sel={draft && Object.hasOwn(files, draft.path) ? draft.path : sel && Object.hasOwn(files, sel) ? sel : (Object.keys(files).find(f => f === 'widget.json') ?? Object.keys(files)[0] ?? '')} onSel={setSel} draft={draft} setDraft={setDraft} onSaved={() => setRead(n => n + 1)} />
       )}
+      {draft?.path === 'widget.json' && !x.big && x.data && (
+        <div className="ext-fv-data">
+          <b className="small">Its data</b> <span className="muted small">a click types its path at the cursor</span>
+          <DataTree data={parsedData(x.data)} copy={copy} />
+        </div>
+      )}
       {!!x.fixtures.length && <p className="muted small">fixtures/: {x.fixtures.map(f => `${f}.json`).join(', ')}</p>}
     </section>
   )
+}
+
+const parsedData = (t: string) => {
+  try {
+    return JSON.parse(t)
+  } catch {
+    return null
+  }
 }
 
 // Data's examples: widget.json's sample and each fixtures/<name>.json, the made-up data it can be shown with: one's
@@ -1231,6 +1258,7 @@ function FileView({ w, cfg, files, sel, onSel, draft, setDraft, onSaved }: { w: 
         {edit ? (
           <textarea
             className="pv-edit ext-fv-edit"
+            {...bindable}
             value={edit.text}
             wrap="off"
             spellCheck={false}

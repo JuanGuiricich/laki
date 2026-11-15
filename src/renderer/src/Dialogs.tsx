@@ -314,7 +314,7 @@ export function Pages({ app }: { app: AppCtx }) {
           onClose={() => setDialog(e.back ?? null)}
         />
       ))(extOf(dialog))}
-      {dialog && typeof dialog === 'object' && 'uikit' in dialog && <UiKitPage key={String(dialog.icons)} icons={dialog.icons} back={extOf(dialog.back ?? null) ? placeName({ d: dialog.back!, ws: null }) : backWord(dialog.back)} copy={copy} onClose={() => setDialog(dialog.back ?? { section: 'widgets' })} />}
+      {dialog && typeof dialog === 'object' && 'uikit' in dialog && <UiKitPage key={String(dialog.icons)} icons={dialog.icons} back={extOf(dialog.back ?? null) ? placeName({ d: dialog.back!, ws: null }) : backWord(dialog.back)} copy={copy} onClose={() => setDialog(dialog.back ?? { section: 'widgets' })} make={!hasCap(view, 'widget.ui') ? undefined : (name, ui, sample) => void call<{ id: string }>('widgetNew', { name, ui, sample }).then(r => setDialog({ extension: r.id, back: dialog }), () => {})} />}
       {dialog === 'help' && <HelpPage cli="laki" ship keys={kb} global={{ open: held.open ? hotkey || '' : '', shot: held.shot ? shotKey || '' : '', quick: held.quick ? quickKey || '' : '', tell: held.tell ? tellKey || '' : '', talk: held.talk ? talkKey || '' : '' }} zoom={(fontSize / FONT_SIZE) * pageZoom * own} onClose={() => setDialog(null)} />}
       {dialog === 'about' && <About onClose={() => setDialog(null)} />}
       {dialog && typeof dialog === 'object' && 'sees' in dialog && (

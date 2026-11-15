@@ -7,7 +7,7 @@ import { ICON_GROUPS, ICON_PACKS, iconLook, iconOf, ICONS, type IconName, onIcon
 import { render } from '../../shared/widget'
 import { STARTER_KINDS, STARTERS, type StarterKind } from '../../shared/widgetStarters'
 import { Modal } from './panels'
-import { CHARTS, colorCss, COLORS, DO, TONES, UI_EXAMPLES, UI_GROUPS, UI_SAMPLES, type UiElement, type UiGroup, type UiSpec } from '../../shared/widgetUi'
+import { CHARTS, colorCss, COLORS, DO, TONES, uiCheck, UI_EXAMPLES, UI_GROUPS, UI_SAMPLES, type UiElement, type UiGroup, type UiSpec } from '../../shared/widgetUi'
 import { escapes, Icon, Page } from './ui'
 import { CELL_W, KitBody } from './Widgets'
 
@@ -81,9 +81,30 @@ const ITEMS: Item[] = UI_SAMPLES.map(s => ({ key: s.type, title: s.type, tag: s.
 const EXAMPLES: Item[] = UI_EXAMPLES.map((x, i) => ({ key: `example-${i}`, title: x.title, tag: 'Example', blurb: x.blurb, spec: x.spec, data: x.data, full: x.full }))
 
 // one element or example: at a size, as a status bar item, its JSON
-function KitCard({ it, pick, onPick, copy }: { it: Item; pick: string; onPick: (n: string) => void; copy: (text: string) => void }) {
+// C4: its ui and its sample edited in place (each box read 300 ms after a key), drawn the same way, uiCheck's problems
+// under it; Reset puts the sample back; Make an extension from this: yours, its data that sample (a static source)
+const DRAW_AFTER = 300
+function KitCard({ it, pick, onPick, copy, make }: { it: Item; pick: string; onPick: (n: string) => void; copy: (text: string) => void; make?: (name: string, ui: UiSpec, sample: unknown) => void }) {
   const cells = SIZES.find(x => x[0] === pick)?.[1] ?? null
-  const json = JSON.stringify({ ui: it.spec, ...(it.data !== undefined && { sample: it.data }) }, null, 2)
+  const first = useMemo(() => [JSON.stringify(it.spec, null, 2), it.data === undefined ? '' : JSON.stringify(it.data, null, 2)], [it.key])
+  const [uiText, setUiText] = useState(first[0])
+  const [dataText, setDataText] = useState(first[1])
+  const [shown, setShown] = useState<{ spec: UiSpec; data: unknown; bad?: string }>({ spec: it.spec, data: it.data })
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        const spec = JSON.parse(uiText) as UiSpec
+        const data = dataText.trim() ? JSON.parse(dataText) : undefined
+        setShown({ spec, data })
+      } catch (e) {
+        setShown(s => ({ ...s, bad: (e as Error).message }))
+      }
+    }, DRAW_AFTER)
+    return () => clearTimeout(t)
+  }, [uiText, dataText])
+  const edited = uiText !== first[0] || dataText !== first[1]
+  const problems = useMemo(() => uiCheck(shown.spec, shown.data).filter(p => p.level !== 'ok'), [shown])
+  const json = JSON.stringify({ ui: shown.spec, ...(shown.data !== undefined && { sample: shown.data }) }, null, 2)
   return (
     <section className="ext-card kit-card" id={`kit-${it.key}`}>
       <div className="ext-card-head kit-card-head">
@@ -99,20 +120,47 @@ function KitCard({ it, pick, onPick, copy }: { it: Item; pick: string; onPick: (
       </div>
       <div className="ext-stage kit-stage">
         <div className="widget ext-tile" style={cells ? { width: cells[0] * CELL_W, height: cells[1] * 64 } : { width: '100%', maxHeight: 360, overflow: 'auto' }}>
-          <KitBody spec={it.spec} data={it.data} cells={cells} />
+          <KitBody spec={shown.spec} data={shown.data} cells={cells} />
         </div>
         <div className="kit-status">
           <span className="muted small">status bar</span>
           <div className="widget ext-tile in-bar" style={{ width: 2 * 92 }}>
-            <KitBody spec={it.spec} data={it.data} cells={[2, 0.5]} />
+            <KitBody spec={shown.spec} data={shown.data} cells={[2, 0.5]} />
           </div>
         </div>
       </div>
-      <div className="kit-json">
-        <pre className="mono">{json}</pre>
-        <button type="button" className="sm" onClick={() => copy(json)}>
-          <Icon name="copy" size={12} /> Copy
-        </button>
+      {(shown.bad || problems.length > 0) && (
+        <ul className="kit-problems small">
+          {shown.bad && <li className="bad">Not JSON: {shown.bad}</li>}
+          {problems.map((p, i) => (
+            <li key={i} className={p.level === 'error' ? 'bad' : 'warn'}>
+              {p.level === 'error' ? '✗' : '!'} {p.where}: {p.text}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="kit-json kit-edit">
+        <label className="small muted" htmlFor={`kit-ui-${it.key}`}>
+          ui
+        </label>
+        <textarea id={`kit-ui-${it.key}`} className="mono" spellCheck={false} value={uiText} onChange={e => setUiText(e.target.value)} />
+        <label className="small muted" htmlFor={`kit-data-${it.key}`}>
+          sample
+        </label>
+        <textarea id={`kit-data-${it.key}`} className="mono" spellCheck={false} value={dataText} onChange={e => setDataText(e.target.value)} />
+        <div className="kit-edit-acts">
+          <button type="button" className="sm" onClick={() => copy(json)}>
+            <Icon name="copy" size={12} /> Copy
+          </button>
+          <button type="button" className="sm" disabled={!edited} onClick={() => (setUiText(first[0]), setDataText(first[1]))}>
+            Reset
+          </button>
+          {make && (
+            <button type="button" className="sm primary" disabled={!!shown.bad} data-tip="An extension of yours showing this, its data this sample: it opens on its page" onClick={() => make(it.title, shown.spec, shown.data)}>
+              Make an extension from this
+            </button>
+          )}
+        </div>
       </div>
     </section>
   )
@@ -336,7 +384,7 @@ function ColorView({ copy }: { copy: (text: string) => void }) {
   )
 }
 
-export function UiKitPage({ back, onClose, copy, icons }: { back: string; onClose: () => void; copy: (text: string) => void; icons?: boolean }) {
+export function UiKitPage({ back, onClose, copy, icons, make }: { back: string; onClose: () => void; copy: (text: string) => void; icons?: boolean; make?: (name: string, ui: UiSpec, sample: unknown) => void }) {
   const [view, setView] = useState<'kit' | 'type' | 'colors' | 'icons'>(icons ? 'icons' : 'kit')
   const [q, setQ] = useState('')
   const [only, setOnly] = useState<UiGroup | ''>('')
@@ -355,7 +403,7 @@ export function UiKitPage({ back, onClose, copy, icons }: { back: string; onClos
   const shown = found.filter(it => !only || it.tag === only)
   const examples = only ? [] : EXAMPLES.filter(match)
   const count = (g: string) => found.filter(it => it.tag === g).length
-  const card = (it: Item) => <KitCard key={it.key} it={it} pick={size[it.key] ?? (it.full ? 'Full' : '4×2')} onPick={n => setSize(x => ({ ...x, [it.key]: n }))} copy={copy} />
+  const card = (it: Item) => <KitCard key={it.key} it={it} pick={size[it.key] ?? (it.full ? 'Full' : '4×2')} onPick={n => setSize(x => ({ ...x, [it.key]: n }))} copy={copy} make={make} />
   const m = (t: string) => <span className="mono">{t}</span>
   return (
     <Page

@@ -718,6 +718,18 @@ click that does something.
 }
 ```
 
+## Build it without typing JSON
+
+Your own extension's page has a **Build** tab: the UI kit's elements on the left (a click adds one after the picked
+element, or into a layout one; drag one onto the outline), the preview in the middle on its sample, a fixture or its live
+data, with its outline under it (drag to reorder, onto a stack or row to nest, Delete removes), and the picked element's
+props on the right. Each change is saved to widget.json (Undo puts the last one back); what's wrong shows by its
+element. Under the props, its data as a tree: a click on a key or value types its path where you're typing
+(`{{items.0.title}}`, or `{{title}}` inside `"each": "items"`), else copies it. Hover an element to light the data it
+reads, a path to light the elements that read it. The Data tab's *Paths* and Files (while you edit widget.json) have
+the same tree. The UI kit's cards are editable too: change an element's JSON or its sample and it redraws, its problems
+under it, *Make an extension from this* makes it yours.
+
 ## From a terminal command
 
 Right click a terminal tab › *Make a tile from this command*: select the command and what it printed first (the first

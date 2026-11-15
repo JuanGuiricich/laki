@@ -116,7 +116,14 @@ export function widgetDev(o: { folder?: string; off?: string; list?: boolean; fr
 // (dir: another, empty or new, which laki widget dev then links; a one-file one goes in the folder itself), the id from
 // its name, made unique. The user's own (not by: 'ai'): on, and fetched at once; an agent's (N10): off, nothing run
 // made: its files instead of a starter's (C1's, never over RPC: a function), and off (the user looks first)
-export async function widgetNew(o: { kind?: string; name?: string; dir?: string; from?: { ws?: string; tab?: string } }, made?: { files: (id: string, name: string) => Record<string, string>; off?: boolean }) {
+export async function widgetNew(o: { kind?: string; name?: string; dir?: string; ui?: unknown; sample?: unknown; from?: { ws?: string; tab?: string } }, made?: { files: (id: string, name: string) => Record<string, string>; off?: boolean }) {
+  // C4: the UI kit's Make an extension from this: its ui over its sample, the sample its data (a static source)
+  if (!made && o.ui !== undefined) {
+    if (!isObj(o.ui)) throw new Error('ui: an element ({ "type": … }) or { "preview", "full" }')
+    const text = JSON.stringify(o.sample ?? {})
+    if (text.length > 64 << 10) throw new Error('its sample: 64 KB at most')
+    return widgetNew({ ...o, ui: undefined }, { files: (_id, n) => ({ 'widget.json': `${JSON.stringify({ name: n, source: { kind: 'static', text }, sample: o.sample ?? {}, ui: o.ui }, null, 2)}\n` }) })
+  }
   const agent = !!agentCaller(o.from)
   const kind = String(o.kind ?? 'list') as StarterKind
   if (!STARTER_KINDS.includes(kind)) throw new Error(`a kind: ${STARTER_KINDS.join(', ')}`)
