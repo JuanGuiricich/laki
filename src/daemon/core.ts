@@ -1950,9 +1950,15 @@ const CHAT_GONE = /no (conversation|saved session|session|rollout)\b[^\n]*found|
 // or a preset whose agent is a command): a prompt injected into it would leave a program of its own running elsewhere
 // nor one that never asks (neverAsks: its own pick, else its profile's mode or flags), as workflows' bypassIn
 export function agentNoCmd(o: { preset?: string; cmd?: string; perm?: string }) {
-  if (o.cmd?.trim() || o.preset === 'custom' || presetNamed(o.preset)?.agent === 'command') throw new Error("an agent can't start a command of its own (--cmd, or a command preset): the user starts it")
+  if (ownCmd(o)) throw new Error("an agent can't start a command of its own (--cmd, or a command preset): the user starts it")
+  if (startsAskless(o)) throw new Error("an agent can't start an agent that never asks (bypass permissions, or approvals off): the user starts it")
+}
+// agentNoCmd's two questions (main.ts' clientNo asks them for a trusted client: without cmd, without yolo): a command of
+// its own (--cmd, custom, a command profile), and an agent that never asks (its pick, else its profile's mode or flags)
+export const ownCmd = (o: { preset?: string; cmd?: string }) => !!o.cmd?.trim() || o.preset === 'custom' || presetNamed(o.preset)?.agent === 'command'
+export function startsAskless(o: { preset?: string; perm?: string }) {
   const pr = presetNamed(o.preset || state.settings?.agent || 'claude')
-  if (neverAsks(pr?.agent || o.preset || state.settings?.agent || 'claude', o.perm ?? pr?.perm, pr?.args)) throw new Error("an agent can't start an agent that never asks (bypass permissions, or approvals off): the user starts it")
+  return neverAsks(pr?.agent || o.preset || state.settings?.agent || 'claude', o.perm ?? pr?.perm, pr?.args)
 }
 function presetCheck(preset?: string, cmd?: string) {
   if (preset === 'custom' && !cmd?.trim()) throw new Error('custom preset: command missing')
@@ -4042,11 +4048,11 @@ function textFor(tab: Tab, text: string): string | Promise<string> {
 // what it reads must not run a shell command or answer a permission prompt)
 // steer: the user's own follow-up from the app (Send later, Reader, a reply, a review comment): with its profile's Send into
 // the running turn it goes in now; Laki's own sends (PR fixes, workflows, laki ask, schedules) keep turn boundaries: queued
-export function send(p: { target: string; text: string; whenIdle?: boolean; enter?: boolean; agent?: boolean; vars?: boolean; steer?: boolean; byClient?: string }) {
+export function send(p: { target: string; text: string; whenIdle?: boolean; enter?: boolean; agent?: boolean; vars?: boolean; steer?: boolean }) {
   const tab = resolveTarget(p.target)
   if (p.vars) p = { ...p, text: varsIn(tab, p.text) } // an action's: its {{branch}}… now, queued or not
   if (p.agent && !tracked(tab)) throw new Error(`${tab.name} isn't an agent: an agent's messages go to agents only (ask the user to run it there)`)
-  if ((p.agent || p.byClient) && !p.whenIdle && rtOf(tab.id).status === 'waiting') throw new Error(`${tab.name} is asking the user something: only they answer it (or send with when_idle)`) // T1: a trusted client's too (main.ts' clientNo said so first)
+  if (p.agent && !p.whenIdle && rtOf(tab.id).status === 'waiting') throw new Error(`${tab.name} is asking the user something: only they answer it (or send with when_idle)`) // a trusted client's to an agent too (main.ts' agentSend sets agent)
   if (p.enter === false && asleep.has(tab.id)) throw new Error(`${tab.name} is asleep: look at it to wake it, then send again`)
   const woke = wake(tab.id) // running until it's up: what's sent waits for that (below)
   const s = sessions.get(tab.id)

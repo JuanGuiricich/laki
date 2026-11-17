@@ -671,18 +671,26 @@ such an app with a capability of its own: a token that names it and says what it
   `clientCalls`: for `FROM`/`CALLER` methods `core.peerTab` (peerInfo's tab; throws only when the process can't be
   found: `WHO`); a process in a tab is that tab's call (`whoCalls` as any other: S12's rule, a token read out of a file
   names its reader); else the client: `from` and `caller` dropped, `byClient` its id, and `clientNo`.
-- **Scopes** (`clientNo`, gates.ts' `CLIENT_READ` and `CLIENT_SCOPE`: an allowlist, a new method is never a client's):
-  reads always (`ping`, `state`, `clientWho`, `screen`, `diff`, `wsStat`, `wsPeek`); `create` (`wsNew`, `wsFan`,
-  `tabNew`) and `send` (`send`) unless said; `cmd` (`run`; and lets the others start a command, a command profile, a
-  shell, read or send into a terminal, send a `!` line or keys without Enter), `yolo` (an agent that never asks:
-  `neverAsks` on the mode it names or its profile's, `sandbox: false`, and a send into a tab whose agent never asks,
-  `core.tabNeverAsks`: its start's mode or a switch to Bypass since), `remove` (`wsArchive`, `wsRm`), `ship` (`ship`,
-  `shipDraft`, `prAct`). A refusal names the scope it takes. No scope lifts these: `force` or `allowSecrets` on any
-  method, `codespace` on `wsNew`/`wsFan` (billed), control characters in a send (`CONTROLS`, what `noKeys` strips but
-  tabs and line ends: the `!` check then reads what is typed), and a send into a tab that asks (`core.asking`) unless
-  `whenIdle`, held again in `core.send` (`byClient`, as `agent`); `agentSend` drops a client's `steer` and `vars`.
-- **Recording mode.** `state` is `recorded()` for a client (`byClient`); `clientHidden` refuses a hidden workspace or
-  project by any id a call names (a send's or screen's target, `ws`, `id`, `project`) in a missing one's words.
+- **Scopes, on the agents' rules** (`clientNo`). A client's call is held by what an agent's already is, a scope lifting
+  one named refusal, so a rule is written once and a method safe for agents is safe for clients. First the method:
+  gates.ts' `clientMethod(method, scopes)` (pure; `test/client-gates.test.ts` runs it over every method in `test:fast`):
+  the reads (`CLIENT_READ`: `ping`, `state`, `clientWho`, `screen`, `diff`, `wsStat`, `wsPeek`), else its scopes'
+  (`CLIENT_SCOPE`: `create` `wsNew` `wsFan` `tabNew`, `send` `send`, `cmd` `run`, `remove` `wsArchive` `wsRm`, `ship`
+  `ship` `prAct`; never an `AGENT_NO` method, `shipDraft` included), else no. Then what the call says:
+  - without `cmd`: a command of its own (`core.ownCmd`: `--cmd`, `custom`, a command profile; a shell tab is fine, it
+    can't be typed into), a terminal's screen or send, keys without Enter, and `bangNo` (boxNo's own: editing keys and
+    other controls, C1's too, which `noKeys` strips before typing, then a `!` line);
+  - without `yolo`: an agent that never asks (`core.startsAskless`: its pick, else its profile's mode or flags; per
+    preset for `wsFan`), `sandbox: false`, a send into a tab whose agent never asks (`core.tabNeverAsks`: its start's
+    mode or a switch to Bypass since);
+  - never: `force` or `allowSecrets` on any method (by the parameter, as `core.gated`'s "never overrides a gate"),
+    `codespace` (billed).
+  - An ask is never a client's to answer: `agentSend` sets `agent` on a client's send to an agent tab, so `core.send`
+    refuses one that asks (unless `whenIdle`) as it types; into a terminal (`cmd`) not while its agent asks
+    (`core.asking`). A client's `steer` and `vars` are dropped. A refusal names the scope it takes.
+- **Recording mode.** `state` is `recorded()` for a client (`byClient`); `clientHidden` runs `hiddenNo` (turnsSeen's
+  rule, with no workspace of its own) on the workspace a call names (a send's or screen's target, its `ws` or `id`) and
+  refuses a private project for a new workspace, in a missing one's words.
 - **Identity.** `wsNew` keeps `ws.client` (its label then): Created by in the tab bar and Info, `laki ls`; its prompt
   and its sends aren't your prompt history (`yours`, `agentSend`). `clientLine`: daemon.log gets `client <label>:
   <method> (<agentWhat>)` for each call that changed something or was refused (reads aren't logged, as agentLog).

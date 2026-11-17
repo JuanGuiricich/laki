@@ -2888,7 +2888,7 @@ What it may do:
 - **create** (on unless `--scopes` says): `laki new` and `laki tab` with an agent.
 - **send** (on): `laki send` and `laki ask` to an agent: never into a question it's asking you (`--when-idle` queues
   it for after), never a `!` line or control keys.
-- **cmd**: a command or a terminal (`--cmd`, a command profile, a shell tab, a send into one), Run ▾.
+- **cmd**: a command of its own (`--cmd`, a command profile), Run ▾, a terminal's screen or a send into it.
 - **yolo**: an agent that never asks (bypass permissions, codex's approvals off, by `--perm` or its profile) or outside
   its sandbox, and a message to one running so: a prompt to such an agent is as strong as a command.
 - **remove**: `laki archive` and `laki rm`. **ship**: `laki ship` and a PR's merge, approve or close.

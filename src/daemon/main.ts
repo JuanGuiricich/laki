@@ -14,7 +14,7 @@ import { agentChat, aiAnswer, aiAsk, aiHelp, aiOpenApp, aiShot, aiChatRm, aiChat
 import { planChat } from '../shared/plans.ts'
 import { readCapped, rotateLog } from '../shared/conn.ts'
 import { HostPty, ptyGone, ptyOn } from './ptyHost.ts'
-import { aiTotals, API, HIDDEN, isAgent, MASK, masked, maskSettings, neverAsks, recorded, type Settings, type Tab, unmasked } from '../shared/types.ts'
+import { aiTotals, API, HIDDEN, isAgent, MASK, masked, maskSettings, neverAsks, recorded, type Settings, type Tab, type Workspace, unmasked } from '../shared/types.ts'
 import { manifestOf } from '../shared/pwa.ts'
 import { CAPS, oldName } from '../shared/caps.ts'
 import { VERSION } from '../shared/version.ts'
@@ -54,7 +54,7 @@ import { eventsWait, factsTick, scanWidgets, stopAgents, widgetRemix, widgetRest
 import { memoryCompact, memoryCompactLog, memoryTick } from './memory.ts'
 import { device, sim } from './device.ts'
 import { agentContext, agentContextOpen } from './sees.ts'
-import { AGENT_NO, AGENT_OK, AGENT_OWN, CLIENT_READ, CLIENT_SCOPE, REMOTE_NO, REMOTE_OK } from './gates.ts'
+import { AGENT_NO, AGENT_OK, AGENT_OWN, CLIENT_READ, clientMethod, REMOTE_NO, REMOTE_OK } from './gates.ts'
 import * as clientsMod from './clients.ts'
 
 // a daemon a tab started (its laki CLI) is no tab's: what it runs (a widget's laki new, Laki AI's agents) comes from no workspace
@@ -878,57 +878,52 @@ async function clientCalls(sock: Socket, method: string, p: unknown, c: clientsM
 // without yolo: no agent that never asks, by the mode it names or its profile's (as an agent's own laki new: agentNoCmd),
 // none outside its sandbox, no message into one running so (a prompt there is as strong as a command). No gate overridden
 // (force) and no secret check skipped. What asks you in the app still does: a handler's own asks, Touch ID
-type ClientCall = { kind?: unknown; preset?: unknown; presets?: unknown; cmd?: unknown; perm?: unknown; sandbox?: unknown; target?: unknown; enter?: unknown; text?: unknown; whenIdle?: unknown; force?: unknown; allowSecrets?: unknown; codespace?: unknown; id?: unknown; ws?: unknown; project?: unknown }
-// what noKeys strips before typing (core.ts), but tabs and line ends: refused in a client's send, so the ! check reads
-// what is typed (\x01!cmd would land as !cmd)
-const CONTROLS = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/
+type ClientCall = { kind?: unknown; preset?: unknown; presets?: unknown; cmd?: unknown; perm?: unknown; sandbox?: unknown; target?: unknown; enter?: unknown; text?: unknown; force?: unknown; allowSecrets?: unknown; codespace?: unknown; id?: unknown; ws?: unknown; project?: unknown }
+// T1: a trusted client's call is held by the rules agents already pass, a scope lifting one named refusal: the method
+// (gates.ts clientMethod: the reads, its scopes' methods), Recording mode (hiddenNo), then without cmd a command of its
+// own (core.ownCmd), a terminal's screen or send, keys without Enter, editing keys or a ! line (bangNo, boxNo's);
+// without yolo an agent that never asks (core.startsAskless, as an agent's laki new; per preset for a race) or outside
+// its sandbox, or a send into one running so (a prompt there is as strong as a command). Never force or allowSecrets
+// (core.gated's "never overrides a gate"), nor a codespace (billed). An ask's answer is core.send's own rule (agentSend
+// sets agent for a client); what asks you in the app still does
 function clientNo(method: string, p: ClientCall, c: clientsMod.Client) {
   const has = (s: string) => (c.scopes as string[]).includes(s)
   const no = (what: string, scope?: string) => {
     throw new Error(`${c.label} can't ${what}: ${scope ? `that takes the ${scope} scope (it has ${c.scopes.join(', ') || 'reads only'}): laki client rotate ${c.id} --scopes …` : 'no trusted client can (do it in Laki)'}`)
   }
-  const scope = Object.keys(CLIENT_SCOPE).find(s => CLIENT_SCOPE[s].includes(method))
-  if (!CLIENT_READ.has(method) && !(scope && has(scope))) no(`call ${method}`, scope)
+  const m = clientMethod(method, c.scopes)
+  if (m) no(`call ${method}`, m.scope)
   clientHidden(method, p)
-  if (p.force === true || (p.allowSecrets !== undefined && p.allowSecrets !== false)) no('override a gate or the secret check') // any method's: ship, archive, rm, a PR's merge
+  if (p.force === true || (p.allowSecrets !== undefined && p.allowSecrets !== false)) no('override a gate or the secret check') // any method's, by the parameter: one that gains a force later too
   if (method === 'wsNew' || method === 'wsFan' || method === 'tabNew') {
-    const tab = method === 'tabNew'
     if (p.codespace !== undefined) no('start a cloud workspace (a codespace, billed to you)')
-    if (tab && p.kind !== undefined && p.kind !== 'agent' && !has('cmd')) no('open a terminal', 'cmd')
+    const tab = method === 'tabNew'
     for (const preset of method === 'wsFan' && Array.isArray(p.presets) ? p.presets : [p.preset]) {
-      const name = typeof preset === 'string' && preset ? preset : tab ? '' : core.state.settings?.agent || 'claude'
-      const pr = core.presetNamed(name)
-      const agent = pr?.agent ?? name
-      if (!has('cmd') && typeof p.cmd === 'string' && p.cmd.trim()) no('start a command', 'cmd')
-      if (!has('cmd') && !isAgent(agent) && !(name === 'none' && !tab)) no(`start ${agent ? `${agent}, not an agent` : 'a terminal'}`, 'cmd')
-      if (!has('yolo') && isAgent(agent) && (neverAsks(agent, typeof p.perm === 'string' ? p.perm : pr?.perm, pr?.args) || p.sandbox === false)) no(`start ${agent} in a mode that never asks or outside its sandbox`, 'yolo')
+      const q = { preset: typeof preset === 'string' && preset ? preset : tab ? 'shell' : undefined, cmd: typeof p.cmd === 'string' ? p.cmd : undefined, perm: typeof p.perm === 'string' ? p.perm : undefined } // a tab with none: a shell (tabSpec's)
+      if (!has('cmd') && core.ownCmd(q)) no('start a command of its own (--cmd, or a command profile)', 'cmd')
+      if (!has('yolo') && (core.startsAskless(q) || p.sandbox === false)) no(`start an agent that never asks (bypass permissions, or approvals off) or outside its sandbox`, 'yolo')
     }
   }
   if (method === 'send' || method === 'screen') {
     const t = core.resolveTarget(String(p.target ?? ''))
     if (!has('cmd') && !core.tracked(t)) no(`${method === 'send' ? 'send to' : 'read'} ${t.name}, a terminal`, 'cmd')
-    // never an answer to an ask, whatever its scopes: queued for after it (when_idle); core.send holds it too as it types
-    if (method === 'send' && core.asking(t.id) && p.whenIdle !== true) throw new Error(`${c.label} can't send to ${t.name}: it's asking the user something (only they answer it; send with when_idle)`)
-    if (method === 'send' && CONTROLS.test(String(p.text ?? ''))) no('send control characters or escape keys (a message is text)')
-    if (method === 'send' && !has('cmd') && (p.enter === false || /(?:^|[\r\n])[ \t]*!/.test(String(p.text ?? '')))) no(`send ${p.enter === false ? 'keys without Enter' : `a ! line (${t.name}'s agent runs it as a command)`}`, 'cmd')
+    if (method === 'send' && !has('cmd')) (why => why && no(why, 'cmd'))(p.enter === false ? 'send keys without Enter' : bangNo(String(p.text ?? ''), t.name))
     if (method === 'send' && !has('yolo') && core.tabNeverAsks(t)) no(`send to ${t.name}: it runs in a mode that never asks`, 'yolo')
   }
 }
-// T1: Recording mode: a workspace or project it hides is none to a client, by whatever id the call names, in the words a
-// missing one gets (as the agents' turnsSeen), so the two can't be told apart; state is recorded() already
+// T1: Recording mode for a client: hiddenNo with no workspace of its own, for the one a call names (a send's or screen's
+// target, its ws or id), and a private project for a new workspace; state is recorded() already
 function clientHidden(method: string, p: ClientCall) {
   if (!core.state.settings?.recording) return
   const quiet = <T,>(f: () => T) => { try { return f() } catch { return undefined } }
-  const hid = (ws: string | undefined) => phoneMod.hidden(core.state.workspaces.find(w => w.id === ws))
+  const wsOf = (id?: string) => core.state.workspaces.find(w => w.id === id)
   if (method === 'send' || method === 'screen') {
     const ref = String(p.target ?? '')
-    if (hid(quiet(() => core.resolveTarget(ref))?.workspace)) throw new Error(ref.startsWith('@') ? `no agent is named ${ref} (laki agents lists the names)` : `no workspace ${ref.split('/')[0]}`)
+    if (ref.startsWith('@') && phoneMod.hidden(wsOf(quiet(() => core.resolveTarget(ref))?.workspace))) throw new Error(`no agent is named ${ref} (laki agents lists the names)`) // a missing name's words
+    hiddenNo(undefined, wsOf(quiet(() => core.resolveTarget(ref))?.workspace), ref.split('/')[0])
   } else if (method === 'wsNew' || method === 'wsFan') {
     if (quiet(() => core.findProject(String(p.project ?? '')))?.private) throw new Error(`no project ${String(p.project ?? '')}`)
-  } else if (p.ws !== undefined || p.id !== undefined) {
-    const ref = String(p.ws ?? p.id)
-    if (hid(quiet(() => core.findWs(ref))?.id)) throw new Error(`no workspace ${ref}`)
-  }
+  } else if (p.ws !== undefined || p.id !== undefined) hiddenNo(undefined, quiet(() => core.findWs(String(p.ws ?? p.id))), String(p.ws ?? p.id))
 }
 function clientLine(method: string, p: Record<string, unknown>, e?: unknown) {
   if (e === undefined && CLIENT_READ.has(method)) return // reads aren't logged (as agentLog's)
@@ -941,10 +936,15 @@ const termHeld = async (sock: Socket) => (who => !!who?.term && termAsks.has(who
 // S7: what Recording mode keeps from an agent in another workspace: the state's private rows, a private workspace's
 // kept turns (their prompts, their diffs). ponytail: its diff, files and screen go by their own gates (crossAsk)
 const RECORDED = new Set(['state', 'turnList', 'turnDiff'])
+// a workspace Recording mode hides is none to a caller outside it (an agent of another workspace; a trusted client, with
+// none of its own: clientHidden), in a missing one's words
+const hiddenNo = (me: string | undefined, ws: Workspace | undefined, ref: string) => {
+  if (ws && ws.id !== me && phoneMod.hidden(ws)) throw new Error(`no workspace ${ref}`)
+}
 const turnsSeen = (p: any) => {
   const me = core.agentCaller(p?.from)
   const ws = core.state.workspaces.find(w => w.id === (p?.ws ?? core.state.tabs.find(t => t.id === p?.tab)?.workspace))
-  if (me && ws && ws.id !== me && phoneMod.hidden(ws)) throw new Error(`no workspace ${ws.id}`)
+  if (me) hiddenNo(me, ws, ws?.id ?? '')
 }
 // S7: the state too while Recording mode hides something (only then: every laki ls would pay the lookup)
 const takesFrom = (method: string) => FROM.has(method) || (RECORDED.has(method) && !!core.state.settings?.recording && (core.state.workspaces.some(w => w.private) || core.state.projects.some(x => x.private)))
@@ -1002,6 +1002,11 @@ const FILE_EDITS = new Set(['fileWrite', 'fileNew', 'fileUndo', 'hunkUndo', 'hun
 // S7: what runs a file it wrote as a page or a program: its default app, or a browser (its page's scripts, on file://)
 const fileApp = (app: unknown) => app === 'default' || (typeof app === 'string' && Object.hasOwn(core.BROWSERS, app))
 const GIT_PATH = /(^|[\\/])\.git([\\/]|$)/i // .git/config, .git/hooks: what git runs as you
+// what a message typed into an agent may not hold (boxNo's, a client's without cmd: clientNo): editing keys and other
+// controls (arrows, Backspace, ⌃U…: with them `a!`, ←, ⌫ leaves a ! first, in one call or over several; core's noKeys
+// strips them before typing, C1's too, so \x01!cmd would land as !cmd), and a ! line (claude's and codex's command mode)
+const bangNo = (text: string, name: string) =>
+  /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/.test(text) ? `send editing keys into ${name} (they could make a ! line its agent runs as a command)` : /(?:^|[\r\n])[ \t]*!/.test(text) ? `send a ! line (${name}'s agent runs it as a command)` : undefined
 function boxNo(method: string, p: any) {
   if (!core.boxedCaller(p.caller) && !core.boxedCaller(p.from)) return
   const no = (what: string) => {
@@ -1021,10 +1026,8 @@ function boxNo(method: string, p: any) {
   if (method === 'send' || method === 'input') {
     const tab = core.resolveTarget(String((method === 'send' ? p.target : p.tab) ?? ''))
     if (!(tab.kind === 'agent' && core.tracked(tab))) no(method === 'send' ? `send into ${tab.name}, a terminal` : `type into ${tab.name}, a terminal`)
-    const text = String((method === 'send' ? p.text : p.data) ?? '')
-    // no editing keys (arrows, Backspace, ⌃U…): with them `a!`, ←, ⌫ leaves a ! first, in one call or over several
-    if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(text)) no(`send editing keys into ${tab.name} (they could make a ! line its agent runs as a command)`)
-    if (/(?:^|[\r\n])[ \t]*!/.test(text)) no(`send a ! line (${tab.name}'s agent runs it as a command)`)
+    const why = bangNo(String((method === 'send' ? p.text : p.data) ?? ''), tab.name)
+    if (why) no(why)
   }
 }
 // M5: the user's alone, from an agent's tab (by its process): answering an ask (an extension's, Laki AI's, an agent's
@@ -1193,7 +1196,14 @@ function agentSend(p: any) {
   const tab = core.resolveTarget(String(p.target ?? ''))
   const by = core.agentCaller(p.from)
   if (by) delete p.steer // into a running turn is your follow-ups' only: an agent's waits its turn (an Enter typed now could answer a menu just drawn)
-  if (p.byClient) (delete p.steer, delete p.vars) // T1: a client's too; vars: agent variables are Laki's own sends', never an RPC's
+  if (p.byClient) {
+    // T1: a client's too (vars: agent variables are Laki's own sends', never an RPC's); to an agent it's an agent's message,
+    // so core.send refuses a tab that asks as it types (no gap after a check); a terminal (cmd) not while its agent asks
+    delete p.steer
+    delete p.vars
+    if (core.tracked(tab)) p.agent = true
+    else if (core.asking(tab.id)) throw new Error(`${tab.name} is asking the user something: only they answer it`)
+  }
   if (!by) {
     core.youTyped(tab.id, String(p.text ?? ''))
     if (p.enter !== false && !p.by && !p.byClient && core.tracked(tab)) core.promptKeep(p.text, tab.workspace) // a prompt you sent an agent (not an insert, a command, Laki AI's or a side chat's: by)

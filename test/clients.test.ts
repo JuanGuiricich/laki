@@ -108,8 +108,8 @@ test("T1: a client from no tab and no terminal: added after Allow in the window,
   const shell = (await rig.rpc('tabNew', { ws: ws.id, kind: 'shell' })).id
   const no: [string[], RegExp][] = [
     [['rm', ws.id], /can't call wsRm: that takes the remove scope \(it has create, send\)/],
-    [['tab', ws.id, '--cmd', 'touch pwned'], /can't start a command: that takes the cmd scope/],
-    [['new', p.id, '--name', 'y', '--perm', 'bypassPermissions', '--prompt', 'x'], /can't start claude in a mode that never asks or outside its sandbox: that takes the yolo scope/],
+    [['tab', ws.id, '--cmd', 'touch pwned'], /can't start a command of its own \(--cmd, or a command profile\): that takes the cmd scope/],
+    [['new', p.id, '--name', 'y', '--perm', 'bypassPermissions', '--prompt', 'x'], /can't start an agent that never asks \(bypass permissions, or approvals off\) or outside its sandbox: that takes the yolo scope/],
     [['new', p.id, '--name', 'y2', '--preset', 'yolo', '--prompt', 'x'], /that takes the yolo scope/],
     [['send', `${ws.id}/${shell}`, 'ls'], /can't send to .*, a terminal: that takes the cmd scope/],
     [['send', ws.id, '!rm -rf .'], /can't send a ! line/],
@@ -187,13 +187,13 @@ test('T1: a client never answers an ask, sends no control keys, forces nothing; 
   const target = `${ws.id}/${tab}`
   await until(async () => (await rig.screen(target)).includes('> '), 'its prompt')
   // a ! line however it's dressed: refused, nothing run
-  for (const text of ['\x01!touch pwned', '\x1b!touch pwned', '\x9b!touch pwned']) assert.match((await grok('send', { target, text })).error, /Grok Bot can't send control characters or escape keys/, JSON.stringify(text))
+  for (const text of ['\x01!touch pwned', '\x1b!touch pwned', '\x9b!touch pwned']) assert.match((await grok('send', { target, text })).error, /Grok Bot can't send editing keys into .*: that takes the cmd scope/, JSON.stringify(text))
   assert.match((await grok('send', { target, text: '!touch pwned' })).error, /can't send a ! line/)
   // its agent asks (a permission menu): a send is refused, the menu stays, nothing picked; when_idle queues it for after
   await rig.rpc('send', { target, text: 'menu' })
   await until(async () => (await rig.rpc('state')).tabs.find((x: any) => x.id === tab).status === 'waiting', 'its menu')
-  assert.match((await grok('send', { target, text: 'go on' })).error, /Grok Bot can't send to .*: it's asking the user something \(only they answer it; send with when_idle\)/)
-  assert.match((await grok('send', { target, text: 'go on', steer: true })).error, /it's asking the user something/)
+  assert.match((await grok('send', { target, text: 'go on' })).error, /is asking the user something: only they answer it \(or send with when_idle\)/)
+  assert.match((await grok('send', { target, text: 'go on', steer: true })).error, /is asking the user something/)
   assert.equal((await grok('send', { target, text: 'after', whenIdle: true })).result.queued, 1)
   assert.equal((await rig.rpc('state')).tabs.find((x: any) => x.id === tab).status, 'waiting')
   assert.ok(!(await rig.screen(target)).includes('picked:'), 'no option picked')
@@ -221,5 +221,40 @@ test('T1: a client never answers an ask, sends no control keys, forces nothing; 
   await app.call('clientAnswer', { req: ask.req, allow: true })
   assert.match(String(await rotated), /Shipper was revoked while its new token waited for Allow/)
   assert.deepEqual((await rig.rpc('clientList')).map((c: any) => c.id), ['grok-bot'])
+})
+
+// each scope: the same call allowed with it, refused without it naming it (review of #12: a test per scope)
+test('T1: each scope lifts its own refusal: create, send, cmd, yolo, remove, ship', async t => {
+  const rig = await fresh(t, { env: { LAKI_TERM_WAIT: '5000' } })
+  const p = await rig.rpc('projectAdd', { path: rig.repo })
+  const app = await connect(rig)
+  const add = async (label: string, scopes: string) => {
+    const made = rig.rpc('clientAdd', { label, scopes })
+    await app.call('clientAnswer', { req: (await seen(app, (e: any) => e.ev === 'clientAsk' && e.label === label, `${label} asked`)).req, allow: true })
+    const token = readFileSync((await made).file, 'utf8').trim()
+    return async (method: string, params: object) => (await fetch(`http://127.0.0.1:${rig.info().port}/rpc`, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ method, params }) })).json()
+  }
+  const ws = await rig.rpc('wsNew', { project: p.id, preset: 'claude', name: 'one' })
+  const tab = (await until(() => rig.tab(ws.id))).id
+  await until(async () => (await rig.screen(`${ws.id}/${tab}`)).includes('> '), 'its prompt')
+  const shell = (await rig.rpc('tabNew', { ws: ws.id, kind: 'shell' })).id
+  const spare = async (name: string) => (await rig.rpc('wsNew', { project: p.id, kind: 'local', name, another: true })).id
+  // [scope, the other scopes it needs, the call]: refused without the scope (naming it), not refused by the gate with it
+  const rows: [string, string, string, () => Promise<object>][] = [
+    ['create', '', 'wsNew', async () => ({ project: p.id, name: 'made', preset: 'claude', prompt: 'hi' })],
+    ['send', '', 'send', async () => ({ target: `${ws.id}/${tab}`, text: 'hello' })],
+    ['cmd', 'create', 'tabNew', async () => ({ ws: ws.id, cmd: 'true' })],
+    ['cmd', 'send', 'send', async () => ({ target: `${ws.id}/${shell}`, text: 'true' })],
+    ['yolo', 'create', 'wsNew', async () => ({ project: p.id, name: `y${Math.random().toString(36).slice(2, 6)}`, preset: 'claude', perm: 'bypassPermissions', prompt: 'hi' })],
+    ['remove', '', 'wsArchive', async () => ({ id: await spare(`a${Math.random().toString(36).slice(2, 6)}`) })],
+    ['ship', '', 'prAct', async () => ({ ws: ws.id, act: 'draft' })],
+  ]
+  for (const [i, [scope, also, method, params]] of rows.entries()) {
+    const without = await add(`no-${i}`, also || (scope === 'remove' ? 'ship' : 'remove')) // '' would be the defaults
+    const withIt = await add(`with-${i}`, [also, scope].filter(Boolean).join(','))
+    assert.match(String((await without(method, await params())).error), new RegExp(`that takes the ${scope} scope`), `${method} without ${scope}`)
+    const r = await withIt(method, await params())
+    assert.doesNotMatch(String(r.error ?? ''), /scope|no trusted client can/, `${method} with ${scope}: ${r.error}`)
+  }
 })
 

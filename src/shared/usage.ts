@@ -303,7 +303,7 @@ a token of its own, where a call from no tab and no terminal is refused ("couldn
 terminal, never an agent's tab: add and rotate wait for Allow in Laki's window, then print the token's file (0600). The
 app passes its path: LAKI_CLIENT_TOKEN_FILE=<file> (or the token in LAKI_CLIENT_TOKEN); in a Laki tab the tab's own
 token wins. A revoked or unknown token fails loudly. Reads (laki ls, agents, wait, screen of an agent) always; scopes:
-create (new workspaces and agent tabs) and send (laki send, laki ask) unless --scopes says; cmd (a command or a terminal),
+create (new workspaces and agent tabs) and send (laki send, laki ask) unless --scopes says; cmd (a command of its own, Run ▾, a terminal's screen or a send into it),
 yolo (an agent that never asks, or a message to one), remove (archive, rm), ship (ship, PR merge) only when named. Never
 settings, profiles, secrets, schedules, --force, a cloud workspace, or an answer to an agent's question (a send to one
 that asks waits only with --when-idle). Each call it makes that changes something is a line in daemon.log, and what

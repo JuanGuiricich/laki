@@ -17,7 +17,7 @@ export { CLIENT_GONE }
 export const SCOPES = {
   create: 'new workspaces and agent tabs',
   send: 'messages to agents (laki send, laki ask)',
-  cmd: 'commands: a terminal tab, a command, Run ▾, a send into a terminal',
+  cmd: "commands: a command of its own (--cmd, a command profile), Run ▾, a terminal's screen or a send into it",
   yolo: 'agents that never ask (bypass permissions, approvals off), and messages to them',
   remove: 'archive and delete workspaces',
   ship: 'ship, and act on PRs (merge, approve, close)',

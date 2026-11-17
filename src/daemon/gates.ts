@@ -28,4 +28,11 @@ export const REMOTE_OK = new Set(['agentLog', 'diskUsage', 'mergeQueueStart', 'm
 // clientNo also checks what a call says (an agent, not a command; a mode that asks). Never a client's, whatever its
 // scopes: settings, profiles, secrets, schedules, extensions, answers to asks, remote access, other clients
 export const CLIENT_READ = new Set(['ping', 'state', 'clientWho', 'screen', 'diff', 'wsStat', 'wsPeek'])
-export const CLIENT_SCOPE: Record<string, string[]> = { create: ['wsNew', 'wsFan', 'tabNew'], send: ['send'], cmd: ['run'], yolo: [], remove: ['wsArchive', 'wsRm'], ship: ['ship', 'shipDraft', 'prAct'] }
+export const CLIENT_SCOPE: Record<string, string[]> = { create: ['wsNew', 'wsFan', 'tabNew'], send: ['send'], cmd: ['run'], yolo: [], remove: ['wsArchive', 'wsRm'], ship: ['ship', 'prAct'] } // never AGENT_NO's (test/client-gates.test.ts): shipDraft quotes the tab's chat
+// is a method a client's, given its scopes: undefined (it is), else what it would take (scope: that one; none: no
+// client's, whatever its scopes). Pure: test/client-gates.test.ts runs it over every method
+export function clientMethod(method: string, scopes: readonly string[]): undefined | { scope?: string } {
+  if (CLIENT_READ.has(method)) return
+  const scope = Object.keys(CLIENT_SCOPE).find(s => CLIENT_SCOPE[s].includes(method))
+  return scope && scopes.includes(scope) ? undefined : { scope }
+}
