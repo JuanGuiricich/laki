@@ -305,7 +305,8 @@ app passes its path: LAKI_CLIENT_TOKEN_FILE=<file> (or the token in LAKI_CLIENT_
 token wins. A revoked or unknown token fails loudly. Reads (laki ls, agents, wait, screen of an agent) always; scopes:
 create (new workspaces and agent tabs) and send (laki send, laki ask) unless --scopes says; cmd (a command or a terminal),
 yolo (an agent that never asks, or a message to one), remove (archive, rm), ship (ship, PR merge) only when named. Never
-settings, profiles, secrets or schedules. Each call it makes that changes something is a line in daemon.log, and what
+settings, profiles, secrets, schedules, --force, a cloud workspace, or an answer to an agent's question (a send to one
+that asks waits only with --when-idle). Each call it makes that changes something is a line in daemon.log, and what
 it starts says Created by <name>.
 
   laki client add "Grok Bot"

@@ -840,6 +840,7 @@ async function clientAsk(what: 'add' | 'rotate', p: { from?: { tab?: unknown }; 
   clientAsks.delete(msg.req)
   for (const c of core.clients) if (apps.has(c)) c.send({ ev: 'clientDone', req: msg.req })
   if (!allow) throw new Error(`${label} wasn't ${what === 'add' ? 'added' : 'given a new token'}: not allowed in Laki's window`)
+  if (was && !clientsMod.clientList().some(c => c.id === was.id)) throw new Error(`${label} was revoked while its new token waited for Allow: laki client add makes it again`)
   const made = clientsMod.clientMint(label, scopes, was?.id)
   log(`trusted client ${label}: ${what === 'add' ? 'added' : 'rotated'} (${scopes.join(', ') || 'reads only'})`)
   return made
@@ -877,7 +878,10 @@ async function clientCalls(sock: Socket, method: string, p: unknown, c: clientsM
 // without yolo: no agent that never asks, by the mode it names or its profile's (as an agent's own laki new: agentNoCmd),
 // none outside its sandbox, no message into one running so (a prompt there is as strong as a command). No gate overridden
 // (force) and no secret check skipped. What asks you in the app still does: a handler's own asks, Touch ID
-type ClientCall = { kind?: unknown; preset?: unknown; presets?: unknown; cmd?: unknown; perm?: unknown; sandbox?: unknown; target?: unknown; enter?: unknown; text?: unknown; force?: unknown; allowSecrets?: unknown }
+type ClientCall = { kind?: unknown; preset?: unknown; presets?: unknown; cmd?: unknown; perm?: unknown; sandbox?: unknown; target?: unknown; enter?: unknown; text?: unknown; whenIdle?: unknown; force?: unknown; allowSecrets?: unknown; codespace?: unknown; id?: unknown; ws?: unknown; project?: unknown }
+// what noKeys strips before typing (core.ts), but tabs and line ends: refused in a client's send, so the ! check reads
+// what is typed (\x01!cmd would land as !cmd)
+const CONTROLS = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/
 function clientNo(method: string, p: ClientCall, c: clientsMod.Client) {
   const has = (s: string) => (c.scopes as string[]).includes(s)
   const no = (what: string, scope?: string) => {
@@ -885,8 +889,11 @@ function clientNo(method: string, p: ClientCall, c: clientsMod.Client) {
   }
   const scope = Object.keys(CLIENT_SCOPE).find(s => CLIENT_SCOPE[s].includes(method))
   if (!CLIENT_READ.has(method) && !(scope && has(scope))) no(`call ${method}`, scope)
+  clientHidden(method, p)
+  if (p.force === true || (p.allowSecrets !== undefined && p.allowSecrets !== false)) no('override a gate or the secret check') // any method's: ship, archive, rm, a PR's merge
   if (method === 'wsNew' || method === 'wsFan' || method === 'tabNew') {
     const tab = method === 'tabNew'
+    if (p.codespace !== undefined) no('start a cloud workspace (a codespace, billed to you)')
     if (tab && p.kind !== undefined && p.kind !== 'agent' && !has('cmd')) no('open a terminal', 'cmd')
     for (const preset of method === 'wsFan' && Array.isArray(p.presets) ? p.presets : [p.preset]) {
       const name = typeof preset === 'string' && preset ? preset : tab ? '' : core.state.settings?.agent || 'claude'
@@ -900,10 +907,28 @@ function clientNo(method: string, p: ClientCall, c: clientsMod.Client) {
   if (method === 'send' || method === 'screen') {
     const t = core.resolveTarget(String(p.target ?? ''))
     if (!has('cmd') && !core.tracked(t)) no(`${method === 'send' ? 'send to' : 'read'} ${t.name}, a terminal`, 'cmd')
+    // never an answer to an ask, whatever its scopes: queued for after it (when_idle); core.send holds it too as it types
+    if (method === 'send' && core.asking(t.id) && p.whenIdle !== true) throw new Error(`${c.label} can't send to ${t.name}: it's asking the user something (only they answer it; send with when_idle)`)
+    if (method === 'send' && CONTROLS.test(String(p.text ?? ''))) no('send control characters or escape keys (a message is text)')
     if (method === 'send' && !has('cmd') && (p.enter === false || /(?:^|[\r\n])[ \t]*!/.test(String(p.text ?? '')))) no(`send ${p.enter === false ? 'keys without Enter' : `a ! line (${t.name}'s agent runs it as a command)`}`, 'cmd')
     if (method === 'send' && !has('yolo') && core.tabNeverAsks(t)) no(`send to ${t.name}: it runs in a mode that never asks`, 'yolo')
   }
-  if ((method === 'ship' || method === 'wsArchive') && (p.force === true || (p.allowSecrets !== undefined && p.allowSecrets !== false))) no('override a gate or the secret check')
+}
+// T1: Recording mode: a workspace or project it hides is none to a client, by whatever id the call names, in the words a
+// missing one gets (as the agents' turnsSeen), so the two can't be told apart; state is recorded() already
+function clientHidden(method: string, p: ClientCall) {
+  if (!core.state.settings?.recording) return
+  const quiet = <T,>(f: () => T) => { try { return f() } catch { return undefined } }
+  const hid = (ws: string | undefined) => phoneMod.hidden(core.state.workspaces.find(w => w.id === ws))
+  if (method === 'send' || method === 'screen') {
+    const ref = String(p.target ?? '')
+    if (hid(quiet(() => core.resolveTarget(ref))?.workspace)) throw new Error(ref.startsWith('@') ? `no agent is named ${ref} (laki agents lists the names)` : `no workspace ${ref.split('/')[0]}`)
+  } else if (method === 'wsNew' || method === 'wsFan') {
+    if (quiet(() => core.findProject(String(p.project ?? '')))?.private) throw new Error(`no project ${String(p.project ?? '')}`)
+  } else if (p.ws !== undefined || p.id !== undefined) {
+    const ref = String(p.ws ?? p.id)
+    if (hid(quiet(() => core.findWs(ref))?.id)) throw new Error(`no workspace ${ref}`)
+  }
 }
 function clientLine(method: string, p: Record<string, unknown>, e?: unknown) {
   if (e === undefined && CLIENT_READ.has(method)) return // reads aren't logged (as agentLog's)
@@ -1168,6 +1193,7 @@ function agentSend(p: any) {
   const tab = core.resolveTarget(String(p.target ?? ''))
   const by = core.agentCaller(p.from)
   if (by) delete p.steer // into a running turn is your follow-ups' only: an agent's waits its turn (an Enter typed now could answer a menu just drawn)
+  if (p.byClient) (delete p.steer, delete p.vars) // T1: a client's too; vars: agent variables are Laki's own sends', never an RPC's
   if (!by) {
     core.youTyped(tab.id, String(p.text ?? ''))
     if (p.enter !== false && !p.by && !p.byClient && core.tracked(tab)) core.promptKeep(p.text, tab.workspace) // a prompt you sent an agent (not an insert, a command, Laki AI's or a side chat's: by)

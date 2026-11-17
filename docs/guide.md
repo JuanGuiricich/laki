@@ -2886,14 +2886,16 @@ What it may do:
 
 - **Always**: read: `laki ls`, `laki agents`, `laki wait`, `laki screen` of an agent, a workspace's diff.
 - **create** (on unless `--scopes` says): `laki new` and `laki tab` with an agent.
-- **send** (on): `laki send` and `laki ask` to an agent, never a `!` line.
+- **send** (on): `laki send` and `laki ask` to an agent: never into a question it's asking you (`--when-idle` queues
+  it for after), never a `!` line or control keys.
 - **cmd**: a command or a terminal (`--cmd`, a command profile, a shell tab, a send into one), Run ▾.
 - **yolo**: an agent that never asks (bypass permissions, codex's approvals off, by `--perm` or its profile) or outside
   its sandbox, and a message to one running so: a prompt to such an agent is as strong as a command.
 - **remove**: `laki archive` and `laki rm`. **ship**: `laki ship` and a PR's merge, approve or close.
 
 Never, whatever its scopes: settings, profiles, secrets, scheduled tasks, extensions, answering an ask, remote access, other
-clients, and anything that asks you in the app first (a held ship, a secret found) still asks. What it starts says
+clients, `--force` (a held ship, archive, rm or merge stays held), a cloud workspace; and anything that asks you in the
+app first still asks. In Recording mode a private workspace is none to a client, by any id, as to an agent. What it starts says
 *Created by Grok Bot* (the tab bar, Info, `laki ls`), and each call it makes that changes something or is refused is a line
 in daemon.log (`client Grok Bot: wsNew (project myrepo, preset claude, name test)`), with names and ids, never a prompt.
 
@@ -2905,8 +2907,10 @@ refused by name. An MCP client's config:
 { "mcpServers": { "laki": { "command": "laki", "args": ["mcp"], "env": { "LAKI_CLIENT_TOKEN_FILE": "/Users/you/.laki/clients/grok-bot.token" } } } }
 ```
 
-The file's 0600 keeps out other users of this Mac, not other programs running as you: like daemon.json, any of them can
-read it. The token gives an app a name and limits in Laki, not a sandbox. Revoke one you no longer use.
+The file's 0600 keeps out other users of this Mac, not other programs running as you. And unlike daemon.json's token,
+a client's is enough on its own: any process of yours that reads it and is in no tab (one that left its tab with
+`setsid` too) acts as that client, within its scopes. The token gives an app a name and limits in Laki, not a sandbox:
+give it the fewest scopes it needs (with `cmd` or `yolo` it's as good as a shell), and revoke one you no longer use.
 
 ### Links
 

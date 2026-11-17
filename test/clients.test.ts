@@ -34,6 +34,12 @@ test('T1: the store keeps only a hash; rotate and revoke kill the old token at o
   assert.deepEqual(c.clientOf(readFileSync(again.file, 'utf8').trim())?.scopes, ['send'])
   assert.throws(() => c.scopesOf('create,root'), /no scope root/)
   assert.deepEqual(c.scopesOf(['Send', 'send', 'yolo']), ['send', 'yolo'])
+  // one's id and another's name: refused, never the id picked (review #12)
+  const other = c.clientMint('Grok-Bot', ['send'])
+  assert.equal(other.id, 'grok-bot-2')
+  assert.throws(() => c.clientFind('grok-bot'), /grok-bot is Grok Bot's id \(grok-bot\) and Grok-Bot's name \(grok-bot-2\)/)
+  assert.equal(c.clientFind('Grok Bot').id, 'grok-bot')
+  c.clientRm('grok-bot-2')
   const left = readFileSync(again.file, 'utf8').trim()
   c.clientRm('GROK BOT')
   assert.equal(c.clientOf(left), undefined, 'revoked')
@@ -162,3 +168,58 @@ test("T1: a client from no tab and no terminal: added after Allow in the window,
   await new Promise(ok => (app.ws.once('close', ok), app.ws.close()))
   await until(() => rig.rpc('clientAdd', { label: 'Late' }).then(() => false, e => /Laki's window isn't open to allow Late/.test(e.message)), 'refused with no window', 20000) // its close handled
 })
+
+// review of #12: no scope answers an ask, a control key can't make a ! line, no force, no cloud workspace; Recording
+// mode hides a private workspace by any id; a rotate revoked while it waits stays revoked
+test('T1: a client never answers an ask, sends no control keys, forces nothing; Recording mode hides by id; a revoked rotate stays revoked', async t => {
+  const rig = await fresh(t, { env: { LAKI_TERM_WAIT: '5000' } })
+  const p = await rig.rpc('projectAdd', { path: rig.repo })
+  const app = await connect(rig)
+  const add = async (label: string, scopes?: string) => {
+    const made = rig.rpc('clientAdd', { label, ...(scopes && { scopes }) })
+    await app.call('clientAnswer', { req: (await seen(app, (e: any) => e.ev === 'clientAsk' && e.what === 'add' && e.label === label, `${label} asked`)).req, allow: true })
+    const token = readFileSync((await made).file, 'utf8').trim()
+    return async (method: string, params: object) => (await fetch(`http://127.0.0.1:${rig.info().port}/rpc`, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ method, params }) })).json()
+  }
+  const grok = await add('Grok Bot')
+  const ws = await rig.rpc('wsNew', { project: p.id, preset: 'claude', name: 'one' })
+  const tab = (await until(() => rig.tab(ws.id))).id
+  const target = `${ws.id}/${tab}`
+  await until(async () => (await rig.screen(target)).includes('> '), 'its prompt')
+  // a ! line however it's dressed: refused, nothing run
+  for (const text of ['\x01!touch pwned', '\x1b!touch pwned', '\x9b!touch pwned']) assert.match((await grok('send', { target, text })).error, /Grok Bot can't send control characters or escape keys/, JSON.stringify(text))
+  assert.match((await grok('send', { target, text: '!touch pwned' })).error, /can't send a ! line/)
+  // its agent asks (a permission menu): a send is refused, the menu stays, nothing picked; when_idle queues it for after
+  await rig.rpc('send', { target, text: 'menu' })
+  await until(async () => (await rig.rpc('state')).tabs.find((x: any) => x.id === tab).status === 'waiting', 'its menu')
+  assert.match((await grok('send', { target, text: 'go on' })).error, /Grok Bot can't send to .*: it's asking the user something \(only they answer it; send with when_idle\)/)
+  assert.match((await grok('send', { target, text: 'go on', steer: true })).error, /it's asking the user something/)
+  assert.equal((await grok('send', { target, text: 'after', whenIdle: true })).result.queued, 1)
+  assert.equal((await rig.rpc('state')).tabs.find((x: any) => x.id === tab).status, 'waiting')
+  assert.ok(!(await rig.screen(target)).includes('picked:'), 'no option picked')
+  assert.ok(!existsSync(join(ws.path, 'pwned')))
+  // no force, whatever its scopes; no cloud workspace
+  const shipper = await add('Shipper', 'create,ship,remove')
+  assert.match((await shipper('prAct', { ws: ws.id, act: 'merge', force: true })).error, /Shipper can't override a gate or the secret check: no trusted client can/)
+  assert.match((await shipper('wsRm', { id: ws.id, force: true })).error, /can't override a gate/)
+  assert.match((await shipper('wsNew', { project: p.id, name: 'cloud', codespace: '' })).error, /can't start a cloud workspace/)
+  // Recording mode: a private workspace is none to it, by any id, in a missing one's words
+  const hid = await rig.rpc('wsNew', { project: p.id, kind: 'local', name: 'hidden' })
+  const htab = (await rig.rpc('tabNew', { ws: hid.id, kind: 'shell' })).id
+  await rig.rpc('wsSet', { id: hid.id, private: true })
+  await rig.rpc('settingsSet', { recording: true })
+  assert.ok(!JSON.stringify((await grok('state', {})).result).includes(hid.id), 'not in its state')
+  const said: [string, object][] = [['screen', { target: `${hid.id}/${htab}` }], ['screen', { target: htab }], ['send', { target: hid.id, text: 'hi' }], ['diff', { ws: hid.id }], ['wsStat', { ws: hid.id }], ['wsPeek', { id: hid.id }], ['tabNew', { ws: hid.id, preset: 'claude' }]]
+  for (const [m, params] of said) assert.equal((await grok(m, params)).error, `no workspace ${m === 'screen' && !(params as any).target.includes('/') ? htab : hid.id}`, m)
+  assert.equal((await grok('wsStat', { ws: 'nope' })).error, 'no workspace nope', 'a missing one: the same words')
+  await rig.rpc('settingsSet', { recording: false })
+  assert.equal((await grok('wsPeek', { id: hid.id })).error, undefined, 'shown again')
+  // a rotate whose client is revoked while it waits for Allow: revoked it stays
+  const rotated = rig.rpc('clientRotate', { id: 'shipper' }).catch(e => e)
+  const ask: any = await seen(app, (e: any) => e.ev === 'clientAsk' && e.what === 'rotate' && e.label === 'Shipper', 'the rotate asked')
+  await rig.rpc('clientRm', { id: 'shipper' })
+  await app.call('clientAnswer', { req: ask.req, allow: true })
+  assert.match(String(await rotated), /Shipper was revoked while its new token waited for Allow/)
+  assert.deepEqual((await rig.rpc('clientList')).map((c: any) => c.id), ['grok-bot'])
+})
+

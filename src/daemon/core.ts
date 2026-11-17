@@ -4042,11 +4042,11 @@ function textFor(tab: Tab, text: string): string | Promise<string> {
 // what it reads must not run a shell command or answer a permission prompt)
 // steer: the user's own follow-up from the app (Send later, Reader, a reply, a review comment): with its profile's Send into
 // the running turn it goes in now; Laki's own sends (PR fixes, workflows, laki ask, schedules) keep turn boundaries: queued
-export function send(p: { target: string; text: string; whenIdle?: boolean; enter?: boolean; agent?: boolean; vars?: boolean; steer?: boolean }) {
+export function send(p: { target: string; text: string; whenIdle?: boolean; enter?: boolean; agent?: boolean; vars?: boolean; steer?: boolean; byClient?: string }) {
   const tab = resolveTarget(p.target)
   if (p.vars) p = { ...p, text: varsIn(tab, p.text) } // an action's: its {{branch}}… now, queued or not
   if (p.agent && !tracked(tab)) throw new Error(`${tab.name} isn't an agent: an agent's messages go to agents only (ask the user to run it there)`)
-  if (p.agent && !p.whenIdle && rtOf(tab.id).status === 'waiting') throw new Error(`${tab.name} is asking the user something: only they answer it (or send with when_idle)`)
+  if ((p.agent || p.byClient) && !p.whenIdle && rtOf(tab.id).status === 'waiting') throw new Error(`${tab.name} is asking the user something: only they answer it (or send with when_idle)`) // T1: a trusted client's too (main.ts' clientNo said so first)
   if (p.enter === false && asleep.has(tab.id)) throw new Error(`${tab.name} is asleep: look at it to wake it, then send again`)
   const woke = wake(tab.id) // running until it's up: what's sent waits for that (below)
   const s = sessions.get(tab.id)

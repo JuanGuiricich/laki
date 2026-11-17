@@ -659,7 +659,8 @@ such an app with a capability of its own: a token that names it and says what it
   checked in `call` before anyone is looked up, as `termAnswer`) answers it, then `clientDone`. No window: refused at once.
   A client's own token can't call them (no scope has them), nor a tab's token (whoCalls finds the tab), nor remote
   access. App.tsx shows it on the tool ask's card (no Allow on the notification). `clientRm` asks nothing (it only takes
-  away); `clientList` is yours (`AGENT_NO`). #TODO(PR 2): Settings › Trusted clients (list, add, rotate, revoke).
+  away); `clientList` is yours (`AGENT_NO`). A rotate whose client was revoked while it waited is refused at Allow;
+  `clientFind` refuses a name that is one client's id and another's name. #TODO(PR 2): Settings › Trusted clients (list, add, rotate, revoke).
 - **The CLI.** `src/shared/conn.ts` reads `LAKI_CLIENT_TOKEN_FILE` (wins) or `LAKI_CLIENT_TOKEN` once and deletes both
   from its env (and the daemon and the app's main from theirs), so nothing Laki starts inherits them. `asClient()`: none
   with `LAKI_TAB_TOKEN` (the tab wins; a note on stderr once) or in the app's main (`appMode`). A 401 with it throws the
@@ -676,7 +677,12 @@ such an app with a capability of its own: a token that names it and says what it
   shell, read or send into a terminal, send a `!` line or keys without Enter), `yolo` (an agent that never asks:
   `neverAsks` on the mode it names or its profile's, `sandbox: false`, and a send into a tab whose agent never asks,
   `core.tabNeverAsks`: its start's mode or a switch to Bypass since), `remove` (`wsArchive`, `wsRm`), `ship` (`ship`,
-  `shipDraft`, `prAct`; never `force` or `allowSecrets`). A refusal names the scope it takes.
+  `shipDraft`, `prAct`). A refusal names the scope it takes. No scope lifts these: `force` or `allowSecrets` on any
+  method, `codespace` on `wsNew`/`wsFan` (billed), control characters in a send (`CONTROLS`, what `noKeys` strips but
+  tabs and line ends: the `!` check then reads what is typed), and a send into a tab that asks (`core.asking`) unless
+  `whenIdle`, held again in `core.send` (`byClient`, as `agent`); `agentSend` drops a client's `steer` and `vars`.
+- **Recording mode.** `state` is `recorded()` for a client (`byClient`); `clientHidden` refuses a hidden workspace or
+  project by any id a call names (a send's or screen's target, `ws`, `id`, `project`) in a missing one's words.
 - **Identity.** `wsNew` keeps `ws.client` (its label then): Created by in the tab bar and Info, `laki ls`; its prompt
   and its sends aren't your prompt history (`yours`, `agentSend`). `clientLine`: daemon.log gets `client <label>:
   <method> (<agentWhat>)` for each call that changed something or was refused (reads aren't logged, as agentLog).

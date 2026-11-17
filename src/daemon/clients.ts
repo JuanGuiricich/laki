@@ -57,7 +57,10 @@ export function labelOf(v: unknown) {
 // by its id or its name, any case
 export function clientFind(ref: unknown) {
   const r = String(ref ?? '').trim().toLowerCase()
-  const c = all().find(x => x.id === r) ?? all().find(x => x.label.toLowerCase() === r)
+  const byId = all().find(x => x.id === r)
+  const byName = all().find(x => x.label.toLowerCase() === r)
+  if (byId && byName && byId !== byName) throw new Error(`${String(ref)} is ${byId.label}'s id (${byId.id}) and ${byName.label}'s name (${byName.id}): name one by the other: "${byId.label}" or ${byName.id}`)
+  const c = byId ?? byName
   if (!c) throw new Error(`no client ${String(ref ?? '')}: laki client ls`)
   return c
 }
