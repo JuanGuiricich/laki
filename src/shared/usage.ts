@@ -128,7 +128,7 @@ export const USAGE = `laki: coding agents in parallel git worktrees
   laki remote [stop|log]                      remote access's link and PIN now | stop it | what was done over it
   laki agent log <ws> [--json]                what its agents did through Laki, newest first (refused ones marked); not from an agent's tab
   laki client [ls]                            trusted clients: apps outside Laki (an MCP server, a script) with a token of their own
-  laki client add|rotate <name> [--scopes create,send]   a new one, or a new token (and scopes) for one: asked in Laki's window
+  laki client add|rotate <name> [--scopes create,send] [--projects a,b|all]   a new one, or a new token (scopes, projects) for one: asked in Laki's window
   laki client revoke <name>                   its token stops working at once, its file goes
   --json prints machine-readable output; an option the command doesn't have is refused (did you mean…?);
   after -- every word is text: laki send ws -- --not-an-option`
@@ -312,6 +312,7 @@ it starts says Created by <name>.
   laki client add "Grok Bot"
   laki client add ci-bot --scopes create,send,remove
   LAKI_CLIENT_TOKEN_FILE=~/.laki/clients/grok-bot.token laki new myrepo --prompt "fix the flaky test"
+  laki client add "Grok Bot" --projects candy       # in candy only
   laki client rotate grok-bot --scopes send
   laki client revoke grok-bot`,
   secret: `In an agent's tab: ask the user for a secret (an API key, a token, a password) without it going into the chat.

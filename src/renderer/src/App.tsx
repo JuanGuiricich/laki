@@ -2580,7 +2580,7 @@ export function App() {
       const title = m.what === 'rotate' ? `Give ${m.label} a new token?` : `Let ${m.label} drive Laki?`
       const picks: Pick[] = [{ label: m.what === 'rotate' ? 'New token' : 'Allow', allow: 'once' }, { label: 'Deny', allow: 'deny' }]
       notify(title, 'Open Laki to see what it may do', '', () => toolLine.front(m.req) && toolShow(), settings.notifySound, [])
-      toolLine.add({ req: m.req, title, text: `laki client ${m.what} asks for a token an app outside Laki uses to act as you, within:\n\n${(m.scopes ?? []).map((x: string) => `• ${x}`).join('\n') || '• reads only'}\n\nIt goes to ${m.file} (yours alone), until laki client revoke. Allow it only if you just ran laki client ${m.what} yourself.`, picks, answer: allow => void api.call('clientAnswer', { req: m.req, allow: allow === 'once' }).catch(() => {}) })
+      toolLine.add({ req: m.req, title, text: `laki client ${m.what} asks for a token an app outside Laki uses to act as you, within:\n\n${(m.scopes ?? []).map((x: string) => `• ${x}`).join('\n') || '• reads only'}\n\n${m.projects ? `In ${m.projects.join(', ')} only.` : 'In every project.'}\n\nIt goes to ${m.file} (yours alone), until laki client revoke. Allow it only if you just ran laki client ${m.what} yourself.`, picks, answer: allow => void api.call('clientAnswer', { req: m.req, allow: allow === 'once' }).catch(() => {}) })
       return toolShow()
     }
     if (typeof m.perm === 'string') {

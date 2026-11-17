@@ -14,7 +14,7 @@ import { agentChat, aiAnswer, aiAsk, aiHelp, aiOpenApp, aiShot, aiChatRm, aiChat
 import { planChat } from '../shared/plans.ts'
 import { readCapped, rotateLog } from '../shared/conn.ts'
 import { HostPty, ptyGone, ptyOn } from './ptyHost.ts'
-import { aiTotals, API, HIDDEN, isAgent, MASK, masked, maskSettings, neverAsks, recorded, type Settings, type Tab, type Workspace, unmasked } from '../shared/types.ts'
+import { aiTotals, API, HIDDEN, isAgent, MASK, masked, maskSettings, neverAsks, onlyProjects, recorded, type Settings, type Tab, type Workspace, unmasked } from '../shared/types.ts'
 import { manifestOf } from '../shared/pwa.ts'
 import { CAPS, oldName } from '../shared/caps.ts'
 import { VERSION } from '../shared/version.ts'
@@ -319,7 +319,7 @@ function artifactPage(path: string, origin: string | undefined, host: string | u
 type Handler = (p: any, c?: core.Conn) => unknown
 const api: Record<string, Handler> = {
   ping: p => (p.caps ? { pong: true, api: API, caps: CAPS, version: VERSION } : 'pong'), // plain: 'pong', as every CLI's alive() wants; version: A9's laki --version
-  state: (p, c) => (v => (c && own.get(c)?.() ? v : masked(v)))(core.agentCaller(p?.from) || p?.byClient ? recorded(core.view()) : core.view()), // T1: a trusted client's too // S7: an agent's, in Recording mode: no private workspace (whoCalls asks who only then); S3: its secrets only to your own window (own)
+  state: (p, c) => (v => (c && own.get(c)?.() ? v : masked(v)))((v => (p?.byClient && clientsMod.clientWho(p.byClient)?.projects ? onlyProjects(v, clientsMod.clientWho(p.byClient)!.projects!) : v))(core.agentCaller(p?.from) || p?.byClient ? recorded(core.view()) : core.view())), // T1: a trusted client's too, kept to its projects // S7: an agent's, in Recording mode: no private workspace (whoCalls asks who only then); S3: its secrets only to your own window (own)
   projectAdd: p => core.projectAdd(p.path, !core.agentCaller(p.from)), // an agent's: never out of the archive
   projectClone: p => core.projectClone(p.url, p.into), // U7: yours only (FROM, AGENT_NO)
   sampleNew: () => core.sampleNew(), // U4: Welcome's sample repo, made once
@@ -822,15 +822,18 @@ const termAsksTo = (c: core.Conn) => apps.has(c) && (termAsks.forEach(a => c.sen
 // shell tab's typing may be an agent's: #1), a client's token (not a scope: clientNo) or remote access (REMOTE_NO). No
 // window: refused at once. #TODO(PR 2): Settings › Trusted clients lists them, with add, rotate and revoke (the app's own ask)
 const clientAsks = new Map<string, { msg: { ev: 'clientAsk'; req: string }; answer: (allow: boolean) => void }>()
-async function clientAsk(what: 'add' | 'rotate', p: { from?: { tab?: unknown }; id?: unknown; label?: unknown; scopes?: unknown }) {
+async function clientAsk(what: 'add' | 'rotate', p: { from?: { tab?: unknown }; id?: unknown; label?: unknown; scopes?: unknown; projects?: unknown }) {
   if (p.from?.tab) throw new Error("a trusted client is added from your own terminal, not from a Laki tab (an agent may be typing there)")
   const was = what === 'rotate' ? clientsMod.clientFind(p.id) : undefined
   const label = was?.label ?? clientsMod.labelOf(p.label)
   const scopes = was && p.scopes === undefined ? was.scopes : clientsMod.scopesOf(p.scopes)
+  // only these projects (ids, names or paths; all: every one again), else the ones it had; shown on the card
+  const said = p.projects === undefined || p.projects === null || p.projects === '' ? undefined : (Array.isArray(p.projects) ? p.projects : String(p.projects).split(',')).map(x => String(x).trim()).filter(Boolean)
+  const projects = said ? (said.length === 1 && said[0] === 'all' ? undefined : [...new Set(said.map(x => core.findProject(x).id))]) : was?.projects
   if (!was && clientsMod.clientList().some(c => c.label.toLowerCase() === label.toLowerCase())) throw new Error(`${label} is a client already: laki client rotate gives it a new token`)
   const windows = [...core.clients].filter(c => apps.has(c))
   if (!windows.length) throw new Error(`Laki's window isn't open to allow ${label}: open Laki, then try again`)
-  const msg = { ev: 'clientAsk' as const, req: randomBytes(8).toString('hex'), what, label, scopes: scopes.map(s => `${s}: ${clientsMod.SCOPES[s]}`), file: clientsMod.tokenPath(was?.id ?? clientsMod.clientIdFor(label)) }
+  const msg = { ev: 'clientAsk' as const, req: randomBytes(8).toString('hex'), what, label, scopes: scopes.map(s => `${s}: ${clientsMod.SCOPES[s]}`), ...(projects && { projects: projects.map(id => core.state.projects.find(x => x.id === id)?.name ?? id) }), file: clientsMod.tokenPath(was?.id ?? clientsMod.clientIdFor(label)) }
   log(`trusted client ${label}: ${what} asked in the window (${scopes.join(', ') || 'reads only'})`)
   const allow = await new Promise<boolean>(ok => {
     const timer = setTimeout(() => ok(false), TERM_WAIT())
@@ -841,8 +844,8 @@ async function clientAsk(what: 'add' | 'rotate', p: { from?: { tab?: unknown }; 
   for (const c of core.clients) if (apps.has(c)) c.send({ ev: 'clientDone', req: msg.req })
   if (!allow) throw new Error(`${label} wasn't ${what === 'add' ? 'added' : 'given a new token'}: not allowed in Laki's window`)
   if (was && !clientsMod.clientList().some(c => c.id === was.id)) throw new Error(`${label} was revoked while its new token waited for Allow: laki client add makes it again`)
-  const made = clientsMod.clientMint(label, scopes, was?.id)
-  log(`trusted client ${label}: ${what === 'add' ? 'added' : 'rotated'} (${scopes.join(', ') || 'reads only'})`)
+  const made = clientsMod.clientMint(label, scopes, was?.id, projects)
+  log(`trusted client ${label}: ${what === 'add' ? 'added' : 'rotated'} (${scopes.join(', ') || 'reads only'}${projects ? `; projects ${projects.join(', ')}` : ''})`)
   return made
 }
 const clientAnswer = (p: { req?: unknown; allow?: unknown }) => void clientAsks.get(String(p?.req))?.answer(p?.allow === true)
@@ -894,6 +897,7 @@ function clientNo(method: string, p: ClientCall, c: clientsMod.Client) {
   const m = clientMethod(method, c.scopes)
   if (m) no(`call ${method}`, m.scope)
   clientHidden(method, p)
+  clientProject(method, p, c)
   if (p.force === true || (p.allowSecrets !== undefined && p.allowSecrets !== false)) no('override a gate or the secret check') // any method's, by the parameter: one that gains a force later too
   if (method === 'wsNew' || method === 'wsFan' || method === 'tabNew') {
     if (p.codespace !== undefined) no('start a cloud workspace (a codespace, billed to you)')
@@ -909,6 +913,19 @@ function clientNo(method: string, p: ClientCall, c: clientsMod.Client) {
     if (!has('cmd') && !core.tracked(t)) no(`${method === 'send' ? 'send to' : 'read'} ${t.name}, a terminal`, 'cmd')
     if (method === 'send' && !has('cmd')) (why => why && no(why, 'cmd'))(p.enter === false ? 'send keys without Enter' : bangNo(String(p.text ?? ''), t.name))
     if (method === 'send' && !has('yolo') && core.tabNeverAsks(t)) no(`send to ${t.name}: it runs in a mode that never asks`, 'yolo')
+  }
+}
+// T1: a client kept to some projects: a call into another (a new workspace's project, the workspace or tab it names)
+// is refused; its state lists only its own (onlyProjects)
+function clientProject(method: string, p: ClientCall, c: clientsMod.Client) {
+  if (!c.projects) return
+  const quiet = <T,>(f: () => T) => { try { return f() } catch { return undefined } }
+  const proj = method === 'wsNew' || method === 'wsFan' ? quiet(() => core.findProject(String(p.project ?? '')))?.id
+    : method === 'send' || method === 'screen' ? core.state.workspaces.find(w => w.id === quiet(() => core.resolveTarget(String(p.target ?? '')))?.workspace)?.project
+    : p.ws !== undefined || p.id !== undefined ? quiet(() => core.findWs(String(p.ws ?? p.id)))?.project : undefined
+  if (proj && !c.projects.includes(proj)) {
+    const name = (id: string) => core.state.projects.find(x => x.id === id)?.name ?? id
+    throw new Error(`${c.label} works in ${c.projects.map(name).join(', ')} only, not ${name(proj)}: laki client rotate ${c.id} --projects …`)
   }
 }
 // T1: Recording mode for a client: hiddenNo with no workspace of its own, for the one a call names (a send's or screen's

@@ -2863,6 +2863,7 @@ A trusted client is such an app with a token of its own: a name, the things it m
 ```bash
 laki client add "Grok Bot"                  # from your own terminal: Allow it in Laki's window
 laki client add ci-bot --scopes create,send,remove
+laki client add "Grok Bot" --projects candy    # in that project only (ids or names; --projects all: every one again)
 laki client ls                              # name, scopes and token file of each
 laki client rotate grok-bot --scopes send   # a new token (and scopes): asked again; the old one stops at once
 laki client revoke grok-bot                 # its token stops working at once, its file goes
@@ -2892,6 +2893,8 @@ What it may do:
 - **yolo**: an agent that never asks (bypass permissions, codex's approvals off, by `--perm` or its profile) or outside
   its sandbox, and a message to one running so: a prompt to such an agent is as strong as a command.
 - **remove**: `laki archive` and `laki rm`. **ship**: `laki ship` and a PR's merge, approve or close.
+- **--projects**: in those projects only (the Allow card says which): another project's workspaces, tabs and new
+  workspaces are refused, and its `laki ls` shows only its own.
 
 Never, whatever its scopes: settings, profiles, secrets, scheduled tasks, extensions, answering an ask, remote access, other
 clients, `--force` (a held ship, archive, rm or merge stays held), a cloud workspace; and anything that asks you in the

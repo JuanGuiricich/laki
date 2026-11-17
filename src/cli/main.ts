@@ -358,14 +358,14 @@ async function main() {
       const [sub = 'ls'] = rest
       const name = rest.slice(1).join(' ')
       if (sub === 'ls') {
-        const l = await rpc<{ id: string; label: string; scopes: string[]; file: string }[]>('clientList', { from: caller() })
-        return out(l, l.map(c => `${c.id}  ${c.label}  ${c.scopes.join(',') || 'reads only'}  ${c.file}`).join('\n') || 'no trusted clients yet: laki client add "<name>"')
+        const l = await rpc<{ id: string; label: string; scopes: string[]; projects?: string[]; file: string }[]>('clientList', { from: caller() })
+        return out(l, l.map(c => `${c.id}  ${c.label}  ${c.scopes.join(',') || 'reads only'}  ${c.projects ? `projects ${c.projects.join(',')}  ` : ''}${c.file}`).join('\n') || 'no trusted clients yet: laki client add "<name>"')
       }
       if (!name) throw new Error(`usage: laki client ${sub} <name>${sub === 'revoke' ? '' : ' [--scopes create,send]'}`)
       if (sub === 'revoke') return out(await rpc('clientRm', { id: name, from: caller() }), `revoked ${name}: its token no longer works`)
       process.stderr.write("Allow it in Laki's window…\n")
-      const c = await rpc(sub === 'add' ? 'clientAdd' : 'clientRotate', { ...(sub === 'add' ? { label: name } : { id: name }), scopes: flags.scopes, from: caller() }, 90000)
-      return out(c, `${c.label} (${c.id}): ${c.scopes.join(', ') || 'reads only'}\nits token: ${c.file} (0600: give the app this path, never the token)\n  LAKI_CLIENT_TOKEN_FILE=${c.file} laki ls`)
+      const c = await rpc(sub === 'add' ? 'clientAdd' : 'clientRotate', { ...(sub === 'add' ? { label: name } : { id: name }), scopes: flags.scopes, projects: flags.projects, from: caller() }, 90000)
+      return out(c, `${c.label} (${c.id}): ${c.scopes.join(', ') || 'reads only'}${c.projects ? `, in ${c.projects.join(', ')} only` : ''}\nits token: ${c.file} (0600: give the app this path, never the token)\n  LAKI_CLIENT_TOKEN_FILE=${c.file} laki ls`)
     }
     case 'limits': {
       const list: AgentUsage[] = await rpc('limits', { agent: typeof flags.agent === 'string' ? flags.agent : undefined, from: caller() }, 30000)

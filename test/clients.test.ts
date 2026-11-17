@@ -2,8 +2,8 @@
 // of its own: made only after Allow in Laki's window, its scopes enforced, a revoked one refused loudly, a token used from
 // inside a tab that tab's call, laki mcp's tools cut to its scopes
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { execFileSync, spawn } from 'node:child_process'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -224,7 +224,7 @@ test('T1: a client never answers an ask, sends no control keys, forces nothing; 
 })
 
 // each scope: the same call allowed with it, refused without it naming it (review of #12: a test per scope)
-test('T1: each scope lifts its own refusal: create, send, cmd, yolo, remove, ship', async t => {
+test('T1: each scope lifts its own refusal: create, send, cmd, yolo, remove, ship; --projects keeps it to its own', async t => {
   const rig = await fresh(t, { env: { LAKI_TERM_WAIT: '5000' } })
   const p = await rig.rpc('projectAdd', { path: rig.repo })
   const app = await connect(rig)
@@ -256,5 +256,23 @@ test('T1: each scope lifts its own refusal: create, send, cmd, yolo, remove, shi
     const r = await withIt(method, await params())
     assert.doesNotMatch(String(r.error ?? ''), /scope|no trusted client can/, `${method} with ${scope}: ${r.error}`)
   }
+  // kept to some projects (shown on the Allow card): another project's workspace, tab or new workspace refused; its state only its own
+  const other = join(rig.home, 'other')
+  mkdirSync(other)
+  for (const a of [['init', '-q', '-b', 'main'], ['commit', '-q', '--allow-empty', '-m', 'init']]) execFileSync('git', a, { cwd: other, env: rig.env })
+  const o = await rig.rpc('projectAdd', { path: other })
+  const made = rig.rpc('clientAdd', { label: 'Kept', projects: o.name })
+  const ask: any = await seen(app, (e: any) => e.ev === 'clientAsk' && e.label === 'Kept', 'Kept asked')
+  assert.deepEqual(ask.projects, [o.name])
+  await app.call('clientAnswer', { req: ask.req, allow: true })
+  const kept = (await made) as { projects: string[]; file: string }
+  assert.deepEqual(kept.projects, [o.id])
+  const token = readFileSync(kept.file, 'utf8').trim()
+  const as = async (method: string, params: object) => (await fetch(`http://127.0.0.1:${rig.info().port}/rpc`, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ method, params }) })).json()
+  const not = new RegExp(`Kept works in ${o.name} only, not ${p.name}`)
+  for (const [m, params] of [['wsNew', { project: p.id, prompt: 'x' }], ['send', { target: `${ws.id}/${tab}`, text: 'hi' }], ['screen', { target: ws.id }], ['diff', { ws: ws.id }]] as [string, object][]) assert.match((await as(m, params)).error, not, m)
+  const v = (await as('state', {})).result
+  assert.deepEqual([v.projects.map((x: any) => x.id), v.workspaces.some((w: any) => w.project === p.id)], [[o.id], false])
+  assert.equal((await as('wsNew', { project: o.id, name: 'theirs', preset: 'claude', prompt: 'hi' })).error, undefined)
 })
 

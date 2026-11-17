@@ -24,7 +24,7 @@ export const SCOPES = {
 } as const
 export type Scope = keyof typeof SCOPES
 export const SCOPES_ON: Scope[] = ['create', 'send']
-export type Client = { id: string; label: string; scopes: Scope[]; hash: string; at: number }
+export type Client = { id: string; label: string; scopes: Scope[]; hash: string; at: number; projects?: string[] } // projects: only these (their ids); none: every one
 export const TOKEN_PREFIX = 'lakic_'
 
 const listFile = () => join(dir, 'clients.json')
@@ -67,7 +67,7 @@ export function clientFind(ref: unknown) {
 export const clientName = (id: unknown) => all().find(c => c.id === id)?.label ?? String(id)
 export const clientList = () => all().map(shown)
 // the calling client's own (laki mcp lists the tools its scopes allow): never its hash
-export const clientWho = (id: unknown) => (c => c && { id: c.id, label: c.label, scopes: c.scopes })(all().find(x => x.id === id))
+export const clientWho = (id: unknown) => (c => c && { id: c.id, label: c.label, scopes: c.scopes, ...(c.projects && { projects: c.projects }) })(all().find(x => x.id === id))
 // the id a new client of that name gets: its name in lowercase words, made unique (grok-bot, grok-bot-2)
 export function clientIdFor(label: string) {
   const base = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'client'
@@ -77,14 +77,14 @@ export function clientIdFor(label: string) {
 }
 // a new token, written once to its file (only its hash is kept): a new client's, or an existing one's (id: rotated, its
 // old token dead at once)
-export function clientMint(label: string, scopes: Scope[], id?: string) {
+export function clientMint(label: string, scopes: Scope[], id?: string, projects?: string[]) {
   if (!id && all().some(c => c.label.toLowerCase() === label.toLowerCase())) throw new Error(`${label} is a client already: laki client rotate gives it a new token`)
   const cid = id ?? clientIdFor(label)
   const token = TOKEN_PREFIX + randomBytes(32).toString('hex')
   mkdirSync(join(dir, 'clients'), { recursive: true, mode: 0o700 })
   chmodSync(join(dir, 'clients'), 0o700)
   writeAtomic(tokenPath(cid), `${token}\n`, 0o600)
-  const c: Client = { id: cid, label, scopes, hash: sha(token).toString('hex'), at: Date.now() }
+  const c: Client = { id: cid, label, scopes, hash: sha(token).toString('hex'), at: Date.now(), ...(projects?.length && { projects }) }
   list = [...all().filter(x => x.id !== cid), c]
   save()
   return shown(c)

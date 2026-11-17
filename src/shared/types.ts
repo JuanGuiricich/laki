@@ -1252,7 +1252,15 @@ export function recorded(v: View): View {
   const off = new Set(v.projects.filter(p => p.private).map(p => p.id))
   const gone = new Set(v.workspaces.filter(w => w.private || off.has(w.project)).map(w => w.id))
   if (!gone.size && !off.size) return v
-  return { ...v, projects: v.projects.filter(p => !off.has(p.id)), workspaces: v.workspaces.filter(w => !gone.has(w.id)), tabs: v.tabs.filter(t => !gone.has(t.workspace)), layouts: v.layouts && Object.fromEntries(Object.entries(v.layouts).filter(([k]) => !gone.has(k))), today: v.today && { ...v.today, ws: v.today.ws.filter(x => !gone.has(x.ws)) }, digest: v.digest && { ...v.digest, rows: v.digest.rows.filter(r => !gone.has(r.ws)) } }
+  return viewWithout(v, off, gone)
+}
+// a view without some projects and workspaces: their tabs, layouts, today's and the digest's rows too
+const viewWithout = (v: View, off: Set<string>, gone: Set<string>): View => ({ ...v, projects: v.projects.filter(p => !off.has(p.id)), workspaces: v.workspaces.filter(w => !gone.has(w.id)), tabs: v.tabs.filter(t => !gone.has(t.workspace)), layouts: v.layouts && Object.fromEntries(Object.entries(v.layouts).filter(([k]) => !gone.has(k))), today: v.today && { ...v.today, ws: v.today.ws.filter(x => !gone.has(x.ws)) }, digest: v.digest && { ...v.digest, rows: v.digest.rows.filter(r => !gone.has(r.ws)) } })
+// T1: a trusted client kept to some projects (clients.ts): only those, and their scheduled tasks, runs and archived ones
+export function onlyProjects(v: View, ids: readonly string[]): View {
+  const off = new Set(v.projects.filter(p => !ids.includes(p.id)).map(p => p.id))
+  const w = viewWithout(v, off, new Set(v.workspaces.filter(x => off.has(x.project)).map(x => x.id)))
+  return { ...w, schedules: v.schedules?.filter(s => ids.includes(s.project)), runs: v.runs?.filter(r => !r.project || ids.includes(r.project)), archivedProjects: v.archivedProjects?.filter(p => ids.includes(p.id)) }
 }
 // S3: the view for anyone but your own window: the CLI and MCP (an agent's too: telling them apart costs a process
 // lookup per call), Laki AI, an agent's connection, remote access's page. No secrets in it: remote access's link (its
