@@ -820,7 +820,7 @@ const termAsksTo = (c: core.Conn) => apps.has(c) && (termAsks.forEach(a => c.sen
 // the app's windows alone, answered by clientAnswer with the app's token (call() checks it, as termAnswer's), else no in
 // TERM_WAIT. Asked from your own terminal (S1's: allowed) or the app; never from a tab (an agent's is AGENT_NO, and a
 // shell tab's typing may be an agent's: #1), a client's token (not a scope: clientNo) or remote access (REMOTE_NO). No
-// window: refused at once. #TODO: Settings › Trusted clients lists them, with add, rotate and revoke (the app's own ask), after laki mcp's PR
+// window: refused at once. #TODO: Settings › Trusted clients lists them, with add, rotate and revoke (the app's own ask)
 const clientAsks = new Map<string, { msg: { ev: 'clientAsk'; req: string }; answer: (allow: boolean) => void }>()
 async function clientAsk(what: 'add' | 'rotate', p: { from?: { tab?: unknown }; id?: unknown; label?: unknown; scopes?: unknown; projects?: unknown }) {
   if (p.from?.tab) throw new Error("a trusted client is added from your own terminal, not from a Laki tab (an agent may be typing there)")

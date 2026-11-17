@@ -3,6 +3,10 @@
 version it builds, with the date. A version's first three lines are its What's new card after an update (U13): put
 the biggest first, and end a line with `[Try it](laki://…)` to give it a Try button there. -->
 
+## Next
+
+- Trusted clients: an app outside Laki (a desktop app's MCP server, a script) drives it with a token of its own. `laki client add "Grok Bot"` asks you in the window, then `LAKI_CLIENT_TOKEN_FILE` lets it start workspaces and agents and message them, within its scopes, never answering an agent's question for you; what it starts says *Created by Grok Bot*; `laki client revoke` stops it at once.
+
 ## 0.54.0 · Nov 15, 2026
 
 - Charts in extensions show a point's exact number on hover, can draw round-numbered ticks, axis labels and dashed threshold lines, place a line's points by their time, and run an action on a click on a point.
