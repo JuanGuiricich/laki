@@ -2854,6 +2854,60 @@ grok mcp add -s user laki -- laki mcp
 OpenCode's `mcp add` only asks questions: put `"mcp": { "laki": { "type": "local", "command": ["laki", "mcp"] } }` in
 `~/.config/opencode/opencode.json`.
 
+### Trusted clients
+
+An app outside Laki (a desktop app's MCP server, a script, a launchd job) runs `laki` in no tab and with no terminal of
+its own, so Laki can't tell it from an agent that left its tab, and refuses what's yours (*couldn't tell who's calling*).
+A trusted client is such an app with a token of its own: a name, the things it may do, and a token you can revoke.
+
+```bash
+laki client add "Grok Bot"                  # from your own terminal: Allow it in Laki's window
+laki client add ci-bot --scopes create,send,remove
+laki client ls                              # name, scopes and token file of each
+laki client rotate grok-bot --scopes send   # a new token (and scopes): asked again; the old one stops at once
+laki client revoke grok-bot                 # its token stops working at once, its file goes
+```
+
+`add` and `rotate` wait for *Allow* in Laki's window, which shows the name and what it may do. Run them from your own
+terminal: an agent, any Laki tab, remote access and another client can't make or change one. The token goes once to
+`~/.laki/clients/<id>.token` (0600); Laki keeps only its hash. Give the app the file's path, never the token:
+
+```bash
+LAKI_CLIENT_TOKEN_FILE=~/.laki/clients/grok-bot.token laki new myrepo --group Implementation --prompt "fix the flaky test"
+```
+
+`LAKI_CLIENT_TOKEN` (the token itself) works too; the file wins when both are set. In a Laki tab the tab's own token wins
+(a client token there says nothing more: the CLI notes it once), and the daemon does the same for a client's token used by
+a process in a tab: that tab's call, so an agent that reads the file is still an agent. A revoked or unknown token fails
+with *this client's token was revoked or isn't known*, never as anyone else. Laki takes both variables out of its own
+environment, so the agents and shells it starts never get them.
+
+What it may do:
+
+- **Always**: read: `laki ls`, `laki agents`, `laki wait`, `laki screen` of an agent, a workspace's diff.
+- **create** (on unless `--scopes` says): `laki new` and `laki tab` with an agent.
+- **send** (on): `laki send` and `laki ask` to an agent, never a `!` line.
+- **cmd**: a command or a terminal (`--cmd`, a command profile, a shell tab, a send into one), Run ▾.
+- **yolo**: an agent that never asks (bypass permissions, codex's approvals off, by `--perm` or its profile) or outside
+  its sandbox, and a message to one running so: a prompt to such an agent is as strong as a command.
+- **remove**: `laki archive` and `laki rm`. **ship**: `laki ship` and a PR's merge, approve or close.
+
+Never, whatever its scopes: settings, profiles, secrets, scheduled tasks, extensions, answering an ask, remote access, other
+clients, and anything that asks you in the app first (a held ship, a secret found) still asks. What it starts says
+*Created by Grok Bot* (the tab bar, Info, `laki ls`), and each call it makes that changes something or is refused is a line
+in daemon.log (`client Grok Bot: wsNew (project myrepo, preset claude, name test)`), with names and ids, never a prompt.
+
+`laki mcp` takes the same variables and lists only the tools its scopes allow (`laki_state`, `laki_screen`, `laki_wait`,
+`laki_diff`; `laki_new_workspace` and `laki_new_tab` with create; `laki_send` and `laki_ask_agent` with send), the rest
+refused by name. An MCP client's config:
+
+```json
+{ "mcpServers": { "laki": { "command": "laki", "args": ["mcp"], "env": { "LAKI_CLIENT_TOKEN_FILE": "/Users/you/.laki/clients/grok-bot.token" } } } }
+```
+
+The file's 0600 keeps out other users of this Mac, not other programs running as you: like daemon.json, any of them can
+read it. The token gives an app a name and limits in Laki, not a sandbox. Revoke one you no longer use.
+
 ### Links
 
 `laki://` links open the app at a place; they select and fill in, and never start anything:

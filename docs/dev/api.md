@@ -643,6 +643,53 @@ you (`if (!tab) return p`). Now only two kinds of caller in no tab are you.
   `settingsSet`, `answer`, `prAct` merge, `wsSet` and `appPair`; the CLI under `script` (a terminal) and the app's
   WebSocket aren't. The rig's `rpc` and `connect` use the app's token, `rig.cli` passes it as `LAKI_APP_TOKEN`.
 
+### Trusted clients (T1)
+
+S1 refuses a caller in no tab with no terminal (`core.WHO`): an app's MCP server, a launchd job. A trusted client is
+such an app with a capability of its own: a token that names it and says what it may do, where the peer check can't.
+
+- **The store.** `src/daemon/clients.ts` (no core import): `clients.json` (0600) holds each client's `id`, `label`,
+  `scopes` and the SHA-256 of its token; the token (`lakic_` and 32 random bytes in hex) is written once to
+  `clients/<id>.token` (0600, the folder 0700). `clientOf` hashes the bearer and compares in constant time
+  (`timingSafeEqual`); `clientMint` makes or rotates (same id, the old hash replaced), `clientRm` revokes (entry and
+  file gone). Every call reads the list in memory: a revoke holds at once.
+- **Who mints.** `clientAdd` and `clientRotate` (`FROM`, `AGENT_NO`, `REMOTE_NO`, `ANSWER_NO`) refuse a `from` with a
+  tab (whoCalls': any tab, a shell's too: an agent may type there), then `clientAsk`: the event `clientAsk { req, what,
+  label, scopes, file }` to the app's windows only (as `termAsk`), held `TERM_WAIT`; `clientAnswer` (the app's token only,
+  checked in `call` before anyone is looked up, as `termAnswer`) answers it, then `clientDone`. No window: refused at once.
+  A client's own token can't call them (no scope has them), nor a tab's token (whoCalls finds the tab), nor remote
+  access. App.tsx shows it on the tool ask's card (no Allow on the notification). `clientRm` asks nothing (it only takes
+  away); `clientList` is yours (`AGENT_NO`). #TODO(PR 2): Settings › Trusted clients (list, add, rotate, revoke).
+- **The CLI.** `src/shared/conn.ts` reads `LAKI_CLIENT_TOKEN_FILE` (wins) or `LAKI_CLIENT_TOKEN` once and deletes both
+  from its env (and the daemon and the app's main from theirs), so nothing Laki starts inherits them. `asClient()`: none
+  with `LAKI_TAB_TOKEN` (the tab wins; a note on stderr once) or in the app's main (`appMode`). A 401 with it throws the
+  daemon's `CLIENT_GONE`, never retried with daemon.json's token; `alive()` takes `CLIENT_GONE` as running, so
+  `ensureDaemon` starts no second daemon for a revoked client; an unreadable file throws before any call.
+- **The daemon.** `/rpc` only (never the WebSocket, never remote access's Origin): `clientOf(bearer)`; a `lakic_` token
+  it doesn't know is a 401 with `CLIENT_GONE`. `call(…, client)` drops any `byClient` an RPC says, then
+  `clientCalls`: for `FROM`/`CALLER` methods `core.peerTab` (peerInfo's tab; throws only when the process can't be
+  found: `WHO`); a process in a tab is that tab's call (`whoCalls` as any other: S12's rule, a token read out of a file
+  names its reader); else the client: `from` and `caller` dropped, `byClient` its id, and `clientNo`.
+- **Scopes** (`clientNo`, gates.ts' `CLIENT_READ` and `CLIENT_SCOPE`: an allowlist, a new method is never a client's):
+  reads always (`ping`, `state`, `clientWho`, `screen`, `diff`, `wsStat`, `wsPeek`); `create` (`wsNew`, `wsFan`,
+  `tabNew`) and `send` (`send`) unless said; `cmd` (`run`; and lets the others start a command, a command profile, a
+  shell, read or send into a terminal, send a `!` line or keys without Enter), `yolo` (an agent that never asks:
+  `neverAsks` on the mode it names or its profile's, `sandbox: false`, and a send into a tab whose agent never asks,
+  `core.tabNeverAsks`: its start's mode or a switch to Bypass since), `remove` (`wsArchive`, `wsRm`), `ship` (`ship`,
+  `shipDraft`, `prAct`; never `force` or `allowSecrets`). A refusal names the scope it takes.
+- **Identity.** `wsNew` keeps `ws.client` (its label then): Created by in the tab bar and Info, `laki ls`; its prompt
+  and its sends aren't your prompt history (`yours`, `agentSend`). `clientLine`: daemon.log gets `client <label>:
+  <method> (<agentWhat>)` for each call that changed something or was refused (reads aren't logged, as agentLog).
+- **laki mcp.** For a client (`asClient`), `tools/list` and `tools/call` keep to `CLIENT_TOOLS` (`laki_state`,
+  `laki_screen`, `laki_wait`, `laki_diff`; `laki_new_workspace`, `laki_new_tab` with create; `laki_send`,
+  `laki_ask_agent` with send), its scopes asked once (`clientWho`), no `laki_more`, no extension tools.
+- **Tests.** `test/clients.test.ts`: the store (hash only, modes, rotate and revoke); a detached process (setsid, no
+  tab env) refused with no token, then `laki new` with a group, template and preset, Created by, the log line,
+  refusals by scope, laki mcp's list and calls, a token in an agent's tab and the CLI in a shell tab (the tab wins),
+  rotate, revoke (no second daemon), an unreadable file, no window.
+- **Not built.** A Settings page (PR 2); a per-client rate limit; a client's own asks (a client is you within its scopes,
+  so an agent's cross-workspace asks don't apply to it).
+
 ### Every method is classified (S5)
 
 **A new method must be classified.** main.ts' `FROM` (the caller's tab goes in `from`: `agentNo` and the asks read it),

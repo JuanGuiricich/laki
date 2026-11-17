@@ -260,6 +260,7 @@ export type Workspace = {
   related?: string[] // GitHub PRs and issues it's about, not its primary: its prompt's (a session an agent started), a primary its own PR replaced, one you moved off
   from?: string // the workspace whose agent started it (laki new ., /laki:new, MCP): its prompt's PRs are only related
   fromTab?: string // …and that agent's tab (the one that ran laki new): Created by on the worker, its asks in that tab
+  client?: string // T1: the trusted client (an app outside Laki: laki client) that started it, by its name then: Created by
   autoArchived?: number // the merged PR it was archived for (settings.archiveMerged): once, so an Undo stays
   touchedAt?: number // settings.archiveIdle's: the last look it saw, or when it was restored (ms)
   fork?: boolean // a fork's PR (or a fork of one): its .laki.json isn't read, the repo's is
@@ -1302,7 +1303,7 @@ export type PlanPin = { project: string; kind: PlanKind; slug: string; title: st
 export const RAIL_PINS = 5 // the rail's quick access: workspaces, terminals or browsers pinned there
 // a file's blame (the daemon's blame): its commits, and each line's (lines[n - 1]: line n's index into commits; -1: none)
 export type Blame = { commits: { sha: string; author: string; at: number; summary: string }[]; lines: number[] }
-export const API = 191
+export const API = 192
 export const REPO = 'https://github.com/igorkasyanchuk/laki' // About's and Help's links, the widget schema's raw URL
 
 // the agent browser's open, click or fill (main's browse): what it caused. nav: the page it moved to; errors: the

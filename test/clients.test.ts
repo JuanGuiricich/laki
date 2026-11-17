@@ -1,0 +1,164 @@
+// T1: trusted clients: an app outside Laki (no tab, no terminal: what S1 refuses) drives it with a named, revocable token
+// of its own: made only after Allow in Laki's window, its scopes enforced, a revoked one refused loudly, a token used from
+// inside a tab that tab's call, laki mcp's tools cut to its scopes
+import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
+import { connect, fresh, seen, until } from './helpers.ts'
+
+const cli = fileURLToPath(new URL('../src/cli/main.ts', import.meta.url))
+const node = [process.execPath, '--experimental-strip-types', '--no-warnings']
+
+test('T1: the store keeps only a hash; rotate and revoke kill the old token at once; scopes are checked', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'laki-clients-'))
+  process.env.LAKI_HOME = home
+  const c = await import('../src/daemon/clients.ts')
+  const made = c.clientMint('Grok Bot', c.scopesOf(undefined))
+  assert.equal(made.id, 'grok-bot')
+  assert.deepEqual(made.scopes, ['create', 'send'])
+  const token = readFileSync(made.file, 'utf8').trim()
+  assert.match(token, /^lakic_[0-9a-f]{64}$/)
+  assert.equal(statSync(made.file).mode & 0o777, 0o600)
+  assert.equal(statSync(join(home, 'clients')).mode & 0o777, 0o700)
+  assert.equal(statSync(join(home, 'clients.json')).mode & 0o777, 0o600)
+  assert.ok(!readFileSync(join(home, 'clients.json'), 'utf8').includes(token.slice(6)), 'only its hash on disk')
+  assert.equal(c.clientOf(token)?.label, 'Grok Bot')
+  assert.equal(c.clientOf(token.slice(0, -1) + (token.endsWith('0') ? '1' : '0')) ?? c.clientOf('lakic_x') ?? c.clientOf(token.slice(6)), undefined)
+  assert.throws(() => c.clientMint('grok bot', ['send']), /is a client already/)
+  const again = c.clientMint('Grok Bot', ['send'], made.id)
+  assert.equal(c.clientOf(token), undefined, 'the rotated-away token: gone')
+  assert.deepEqual(c.clientOf(readFileSync(again.file, 'utf8').trim())?.scopes, ['send'])
+  assert.throws(() => c.scopesOf('create,root'), /no scope root/)
+  assert.deepEqual(c.scopesOf(['Send', 'send', 'yolo']), ['send', 'yolo'])
+  const left = readFileSync(again.file, 'utf8').trim()
+  c.clientRm('GROK BOT')
+  assert.equal(c.clientOf(left), undefined, 'revoked')
+  assert.ok(!existsSync(again.file))
+  assert.throws(() => c.clientRm('grok-bot'), /no client grok-bot/)
+  rmSync(home, { recursive: true, force: true })
+})
+
+test("T1: a client from no tab and no terminal: added after Allow in the window, within its scopes, Created by its name; revoked: refused loudly; laki mcp's tools cut to its scopes", async t => {
+  const rig = await fresh(t, { env: { LAKI_TERM_WAIT: '5000' } }) // the window's ask: no answer in 5 s is a no
+  const p = await rig.rpc('projectAdd', { path: rig.repo })
+  await rig.rpc('settingsSet', { templates: [{ name: 'Implement', text: 'Implement: {{prompt}}' }] })
+  await rig.rpc('projectSet', { id: p.id, seps: [{ id: 'sep-im', name: 'Implementation' }], rows: ['sep-im'] })
+  await rig.rpc('presetSave', { name: 'yolo', add: true, set: { agent: 'claude', perm: 'bypassPermissions' } })
+  // a process as Grok Bot's shell is: setsid (no terminal), its parent in no tab, no tab's env
+  const env: Record<string, string> = { ...rig.env }
+  for (const k of ['LAKI_TAB', 'LAKI_WORKSPACE', 'LAKI_TAB_TOKEN', 'LAKI_TAB_TOKEN_FILE', 'LAKI_APP_TOKEN']) delete env[k]
+  const loose = (extra: Record<string, string>, args: string[], stdin?: string) =>
+    new Promise<{ code: number; out: string; err: string }>(ok => {
+      const c = spawn(node[0], [...node.slice(1), cli, ...args], { env: { ...env, ...extra }, detached: true, stdio: [stdin === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'] })
+      if (stdin !== undefined) c.stdin!.end(stdin)
+      let out = ''
+      let err = ''
+      c.stdout!.on('data', d => (out += d))
+      c.stderr!.on('data', d => (err += d))
+      c.on('exit', code => ok({ code: code ?? 1, out, err }))
+    })
+  const make = ['new', p.id, '--name', 'test', '--group', 'Implementation', '--template', 'Implement', '--preset', 'claude', '--prompt', 'hello']
+  // no token: as before, refused
+  assert.match((await loose({}, make)).err, /couldn't tell who's calling/)
+
+  // made only once you allow it in the window; Deny and no window refuse
+  const app = await connect(rig)
+  const added = rig.rpc('clientAdd', { label: 'Grok Bot' })
+  const ask: any = await seen(app, (e: any) => e.ev === 'clientAsk', 'the window asked')
+  assert.deepEqual([ask.what, ask.label, ask.scopes.length, ask.file], ['add', 'Grok Bot', 2, join(rig.data, 'clients', 'grok-bot.token')])
+  await app.call('clientAnswer', { req: ask.req, allow: true })
+  const c = await added
+  assert.equal(statSync(c.file).mode & 0o777, 0o600)
+  const denied = rig.rpc('clientAdd', { label: 'Other' }).catch(e => e)
+  await app.call('clientAnswer', { req: (await seen(app, (e: any) => e.ev === 'clientAsk' && e.label === 'Other', 'asked again')).req, allow: false })
+  assert.match(String(await denied), /Other wasn't added: not allowed in Laki's window/)
+  await assert.rejects(rig.rpc('clientAdd', { label: 'Tabbed', from: { ws: 'w', tab: 't' } }), /from your own terminal, not from a Laki tab/)
+  const file = { LAKI_CLIENT_TOKEN_FILE: c.file }
+  // a client can't add one, nor answer the window's ask
+  const token = readFileSync(c.file, 'utf8').trim()
+  const post = async (method: string, params: object, bearer = token) => (await fetch(`http://127.0.0.1:${rig.info().port}/rpc`, { method: 'POST', headers: { authorization: `Bearer ${bearer}` }, body: JSON.stringify({ method, params }) })).json()
+  assert.match((await post('clientAdd', { label: 'Mine' })).error, /Grok Bot can't call clientAdd: no trusted client can/)
+  assert.match((await post('clientAnswer', { req: 'x', allow: true })).error, /only Laki's window allows a trusted client/)
+
+  // with its token: the workspace, under its group, through the template, its agent started; Created by Grok Bot
+  let r = await loose(file, make)
+  assert.equal(r.code, 0, r.err)
+  const ws = (await rig.rpc('state')).workspaces.find((w: any) => w.id === r.out.split(/\s/)[0])
+  assert.equal(ws.client, 'Grok Bot')
+  assert.deepEqual((await rig.rpc('state')).projects[0].rows, ['sep-im', ws.id])
+  await until(() => rig.fakeLog().some((l: any) => l.bin === 'claude' && l.args.includes('Implement: hello')), 'its agent, through the template')
+  assert.match((await loose(file, ['ls'])).out, /created by Grok Bot/)
+  assert.match(rig.out, /client Grok Bot: wsNew \(project \S+, preset claude, name test\)/)
+  const tab = (await until(() => rig.tab(ws.id))).id
+  await until(async () => (await rig.rpc('screen', { target: `${ws.id}/${tab}` })).includes('> '), 'its prompt')
+  r = await loose(file, ['send', ws.id, 'how is it going'])
+  assert.equal(r.code, 0, r.err)
+  assert.equal((await loose(file, ['wait', ws.id, '--timeout', '20s'])).code, 0)
+  // outside its scopes: refused, saying which scope it takes
+  const shell = (await rig.rpc('tabNew', { ws: ws.id, kind: 'shell' })).id
+  const no: [string[], RegExp][] = [
+    [['rm', ws.id], /can't call wsRm: that takes the remove scope \(it has create, send\)/],
+    [['tab', ws.id, '--cmd', 'touch pwned'], /can't start a command: that takes the cmd scope/],
+    [['new', p.id, '--name', 'y', '--perm', 'bypassPermissions', '--prompt', 'x'], /can't start claude in a mode that never asks or outside its sandbox: that takes the yolo scope/],
+    [['new', p.id, '--name', 'y2', '--preset', 'yolo', '--prompt', 'x'], /that takes the yolo scope/],
+    [['send', `${ws.id}/${shell}`, 'ls'], /can't send to .*, a terminal: that takes the cmd scope/],
+    [['send', ws.id, '!rm -rf .'], /can't send a ! line/],
+    [['preset', 'add', 'x', '--agent', 'claude'], /no trusted client can/],
+  ]
+  for (const [args, why] of no) assert.match((await loose(file, args)).err, why, args.join(' '))
+  assert.ok(!existsSync(join(ws.path, 'pwned')))
+  assert.ok(!(await rig.rpc('state')).workspaces.some((w: any) => w.id === 'y' || w.id === 'y2'))
+  assert.match(rig.out, /client Grok Bot: wsRm \(id \S+\) refused: Grok Bot can't call wsRm/)
+
+  // laki mcp with its token: only its tools, new_workspace and send work, the others refused
+  const msgs = [
+    { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} },
+    { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+    { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'laki_new_workspace', arguments: { project: p.id, name: 'from-mcp', prompt: 'hi there', group: 'Implementation' } } },
+    { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'laki_send', arguments: { target: ws.id, text: 'and now?' } } },
+    { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'laki_archive', arguments: { ws: ws.id } } },
+    { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'laki_state', arguments: {} } },
+  ]
+  r = await loose(file, ['mcp'], msgs.map(m => JSON.stringify(m)).join('\n') + '\n')
+  const res = Object.fromEntries(r.out.trim().split('\n').map(l => JSON.parse(l)).filter(m => m.id).map(m => [m.id, m]))
+  assert.deepEqual(res[2].result.tools.map((x: any) => x.name).sort(), ['laki_ask_agent', 'laki_diff', 'laki_new_tab', 'laki_new_workspace', 'laki_screen', 'laki_send', 'laki_state', 'laki_wait'])
+  assert.equal(res[3].result.isError, undefined, res[3].result.content[0].text)
+  assert.equal(res[4].result.isError, undefined, res[4].result.content[0].text)
+  assert.match(res[5].result.content[0].text, /laki_archive isn't one of this client's tools/)
+  assert.equal(res[6].result.isError, undefined)
+  assert.equal((await rig.rpc('state')).workspaces.find((w: any) => w.id === 'from-mcp')?.client, 'Grok Bot')
+
+  // its token read by an agent in its tab: that agent's call (S12's rule), not the client's
+  const out = join(rig.home, 'agent-out')
+  await rig.rpc('send', { target: `${ws.id}/${tab}`, text: `run curl -s -H 'Authorization: Bearer ${token}' --data '{"method":"settingsSet","params":{"nextPrompt":true}}' http://127.0.0.1:${rig.info().port}/rpc > ${out}` })
+  await until(() => existsSync(out) && readFileSync(out, 'utf8').includes('error'), 'the agent ran it', 60000)
+  assert.match(readFileSync(out, 'utf8'), /an agent can't change that setting/)
+  // the CLI in a tab with a client token too: the tab's own token wins
+  writeFileSync(join(rig.home, 'cmd.sh'), `LAKI_CLIENT_TOKEN_FILE=${c.file} ${node.join(' ')} ${cli} ls > ${out}2 2>&1\n`)
+  await rig.rpc('send', { target: `${ws.id}/${shell}`, text: `sh ${join(rig.home, 'cmd.sh')}` })
+  await until(() => existsSync(`${out}2`) && readFileSync(`${out}2`, 'utf8').includes('its own token is used'), 'the tab ran it', 30000)
+
+  // rotated: the old token refused at once; revoked: refused loudly, never daemon.json's instead, no second daemon
+  const rotated = rig.rpc('clientRotate', { id: 'grok-bot', scopes: 'send' })
+  await app.call('clientAnswer', { req: (await seen(app, (e: any) => e.ev === 'clientAsk' && e.what === 'rotate', 'rotate asked')).req, allow: true })
+  const c2 = await rotated
+  assert.deepEqual(c2.scopes, ['send'])
+  assert.match((await post('state', {})).error, /this client's token was revoked or isn't known/)
+  assert.match((await loose(file, ['new', p.id, '--prompt', 'x'])).err, /can't call wsNew: that takes the create scope \(it has send\)/)
+  const t2 = readFileSync(c2.file, 'utf8').trim()
+  await rig.rpc('clientRm', { id: 'Grok Bot' })
+  const pid = rig.info().pid
+  r = await loose({ LAKI_CLIENT_TOKEN: t2 }, ['ls'])
+  assert.equal(r.code, 1)
+  assert.match(r.err, /this client's token was revoked or isn't known/)
+  assert.equal(rig.info().pid, pid, 'no daemon started for it')
+  assert.match((await loose({ LAKI_CLIENT_TOKEN_FILE: join(rig.home, 'nope') }, ['ls'])).err, /LAKI_CLIENT_TOKEN_FILE: can't read/)
+  assert.deepEqual(await rig.rpc('clientList'), [])
+  // no window: refused at once
+  await new Promise(ok => (app.ws.once('close', ok), app.ws.close()))
+  await until(() => rig.rpc('clientAdd', { label: 'Late' }).then(() => false, e => /Laki's window isn't open to allow Late/.test(e.message)), 'refused with no window', 20000) // its close handled
+})

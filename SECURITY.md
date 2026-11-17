@@ -31,7 +31,9 @@ lsof and ps, /proc on Linux), whatever Origin it sends. Only two callers in no t
 own calls carry a second token the daemon hands the app alone, never written to disk) and a process with a terminal of
 its own that isn't a Laki tab's (your Terminal, an editor's, an ssh session). Anything else in no tab (an agent's
 process that left its tab with `setsid`, a launchd job) is refused what's yours, as a call the daemon can't place is (it
-fails closed). Extensions an agent
+fails closed), unless it brings a trusted client's token (`laki client`): a name and scopes of its own, made only after
+Allow in the app's window, stored as a hash, revoked at once; one used from inside a tab is that tab's call. Its 0600 file
+keeps out other macOS users, not malware running as you (as daemon.json). Extensions an agent
 makes, restores or links stay off until you look at what they run, and go off again as their files change.
 
 In scope:
