@@ -14,7 +14,7 @@ import { agentChat, aiAnswer, aiAsk, aiHelp, aiOpenApp, aiShot, aiChatRm, aiChat
 import { planChat } from '../shared/plans.ts'
 import { readCapped, rotateLog } from '../shared/conn.ts'
 import { HostPty, ptyGone, ptyOn } from './ptyHost.ts'
-import { aiTotals, API, HIDDEN, isAgent, MASK, masked, maskSettings, neverAsks, onlyProjects, recorded, type Settings, type Tab, type Workspace, unmasked } from '../shared/types.ts'
+import { aiTotals, API, HIDDEN, isAgent, MASK, masked, maskSettings, neverAsks, onlyProjects, type Project, recorded, type Settings, type Tab, type Workspace, unmasked } from '../shared/types.ts'
 import { manifestOf } from '../shared/pwa.ts'
 import { CAPS, oldName } from '../shared/caps.ts'
 import { VERSION } from '../shared/version.ts'
@@ -54,7 +54,7 @@ import { eventsWait, factsTick, scanWidgets, stopAgents, widgetRemix, widgetRest
 import { memoryCompact, memoryCompactLog, memoryTick } from './memory.ts'
 import { device, sim } from './device.ts'
 import { agentContext, agentContextOpen } from './sees.ts'
-import { AGENT_NO, AGENT_OK, AGENT_OWN, CLIENT_READ, clientMethod, REMOTE_NO, REMOTE_OK } from './gates.ts'
+import { AGENT_NO, AGENT_OK, AGENT_OWN, CLIENT_READ, CLIENT_SCOPE, CLIENT_WS, clientMethod, REMOTE_NO, REMOTE_OK } from './gates.ts'
 import * as clientsMod from './clients.ts'
 
 // a daemon a tab started (its laki CLI) is no tab's: what it runs (a widget's laki new, Laki AI's agents) comes from no workspace
@@ -881,7 +881,7 @@ async function clientCalls(sock: Socket, method: string, p: unknown, c: clientsM
 // without yolo: no agent that never asks, by the mode it names or its profile's (as an agent's own laki new: agentNoCmd),
 // none outside its sandbox, no message into one running so (a prompt there is as strong as a command). No gate overridden
 // (force) and no secret check skipped. What asks you in the app still does: a handler's own asks, Touch ID
-type ClientCall = { kind?: unknown; preset?: unknown; presets?: unknown; cmd?: unknown; perm?: unknown; sandbox?: unknown; target?: unknown; enter?: unknown; text?: unknown; force?: unknown; allowSecrets?: unknown; codespace?: unknown; id?: unknown; ws?: unknown; project?: unknown }
+type ClientCall = { kind?: unknown; preset?: unknown; presets?: unknown; cmd?: unknown; perm?: unknown; sandbox?: unknown; target?: unknown; enter?: unknown; text?: unknown; force?: unknown; allowSecrets?: unknown; codespace?: unknown; forkOf?: unknown; resume?: unknown; id?: unknown; ws?: unknown; project?: unknown }
 // T1: a trusted client's call is held by the rules agents already pass, a scope lifting one named refusal: the method
 // (gates.ts clientMethod: the reads, its scopes' methods), Recording mode (hiddenNo), then without cmd a command of its
 // own (core.ownCmd), a terminal's screen or send, keys without Enter, editing keys or a ! line (bangNo, boxNo's);
@@ -901,6 +901,8 @@ function clientNo(method: string, p: ClientCall, c: clientsMod.Client) {
   if (p.force === true || (p.allowSecrets !== undefined && p.allowSecrets !== false)) no('override a gate or the secret check') // any method's, by the parameter: one that gains a force later too
   if (method === 'wsNew' || method === 'wsFan' || method === 'tabNew') {
     if (p.codespace !== undefined) no('start a cloud workspace (a codespace, billed to you)')
+    // a chat by its id (claude's --resume, --fork-session) may be another project's or a hidden one's; no tab says whose
+    if (p.forkOf !== undefined || p.resume !== undefined) no('fork or resume a chat by its id (it may be any project\'s)')
     const tab = method === 'tabNew'
     for (const preset of method === 'wsFan' && Array.isArray(p.presets) ? p.presets : [p.preset]) {
       const q = { preset: typeof preset === 'string' && preset ? preset : tab ? 'shell' : undefined, cmd: typeof p.cmd === 'string' ? p.cmd : undefined, perm: typeof p.perm === 'string' ? p.perm : undefined } // a tab with none: a shell (tabSpec's)
@@ -915,32 +917,37 @@ function clientNo(method: string, p: ClientCall, c: clientsMod.Client) {
     if (method === 'send' && !has('yolo') && core.tabNeverAsks(t)) no(`send to ${t.name}: it runs in a mode that never asks`, 'yolo')
   }
 }
+// T1: what a client's call names, by the parameter its method reads (gates.ts CLIENT_WS): a project, or a workspace
+// (a send's or screen's target's: its tab's) and the words a missing one gets
+const quiet = <T,>(f: () => T) => { try { return f() } catch { return undefined } }
+function clientNamed(method: string, p: ClientCall): { project?: Project; ws?: Workspace; gone?: string } {
+  const key = CLIENT_WS[method]
+  if (key === 'project') return { project: quiet(() => core.findProject(String(p.project ?? ''))), gone: `no project ${String(p.project ?? '')}` }
+  if (key === 'target') {
+    const ref = String(p.target ?? '')
+    const ws = core.state.workspaces.find(w => w.id === quiet(() => core.resolveTarget(ref))?.workspace)
+    return { ws, gone: ref.startsWith('@') ? `no agent is named ${ref} (laki agents lists the names)` : `no workspace ${ref.split('/')[0]}` }
+  }
+  if (key === 'id' || key === 'ws') return { ws: quiet(() => core.findWs(String(p[key] ?? ''))), gone: `no workspace ${String(p[key] ?? '')}` }
+  return {}
+}
 // T1: a client kept to some projects: a call into another (a new workspace's project, the workspace or tab it names)
 // is refused; its state lists only its own (onlyProjects)
 function clientProject(method: string, p: ClientCall, c: clientsMod.Client) {
   if (!c.projects) return
-  const quiet = <T,>(f: () => T) => { try { return f() } catch { return undefined } }
-  const proj = method === 'wsNew' || method === 'wsFan' ? quiet(() => core.findProject(String(p.project ?? '')))?.id
-    : method === 'send' || method === 'screen' ? core.state.workspaces.find(w => w.id === quiet(() => core.resolveTarget(String(p.target ?? '')))?.workspace)?.project
-    : p.ws !== undefined || p.id !== undefined ? quiet(() => core.findWs(String(p.ws ?? p.id)))?.project : undefined
+  const n = clientNamed(method, p)
+  const proj = n.project?.id ?? n.ws?.project
   if (proj && !c.projects.includes(proj)) {
     const name = (id: string) => core.state.projects.find(x => x.id === id)?.name ?? id
     throw new Error(`${c.label} works in ${c.projects.map(name).join(', ')} only, not ${name(proj)}: laki client rotate ${c.id} --projects …`)
   }
 }
-// T1: Recording mode for a client: hiddenNo with no workspace of its own, for the one a call names (a send's or screen's
-// target, its ws or id), and a private project for a new workspace; state is recorded() already
+// T1: Recording mode for a client: hiddenNo (no workspace of its own) on the workspace its call names, a private project
+// for a new one, in a missing one's words; state is recorded() already
 function clientHidden(method: string, p: ClientCall) {
   if (!core.state.settings?.recording) return
-  const quiet = <T,>(f: () => T) => { try { return f() } catch { return undefined } }
-  const wsOf = (id?: string) => core.state.workspaces.find(w => w.id === id)
-  if (method === 'send' || method === 'screen') {
-    const ref = String(p.target ?? '')
-    if (ref.startsWith('@') && phoneMod.hidden(wsOf(quiet(() => core.resolveTarget(ref))?.workspace))) throw new Error(`no agent is named ${ref} (laki agents lists the names)`) // a missing name's words
-    hiddenNo(undefined, wsOf(quiet(() => core.resolveTarget(ref))?.workspace), ref.split('/')[0])
-  } else if (method === 'wsNew' || method === 'wsFan') {
-    if (quiet(() => core.findProject(String(p.project ?? '')))?.private) throw new Error(`no project ${String(p.project ?? '')}`)
-  } else if (p.ws !== undefined || p.id !== undefined) hiddenNo(undefined, quiet(() => core.findWs(String(p.ws ?? p.id))), String(p.ws ?? p.id))
+  const n = clientNamed(method, p)
+  if (n.project?.private || (n.ws && phoneMod.hidden(n.ws))) throw new Error(n.gone)
 }
 function clientLine(method: string, p: Record<string, unknown>, e?: unknown) {
   if (e === undefined && CLIENT_READ.has(method)) return // reads aren't logged (as agentLog's)
@@ -1071,6 +1078,8 @@ const classed = (what: string, sets: [string, Iterable<string>][]) => {
 }
 classed('agents', [['AGENT_OK', AGENT_OK], ['AGENT_NO', new Set(Object.keys(AGENT_NO))], ['AGENT_OWN', AGENT_OWN]])
 classed('remote access', [['REMOTE_OK', REMOTE_OK], ['REMOTE_NO', REMOTE_NO]])
+// T1: every method a client may call says which parameter names its workspace (gates.ts CLIENT_WS): one added to a scope later can't go unchecked
+for (const k of [...CLIENT_READ, ...Object.values(CLIENT_SCOPE).flat()]) if (!Object.hasOwn(CLIENT_WS, k)) throw new Error(`a trusted client's ${k} isn't in CLIENT_WS: say which parameter names its workspace (src/daemon/gates.ts)`)
 
 // D7: remote access's answer level (a device's, else the session's: remote.ts levelOf), an allowlist as S5's for agents:
 // reading (the view, screens, diffs, chats, turns, files), answering (asks, Laki AI's questions, alerts, a workflow's

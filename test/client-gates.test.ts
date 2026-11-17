@@ -3,7 +3,7 @@
 // with it, anything else never. No daemon: test:fast
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { AGENT_NO, AGENT_OK, AGENT_OWN, CLIENT_READ, CLIENT_SCOPE, clientMethod } from '../src/daemon/gates.ts'
+import { AGENT_NO, AGENT_OK, AGENT_OWN, CLIENT_READ, CLIENT_SCOPE, CLIENT_WS, clientMethod } from '../src/daemon/gates.ts'
 import { SCOPES } from '../src/daemon/clients.ts'
 
 const methods = [...Object.keys(AGENT_NO), ...AGENT_OWN, ...AGENT_OK]
@@ -27,6 +27,9 @@ test("T1: a client's methods: the reads, its scopes' own, nothing else even with
     }
   // a client starts from what an agent may do: none of the user's alone (AGENT_NO) in any scope
   assert.deepEqual([...theirs].filter(m => Object.hasOwn(AGENT_NO, m)), [], 'none of the user-only methods')
+  // each says which parameter names its workspace (the daemon throws as it loads otherwise), and only those
+  assert.deepEqual([...theirs].filter(m => !Object.hasOwn(CLIENT_WS, m)), [], 'in CLIENT_WS')
+  assert.deepEqual(Object.keys(CLIENT_WS).filter(m => !theirs.has(m)), [], "CLIENT_WS: a client's methods only")
   assert.deepEqual(clientMethod('clientAdd', scopes), { scope: undefined })
   assert.deepEqual(clientMethod('nope', scopes), { scope: undefined }, 'an unknown name: no')
 })
