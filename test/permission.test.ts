@@ -27,6 +27,7 @@ test('permOf: each tool in a line, cut at 300; the first rule or folder suggesti
   assert.deepEqual(permOf({ tool_name: 'mcp__github__create_issue', tool_input: { title: 'Bug' } }), { tool: 'github', what: 'github: create_issue {"title":"Bug"}' })
   assert.equal(permOf({ tool_name: 'WebSearch', tool_input: { query: 'laki app' } })!.what, 'laki app')
   assert.equal(permOf({ tool_name: 'Grep', tool_input: { pattern: 'TODO' } })!.what, 'TODO')
+  assert.equal(permOf({ tool_name: 'AskUserQuestion', tool_input: { questions: [{ question: 'Delete test3?', options: [{ label: 'Yes' }] }, { question: 'Images?' }] } })!.what, 'Delete test3?') // its first question, not its JSON
   assert.equal(permOf({ tool_name: 'Bash', permission_suggestions: [{ type: 'addRules', rules: [{ toolName: 'Bash', ruleContent: 'npm test:*' }] }] })!.rule, 'npm test')
   assert.equal(permOf({}), undefined)
   assert.equal(permVerb('Bash'), 'wants to run')

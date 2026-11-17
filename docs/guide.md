@@ -563,7 +563,8 @@ selected workspace's PR is in the status bar.
 - Drop files or folders from Finder on a terminal: their paths are typed in (quoted when they need it), for a
   shell or an agent's prompt.
 - When an agent asks something with numbered choices (a permission prompt, a question), they show as buttons
-  under the terminal: a click picks one, as the arrows and ⏎ would. Its notification has a button per choice
+  under the terminal (not while the sidebar's Needs you list shows its card: the same buttons): a click picks one, as
+  the arrows and ⏎ would. Its notification has a button per choice
   (macOS shows the first and the rest under *Options*; set Laki's notifications to *Alerts* in System Settings to
   keep them on screen); a click on the notification itself opens the tab. A turn that ends on an API error that isn't a plan limit shows the error with *Continue* (it sends "continue" to the same chat) and *Dismiss*, in the Reader and Needs you; *Continue after an API error by itself* (Settings › General, off) does it once per turn, a minute later, never after your Esc, a refused model or a limit. *Tell me when a turn runs longer than* (Settings › General, off) notifies once per turn, with *Stop*, and pushes to your phone; only time the agent is working counts. A choice picked there only goes in while
   the same menu is still on screen. A permission prompt whose menu wasn't read gets *Allow* (the first choice) and

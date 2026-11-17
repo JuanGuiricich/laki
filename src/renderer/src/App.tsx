@@ -4128,7 +4128,7 @@ export function App() {
             />
           )}
         </div>
-        {tab?.ask && !tab.planAsk /* its plan card has them */ && !(inReader(tab.id) && !reviewOn && !(narrow && (panelOpen || previewed))) /* the Reader's own card has them, unless the review or a phone's panel is over it */ && (
+        {tab?.ask && !tab.planAsk /* its plan card has them */ && !(inReader(tab.id) && !reviewOn && !(narrow && (panelOpen || previewed))) /* the Reader's own card has them, unless the review or a phone's panel is over it */ && !(app.needsShown && sideOpen && !video && !listOff) /* the sidebar's Needs you card has them */ && (
           // the waiting agent's menu as buttons (a phone's thumb, or no reaching for arrows): the daemon moves and presses ⏎
           <AskWrap key={`${tab.id}:${tab.ask.what}`} diff={tab.ask.diff}>{chip => (
           <div className="ask-bar">

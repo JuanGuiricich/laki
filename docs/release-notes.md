@@ -5,6 +5,7 @@ the biggest first, and end a line with `[Try it](laki://…)` to give it a Try b
 
 ## Next
 
+- The buttons under the terminal for an agent's question or permission ask hide while the sidebar's Needs you list shows the same card; with the sidebar closed they're back. A question's line there reads as its question, not JSON.
 - Plan limits show Claude's per-model weeks (Fable's) while a tab works, when Laki asks Anthropic for them (Settings › Layout); off, the popup says where they come from. The popup, and the status bar's tunnel and background tasks popups, open in every design again, not only Frosted.
 
 ## 0.54.0 · Nov 15, 2026

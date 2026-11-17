@@ -530,7 +530,7 @@ export function sideOf(app: AppBase & ReturnType<typeof menusOf>) {
   const listed = rail && !find ? view.projects.filter(p => railOf(p.kind) === railKind) : view.projects
   const inList = (w: WorkspaceView) => !rail || !!find || kindOf(w) === railKind
   const pins = pinned.filter(w => shows(w) && inList(w))
-  return { addMenu, busiest, found, listed, makingRows, needNext, needsApi, pause, peekCard, pickedArchive, pickedMute, pickedRm, pickedWs, pins, plusMenu, reminder, sendTo, shownRows, shows, sideStyle, timerMenu, wsRow }
+  return { addMenu, busiest, found, listed, makingRows, needNext, needsApi, needsShown, pause, peekCard, pickedArchive, pickedMute, pickedRm, pickedWs, pins, plusMenu, reminder, sendTo, shownRows, shows, sideStyle, timerMenu, wsRow }
 }
 
 // the sidebar itself (App keeps it, hidden, while a video plays)
