@@ -264,8 +264,9 @@ const last = new Map<string, AgentUsage>()
 // on: Settings' usage. R4: an agent's usage endpoint (undocumented, with its own sign-in) is asked only when set to
 // true; else its numbers are what it says itself (own: meters.ts' statusLimits, claude's status line and codex's
 // transcripts, of any age: at says when), and an agent with neither (gemini) isn't listed. who: each agent's accounts,
-// its own first; asked, own's fresh numbers win over the endpoint's
-const SAYS: Record<string, string> = { claude: "No numbers yet: they come with Claude Code's status line, as a tab works (Settings › Appearance › Read Claude's status line)", codex: 'No numbers yet: they come with what Codex reports as a tab works' }
+// its own first; asked, own's fresh numbers win over the endpoint's, which is still asked on its TTL: only it has the
+// per-model windows (Claude's Fable week: the status line has the 5-hour and the week alone)
+const SAYS: Record<string, string> = { claude: "No numbers yet: they come with Claude Code's status line, as a tab works (Settings › Layout › Read Claude's status line)", codex: 'No numbers yet: they come with what Codex reports as a tab works' }
 export function usage(on: Record<string, boolean> = {}, who: Who[] = [], now = Date.now(), own?: (w: Who, now: number, any?: boolean) => { windows: UsageWindow[]; at: number } | undefined): Promise<AgentUsage[]> {
   return Promise.all(
     who.filter(w => LOADERS[w.agent] && (on[w.agent] === true || SAYS[w.agent])).map(w => {
@@ -274,31 +275,38 @@ export function usage(on: Record<string, boolean> = {}, who: Who[] = [], now = D
       const asks = on[w.agent] === true
       const said = own?.(w, now, !asks)
       if (!said && !asks) return Promise.resolve(mine({ agent: w.agent, windows: [], at: now, error: SAYS[w.agent], source: 'own' }))
-      if (said) {
-        // ponytail: the endpoint's other windows (per model, extra usage) as it last read them, while it's asked; its plan likewise
+      if (!said) return ask(w, key, now).then(mine) // a rename, another default: now's
+      // ponytail: the endpoint's other windows (per model, extra usage) and plan as it last read them, under own's time:
+      // a 429 can hold them hours with no As of; asked again on its TTL, waited for only while there's no read yet
+      const asked = asks && ask(w, key, now)
+      const wait: Promise<unknown> = asked && !last.has(key) ? asked : Promise.resolve()
+      return wait.then(() => {
         const had = asks ? last.get(key) : undefined
-        return Promise.resolve(mine({ agent: w.agent, plan: had?.plan, windows: [...said.windows, ...(had?.windows ?? []).filter(x => !said.windows.some(y => y.label === x.label))], at: said.at, source: 'own' }))
-      }
-      const c = cache.get(key)
-      if (c?.p && now - c.at < c.ttl) return c.p.then(mine) // a rename, another default: now's
-      const entry: Entry = { at: now, ttl: TTL[w.agent] ?? USAGE_TTL }
-      entry.p = LOADERS[w.agent](w.dir).then(
-        ({ again, busy, ...r }) => {
-          if (again) entry.ttl = AGAIN
-          if (busy !== undefined) {
-            entry.slows = (c?.slows ?? 0) + 1
-            entry.ttl = Math.max(busy, BACK_OFF[Math.min(entry.slows, BACK_OFF.length) - 1])
-            const had = last.get(key)
-            return { ...(had ?? { agent: w.agent, ...r, at: Date.now() }), error: r.error, next: entry.at + entry.ttl }
-          }
-          const got = { agent: w.agent, ...r, at: Date.now(), source: 'endpoint' as const }
-          if (got.windows.length) last.set(key, got)
-          return got
-        },
-        e => ((entry.ttl = AGAIN), { agent: w.agent, windows: [], error: failed(e), at: Date.now() }),
-      )
-      cache.set(key, entry)
-      return entry.p.then(mine)
+        return mine({ agent: w.agent, plan: had?.plan, windows: [...said.windows, ...(had?.windows ?? []).filter(x => !said.windows.some(y => y.label === x.label))], at: said.at, source: 'own' })
+      })
     }),
   )
+}
+
+function ask(w: Who, key: string, now: number): Promise<AgentUsage> {
+  const c = cache.get(key)
+  if (c?.p && now - c.at < c.ttl) return c.p
+  const entry: Entry = { at: now, ttl: TTL[w.agent] ?? USAGE_TTL }
+  entry.p = LOADERS[w.agent](w.dir).then(
+    ({ again, busy, ...r }) => {
+      if (again) entry.ttl = AGAIN
+      if (busy !== undefined) {
+        entry.slows = (c?.slows ?? 0) + 1
+        entry.ttl = Math.max(busy, BACK_OFF[Math.min(entry.slows, BACK_OFF.length) - 1])
+        const had = last.get(key)
+        return { ...(had ?? { agent: w.agent, ...r, at: Date.now() }), error: r.error, next: entry.at + entry.ttl }
+      }
+      const got = { agent: w.agent, ...r, at: Date.now(), source: 'endpoint' as const }
+      if (got.windows.length) last.set(key, got)
+      return got
+    },
+    e => ((entry.ttl = AGAIN), { agent: w.agent, windows: [], error: failed(e), at: Date.now() }),
+  )
+  cache.set(key, entry)
+  return entry.p
 }

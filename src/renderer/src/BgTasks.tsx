@@ -5,7 +5,7 @@
 // agent is asked to
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { type BgTaskView, type TabView } from '../../shared/types'
-import { Icon, IconButton, keep, load } from './ui'
+import { Backdrop, Icon, IconButton, keep, load } from './ui'
 import { type BgCleared, bgDoneOf } from './text'
 
 type BgOut = { text: string; size: number; cut?: boolean }
@@ -110,7 +110,7 @@ function BgPop({ anchor, tabs, cleared, api, onClear, onClose }: { anchor: DOMRe
   const now = tabs.flatMap(t => t.background!.now.map(x => row(t, x, false)))
   const last = tabs.flatMap(t => t.background!.last.slice(0, bgDoneOf(t, cleared)).map(x => ({ t, x }))).slice(0, 5)
   return (
-    <div className="menu-backdrop" onPointerDown={e => e.target === e.currentTarget && onClose()}>
+    <Backdrop onClose={onClose}>
       <div className="tunnel-pop bg-pop" ref={box} role="dialog" aria-label="Background tasks">
         <div className="tunnel-head">
           <b>Background tasks</b>
@@ -141,6 +141,6 @@ function BgPop({ anchor, tabs, cleared, api, onClear, onClose }: { anchor: DOMRe
           </div>
         )}
       </div>
-    </div>
+    </Backdrop>
   )
 }

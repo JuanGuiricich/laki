@@ -124,6 +124,7 @@ export function permOf(pl: { tool_name?: unknown; tool_input?: unknown; permissi
     : tool === 'Glob' || tool === 'Grep' ? s('pattern')
     : tool === 'WebFetch' ? s('url')
     : tool === 'WebSearch' ? s('query')
+    : tool === 'AskUserQuestion' ? (q => (typeof q === 'string' ? line(q) : ''))((i.questions as { question?: unknown }[] | undefined)?.[0]?.question) // claude asking you, not a tool to allow: its question, not its JSON
     : mcp ? `${mcp[1]}: ${mcp[2]} ${short(i)}`
     : s('description') || s('command') || s('file_path') || s('url') || short(i)
   return { tool: mcp ? mcp[1] : tool, what: cut(what), ...(r => r && { rule: r })(ruleOf(pl.permission_suggestions, root, home)), ...(d => d && { diff: d })(permDiff(tool, i, prior)) }

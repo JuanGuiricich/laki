@@ -466,7 +466,7 @@ changes sets `seenVersion`. A version with no section (a build between releases)
 ### Usage
 
 Plan limits (`usage.ts`, the renderer's `Usage.tsx`). R4: the endpoints below are undocumented and asked only when
-`settings.usage[agent] === true` (Settings › Appearance › *Ask … for plan limits*, off by default). Otherwise each
+`settings.usage[agent] === true` (Settings › Layout › *Ask … for plan limits*, off by default). Otherwise each
 account's numbers are what the agent reports itself (meters.ts' `statusLimits(w, now, true)`: Claude's status line
 `rate_limits`, Codex's transcripts' `token_count` `rate_limits` (share.ts' `meterOf` keeps the newest as `Meter.limits`,
 `codexRateWindows`), of any age: `at` says when, Usage.tsx shows *As of HH:MM* past 20 minutes), `source: 'own'`;
@@ -483,8 +483,10 @@ never refreshed (that can sign the agent out), an expired one isn't sent. Each a
 answer with numbers (`last`) given meanwhile with the error and `next` (Usage.tsx' `waitText`: from when, checked again when); the RPC's `now` (tests'). The renderer asks every minute (and notifies near a limit: Notifications). Tests set `LAKI_USAGE_API`
 (a fake server for both; only `http://127.0.0.1` or `localhost` count: a session's env can reach a daemon the CLI starts) and get a fake `security`
 (`test/fakes`) reading `$HOME/keychain`: never the real Keychain. Claude's account whose tab wrote `rate_limits` in its
-status line within `STATUS_FRESH` (meters.ts' `statusLimits`, below; main.ts passes it as `usage`'s `own`) isn't asked:
-its 5-hour and weekly windows (`claudeWindows`' labels), the endpoint's others and plan as `last` had them.
+status line within `STATUS_FRESH` (meters.ts' `statusLimits`, below; main.ts passes it as `usage`'s `own`) shows
+its 5-hour and weekly windows (`claudeWindows`' labels), the endpoint's others and plan as `last` had them; the endpoint
+is still asked on its TTL (`ask`): only it has the per-model weeks (`limits[]`' `weekly_scoped`: Fable's). The endpoint
+off, the popup says so (Usage.tsx' `asks`, Settings' `usage`).
 Gemini CLI (`gemini`, CodeNomad's way): only once `~/.gemini/oauth_creds.json` is there (`GEMINI_CLI_HOME`;
 `geminiSigned`, accounts.ts' `usageWho`: one `Who`), read only; an expired `access_token` is refreshed at
 `oauth2.googleapis.com/token` with Gemini CLI's own client, read from its install (`geminiClient`), the new token in memory

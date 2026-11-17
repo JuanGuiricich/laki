@@ -15,7 +15,7 @@ test('statusline: a claude tab keeps its JSON, your own runs with it; the meter 
   let hits = 0
   const srv = createServer((_q, r) => {
     hits++
-    r.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ five_hour: { utilization: 41 }, seven_day_opus: { utilization: 9 } }))
+    r.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ five_hour: { utilization: 41 }, limits: [{ kind: 'weekly_scoped', percent: 9, scope: { model: { display_name: 'Fable' } } }] }))
   })
   await new Promise<void>(r => srv.listen(0, '127.0.0.1', r))
   t.after(() => srv.close())
@@ -48,22 +48,25 @@ test('statusline: a claude tab keeps its JSON, your own runs with it; the meter 
   await until(async () => (await rig.tab(ws.id))?.context?.used === 80000, 'its percentage')
   assert.equal((await rig.tab(ws.id)).context.max, 200000)
 
-  // plan limits: its rate_limits, the endpoint not asked; its other windows (per model) once it has been
+  // plan limits: its rate_limits win; the endpoint, still asked on its TTL, adds its per-model windows (Fable's week:
+  // the status line has none)
   writeFileSync(kept, readFileSync(join(rig.home, 'mine.json')))
   let u = (await rig.rpc('usage'))[0]
-  assert.deepEqual(u.windows, [{ label: '5-hour', used: 37, resets: 1793832000000 }, { label: 'Weekly', used: 16, resets: 1794326400000 }])
-  assert.equal(hits, 0)
-  // 10 minutes on, it's old: the endpoint again
+  assert.deepEqual(u.windows.slice(0, 2), [{ label: '5-hour', used: 37, resets: 1793832000000 }, { label: 'Weekly', used: 16, resets: 1794326400000 }])
+  assert.deepEqual([hits, u.source, u.windows.map((w: any) => [w.label, w.used])], [1, 'own', [['5-hour', 37], ['Weekly', 16], ['Weekly · Fable', 9]]])
+  await rig.rpc('usage')
+  assert.equal(hits, 1) // kept 7.5 minutes
+  // 10 minutes on, it's old: the endpoint's alone
   const later = Date.now() + 11 * 60_000
   u = (await rig.rpc('usage', { now: later }))[0]
-  assert.deepEqual([hits, u.windows.map((w: any) => [w.label, w.used])], [1, [['5-hour', 41], ['Weekly · Opus', 9]]])
+  assert.deepEqual([hits, u.windows.map((w: any) => [w.label, w.used])], [2, [['5-hour', 41], ['Weekly · Fable', 9]]])
   u = (await rig.rpc('usage'))[0]
-  assert.deepEqual([hits, u.windows.map((w: any) => [w.label, w.used])], [1, [['5-hour', 37], ['Weekly', 16], ['Weekly · Opus', 9]]])
+  assert.deepEqual([hits, u.windows.map((w: any) => [w.label, w.used])], [2, [['5-hour', 37], ['Weekly', 16], ['Weekly · Fable', 9]]])
 
   // R4: the endpoint off (the default): its own numbers however old, their time; the server not asked
   await rig.rpc('settingsSet', { usage: { claude: false } })
   u = (await rig.rpc('usage', { now: Date.now() + 60 * 60_000 }))[0]
-  assert.deepEqual([hits, u.source, u.windows.map((w: any) => w.label), u.at < Date.now()], [1, 'own', ['5-hour', 'Weekly'], true])
+  assert.deepEqual([hits, u.source, u.windows.map((w: any) => w.label), u.at < Date.now()], [2, 'own', ['5-hour', 'Weekly'], true])
 
   // a closed tab's goes
   await rig.rpc('tabClose', { id: tab.id })
