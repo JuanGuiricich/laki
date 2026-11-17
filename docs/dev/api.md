@@ -705,7 +705,9 @@ such an app with a capability of its own: a token that names it and says what it
   tab env) refused with no token, then `laki new` with a group, template and preset, Created by, the log line,
   refusals by scope, laki mcp's list and calls, a token in an agent's tab and the CLI in a shell tab (the tab wins),
   rotate, revoke (no second daemon), an unreadable file, no window; a table per scope (allowed with it, refused without
-  it), `--projects`, an ask never answered, control keys, `force`, Recording mode by id, a revoked rotate.
+  it), `--projects`, an ask never answered (an agent tab's, and with `cmd` a terminal's whose agent asks: a stand-in
+  claude with its cursor hidden, as the real one's menu), control keys, `force`, Recording mode by id (every method that
+  names a workspace or a tab, a private project), a revoked rotate.
   `test/client-gates.test.ts` (no daemon): `clientMethod` over every method.
 - **Not built.** A Settings page; a per-client rate limit; a client's own asks (a client is you within its scopes,
   so an agent's cross-workspace asks don't apply to it).

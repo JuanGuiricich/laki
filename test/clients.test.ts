@@ -199,7 +199,7 @@ test('T1: a client never answers an ask, sends no control keys, forces nothing; 
   assert.ok(!(await rig.screen(target)).includes('picked:'), 'no option picked')
   assert.ok(!existsSync(join(ws.path, 'pwned')))
   // no force, whatever its scopes; no cloud workspace
-  const shipper = await add('Shipper', 'create,ship,remove')
+  const shipper = await add('Shipper', 'create,ship,remove,cmd,send')
   assert.match((await shipper('prAct', { ws: ws.id, act: 'merge', force: true })).error, /Shipper can't override a gate or the secret check: no trusted client can/)
   assert.match((await shipper('wsRm', { id: ws.id, force: true })).error, /can't override a gate/)
   assert.match((await shipper('wsNew', { project: p.id, name: 'cloud', codespace: '' })).error, /can't start a cloud workspace/)
@@ -212,8 +212,29 @@ test('T1: a client never answers an ask, sends no control keys, forces nothing; 
   const said: [string, object][] = [['screen', { target: `${hid.id}/${htab}` }], ['screen', { target: htab }], ['send', { target: hid.id, text: 'hi' }], ['diff', { ws: hid.id }], ['wsStat', { ws: hid.id }], ['wsPeek', { id: hid.id }], ['tabNew', { ws: hid.id, preset: 'claude' }]]
   for (const [m, params] of said) assert.equal((await grok(m, params)).error, `no workspace ${m === 'screen' && !(params as any).target.includes('/') ? htab : hid.id}`, m)
   assert.equal((await grok('wsStat', { ws: 'nope' })).error, 'no workspace nope', 'a missing one: the same words')
+  // what the other scopes name a workspace in: the same words (a client with remove, ship and cmd)
+  const scoped: [string, object][] = [['wsArchive', { id: hid.id }], ['wsRm', { id: hid.id }], ['ship', { ws: hid.id, message: 'x' }], ['prAct', { ws: hid.id, act: 'draft' }], ['run', { ws: hid.id, script: 'run' }], ['send', { target: `${hid.id}/${htab}`, text: 'ls' }]]
+  for (const [m, params] of scoped) assert.equal((await shipper(m, params)).error, `no workspace ${hid.id}`, m)
+  // a private project: none for a new workspace either
+  await rig.rpc('projectSet', { id: p.id, private: true })
+  assert.equal((await shipper('wsNew', { project: p.id, prompt: 'x' })).error, `no project ${p.id}`)
+  await rig.rpc('projectSet', { id: p.id, private: false })
   await rig.rpc('settingsSet', { recording: false })
   assert.equal((await grok('wsPeek', { id: hid.id })).error, undefined, 'shown again')
+  // with cmd, a terminal is a target, but not while the agent running in it asks (claude typed in a shell tab)
+  const sh = (await rig.rpc('tabNew', { ws: ws.id, kind: 'shell' })).id
+  const shTarget = `${ws.id}/${sh}`
+  assert.equal((await shipper('send', { target: shTarget, text: 'echo hi' })).error, undefined, 'a terminal: fine with cmd')
+  await until(async () => /\nhi\n/.test(await rig.screen(shTarget)), 'its echo') // typed and run before the next keys
+  // a claude typed there, at its permission menu as the real one draws it (its cursor hidden: askOf's rule); any key picks
+  const bin = join(rig.home, 'shellbin')
+  mkdirSync(bin)
+  writeFileSync(join(bin, 'claude'), `#!/usr/bin/env node\nprocess.stdout.write('\\x1b[?25lBash command\\r\\n\\r\\n  rm -rf build\\r\\n\\r\\nDo you want to proceed?\\r\\n❯ 1. Yes\\r\\n  2. No\\r\\n')\nprocess.stdin.setRawMode(true)\nprocess.stdin.once('data', d => (process.stdout.write('\\x1b[?25hpicked: ' + JSON.stringify(String(d)) + '\\r\\n'), process.exit(0)))\n`, { mode: 0o755 })
+  await rig.rpc('input', { tab: sh, data: `${join(bin, 'claude')}\r` })
+  await until(async () => (await rig.rpc('state')).tabs.find((x: any) => x.id === sh).runs === 'claude', 'claude running in the shell tab')
+  await until(async () => (await rig.rpc('state')).tabs.find((x: any) => x.id === sh).status === 'waiting', 'its menu in the shell tab')
+  assert.match((await shipper('send', { target: shTarget, text: 'go on' })).error, /is asking the user something: only they answer it/)
+  assert.ok(!(await rig.screen(shTarget)).includes('picked:'), 'nothing picked in the shell tab')
   // a rotate whose client is revoked while it waits for Allow: revoked it stays
   const rotated = rig.rpc('clientRotate', { id: 'shipper' }).catch(e => e)
   const ask: any = await seen(app, (e: any) => e.ev === 'clientAsk' && e.what === 'rotate' && e.label === 'Shipper', 'the rotate asked')
