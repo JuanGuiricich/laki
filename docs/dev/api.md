@@ -684,10 +684,15 @@ such an app with a capability of its own: a token that names it and says what it
     preset for `wsFan`), `sandbox: false`, a send into a tab whose agent never asks (`core.tabNeverAsks`: its start's
     mode or a switch to Bypass since);
   - never: `force` or `allowSecrets` on any method (by the parameter, as `core.gated`'s "never overrides a gate"),
-    `codespace` (billed).
+    `codespace` (billed), `forkOf` or `resume` (a chat by its id, claude's `--resume`: any project's, a hidden one's too;
+    no tab says whose).
   - An ask is never a client's to answer: `agentSend` sets `agent` on a client's send to an agent tab, so `core.send`
     refuses one that asks (unless `whenIdle`) as it types; into a terminal (`cmd`) not while its agent asks
     (`core.asking`). A client's `steer` and `vars` are dropped. A refusal names the scope it takes.
+- **What a call names.** gates.ts' `CLIENT_WS`: per client method, the parameter its handler reads for its workspace
+  (`id` for `wsPeek`, `wsArchive`, `wsRm`; `ws` for the rest; a send's or screen's `target`; `wsNew`'s and `wsFan`'s
+  `project`), so `--projects` and Recording mode check the workspace acted on (a `ws` beside an `id` is no decoy);
+  `clientNamed` resolves only that one. main.ts throws as it loads when a client method isn't in it.
 - **Projects.** `--projects` (`clientAsk`'s `projects`: ids, names or paths through `findProject`; `all` clears; a
   rotate keeps them unless said) keeps a client to those: `clientProject` refuses a call whose project (a new
   workspace's, the named workspace's or target tab's) isn't one, and `state` goes through types.ts' `onlyProjects`

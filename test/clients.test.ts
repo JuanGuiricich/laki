@@ -213,7 +213,7 @@ test('T1: a client never answers an ask, sends no control keys, forces nothing; 
   for (const [m, params] of said) assert.equal((await grok(m, params)).error, `no workspace ${m === 'screen' && !(params as any).target.includes('/') ? htab : hid.id}`, m)
   assert.equal((await grok('wsStat', { ws: 'nope' })).error, 'no workspace nope', 'a missing one: the same words')
   // what the other scopes name a workspace in: the same words (a client with remove, ship and cmd)
-  const scoped: [string, object][] = [['wsArchive', { id: hid.id }], ['wsRm', { id: hid.id }], ['ship', { ws: hid.id, message: 'x' }], ['prAct', { ws: hid.id, act: 'draft' }], ['run', { ws: hid.id, script: 'run' }], ['send', { target: `${hid.id}/${htab}`, text: 'ls' }]]
+  const scoped: [string, object][] = [['wsPeek', { id: hid.id, ws: ws.id }], ['wsArchive', { id: hid.id, ws: ws.id }], ['wsRm', { id: hid.id, ws: ws.id }], ['wsArchive', { id: hid.id }], ['wsRm', { id: hid.id }], ['ship', { ws: hid.id, message: 'x' }], ['prAct', { ws: hid.id, act: 'draft' }], ['run', { ws: hid.id, script: 'run' }], ['send', { target: `${hid.id}/${htab}`, text: 'ls' }]]
   for (const [m, params] of scoped) assert.equal((await shipper(m, params)).error, `no workspace ${hid.id}`, m)
   // a private project: none for a new workspace either
   await rig.rpc('projectSet', { id: p.id, private: true })
@@ -295,5 +295,17 @@ test('T1: each scope lifts its own refusal: create, send, cmd, yolo, remove, shi
   const v = (await as('state', {})).result
   assert.deepEqual([v.projects.map((x: any) => x.id), v.workspaces.some((w: any) => w.project === p.id)], [[o.id], false])
   assert.equal((await as('wsNew', { project: o.id, name: 'theirs', preset: 'claude', prompt: 'hi' })).error, undefined)
+  // the workspace a call acts on is the one checked: a ws of its own project beside another's id is no decoy (review)
+  const keeper = rig.rpc('clientAdd', { label: 'Keeper', scopes: 'create,send,remove', projects: o.id })
+  await app.call('clientAnswer', { req: (await seen(app, (e: any) => e.ev === 'clientAsk' && e.label === 'Keeper', 'Keeper asked')).req, allow: true })
+  const kt = readFileSync((await keeper).file, 'utf8').trim()
+  const keep = async (method: string, params: object) => (await fetch(`http://127.0.0.1:${rig.info().port}/rpc`, { method: 'POST', headers: { authorization: `Bearer ${kt}` }, body: JSON.stringify({ method, params }) })).json()
+  const b = await spare('b-decoy')
+  for (const m of ['wsPeek', 'wsArchive', 'wsRm']) assert.match((await keep(m, { id: b, ws: 'theirs' })).error, new RegExp(`Keeper works in ${o.name} only, not ${p.name}`), m)
+  const bw = (await rig.rpc('state')).workspaces.find((w: any) => w.id === b)
+  assert.ok(bw && !bw.archived, "the other project's workspace: neither archived nor gone")
+  // a chat by its id (forkOf, resume): any project's, so never a client's, its own project's included
+  for (const [m, params] of [['tabNew', { ws: 'theirs', preset: 'claude', forkOf: 'sess-any' }], ['wsNew', { project: o.id, forkOf: 'sess-any', prompt: 'x' }], ['tabNew', { ws: 'theirs', preset: 'claude', resume: 'sess-any' }]] as [string, object][])
+    assert.match((await keep(m, params)).error, /Keeper can't fork or resume a chat by its id/, m)
 })
 

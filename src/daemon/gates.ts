@@ -29,6 +29,10 @@ export const REMOTE_OK = new Set(['agentLog', 'diskUsage', 'mergeQueueStart', 'm
 // scopes: settings, profiles, secrets, schedules, extensions, answers to asks, remote access, other clients
 export const CLIENT_READ = new Set(['ping', 'state', 'clientWho', 'screen', 'diff', 'wsStat', 'wsPeek'])
 export const CLIENT_SCOPE: Record<string, string[]> = { create: ['wsNew', 'wsFan', 'tabNew'], send: ['send'], cmd: ['run'], yolo: [], remove: ['wsArchive', 'wsRm'], ship: ['ship', 'prAct'] } // never AGENT_NO's (test/client-gates.test.ts): shipDraft quotes the tab's chat
+// T1: the parameter each client method names its workspace by: the one its handler reads, so --projects and Recording
+// mode check the workspace that is acted on (a ws beside an id is no decoy). null: it names none. main.ts throws as it
+// loads when a CLIENT_READ or CLIENT_SCOPE method isn't here
+export const CLIENT_WS: Record<string, 'id' | 'ws' | 'target' | 'project' | null> = { ping: null, state: null, clientWho: null, wsPeek: 'id', wsArchive: 'id', wsRm: 'id', diff: 'ws', wsStat: 'ws', tabNew: 'ws', run: 'ws', ship: 'ws', prAct: 'ws', send: 'target', screen: 'target', wsNew: 'project', wsFan: 'project' }
 // is a method a client's, given its scopes: undefined (it is), else what it would take (scope: that one; none: no
 // client's, whatever its scopes). Pure: test/client-gates.test.ts runs it over every method
 export function clientMethod(method: string, scopes: readonly string[]): undefined | { scope?: string } {
