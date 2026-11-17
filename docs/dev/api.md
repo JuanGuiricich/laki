@@ -660,7 +660,7 @@ such an app with a capability of its own: a token that names it and says what it
   A client's own token can't call them (no scope has them), nor a tab's token (whoCalls finds the tab), nor remote
   access. App.tsx shows it on the tool ask's card (no Allow on the notification). `clientRm` asks nothing (it only takes
   away); `clientList` is yours (`AGENT_NO`). A rotate whose client was revoked while it waited is refused at Allow;
-  `clientFind` refuses a name that is one client's id and another's name. #TODO(PR 2): Settings › Trusted clients (list, add, rotate, revoke).
+  `clientFind` refuses a name that is one client's id and another's name. #TODO: Settings › Trusted clients (list, add, rotate, revoke), after laki mcp's PR.
 - **The CLI.** `src/shared/conn.ts` reads `LAKI_CLIENT_TOKEN_FILE` (wins) or `LAKI_CLIENT_TOKEN` once and deletes both
   from its env (and the daemon and the app's main from theirs), so nothing Laki starts inherits them. `asClient()`: none
   with `LAKI_TAB_TOKEN` (the tab wins; a note on stderr once) or in the app's main (`appMode`). A 401 with it throws the
@@ -698,14 +698,13 @@ such an app with a capability of its own: a token that names it and says what it
 - **Identity.** `wsNew` keeps `ws.client` (its label then): Created by in the tab bar and Info, `laki ls`; its prompt
   and its sends aren't your prompt history (`yours`, `agentSend`). `clientLine`: daemon.log gets `client <label>:
   <method> (<agentWhat>)` for each call that changed something or was refused (reads aren't logged, as agentLog).
-- **laki mcp.** For a client (`asClient`), `tools/list` and `tools/call` keep to `CLIENT_TOOLS` (`laki_state`,
-  `laki_screen`, `laki_wait`, `laki_diff`; `laki_new_workspace`, `laki_new_tab` with create; `laki_send`,
-  `laki_ask_agent` with send), its scopes asked once (`clientWho`), no `laki_more`, no extension tools.
 - **Tests.** `test/clients.test.ts`: the store (hash only, modes, rotate and revoke); a detached process (setsid, no
   tab env) refused with no token, then `laki new` with a group, template and preset, Created by, the log line,
-  refusals by scope, laki mcp's list and calls, a token in an agent's tab and the CLI in a shell tab (the tab wins),
-  rotate, revoke (no second daemon), an unreadable file, no window.
-- **Not built.** A Settings page (PR 2); a per-client rate limit; a client's own asks (a client is you within its scopes,
+  refusals by scope, a token in an agent's tab and the CLI in a shell tab (the tab wins),
+  rotate, revoke (no second daemon), an unreadable file, no window; a table per scope (allowed with it, refused without
+  it), `--projects`, an ask never answered, control keys, `force`, Recording mode by id, a revoked rotate.
+  `test/client-gates.test.ts` (no daemon): `clientMethod` over every method.
+- **Not built.** `laki mcp`'s tool list cut to a client's scopes and the user docs (the next PR); a Settings page; a per-client rate limit; a client's own asks (a client is you within its scopes,
   so an agent's cross-workspace asks don't apply to it).
 
 ### Every method is classified (S5)

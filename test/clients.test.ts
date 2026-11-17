@@ -1,6 +1,6 @@
 // T1: trusted clients: an app outside Laki (no tab, no terminal: what S1 refuses) drives it with a named, revocable token
 // of its own: made only after Allow in Laki's window, its scopes enforced, a revoked one refused loudly, a token used from
-// inside a tab that tab's call, laki mcp's tools cut to its scopes
+// inside a tab that tab's call
 import assert from 'node:assert/strict'
 import { execFileSync, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -48,7 +48,7 @@ test('T1: the store keeps only a hash; rotate and revoke kill the old token at o
   rmSync(home, { recursive: true, force: true })
 })
 
-test("T1: a client from no tab and no terminal: added after Allow in the window, within its scopes, Created by its name; revoked: refused loudly; laki mcp's tools cut to its scopes", async t => {
+test("T1: a client from no tab and no terminal: added after Allow in the window, within its scopes, Created by its name; revoked: refused loudly", async t => {
   const rig = await fresh(t, { env: { LAKI_TERM_WAIT: '5000' } }) // the window's ask: no answer in 5 s is a no
   const p = await rig.rpc('projectAdd', { path: rig.repo })
   await rig.rpc('settingsSet', { templates: [{ name: 'Implement', text: 'Implement: {{prompt}}' }] })
@@ -119,24 +119,6 @@ test("T1: a client from no tab and no terminal: added after Allow in the window,
   assert.ok(!existsSync(join(ws.path, 'pwned')))
   assert.ok(!(await rig.rpc('state')).workspaces.some((w: any) => w.id === 'y' || w.id === 'y2'))
   assert.match(rig.out, /client Grok Bot: wsRm \(id \S+\) refused: Grok Bot can't call wsRm/)
-
-  // laki mcp with its token: only its tools, new_workspace and send work, the others refused
-  const msgs = [
-    { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} },
-    { jsonrpc: '2.0', id: 2, method: 'tools/list' },
-    { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'laki_new_workspace', arguments: { project: p.id, name: 'from-mcp', prompt: 'hi there', group: 'Implementation' } } },
-    { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'laki_send', arguments: { target: ws.id, text: 'and now?' } } },
-    { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'laki_archive', arguments: { ws: ws.id } } },
-    { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'laki_state', arguments: {} } },
-  ]
-  r = await loose(file, ['mcp'], msgs.map(m => JSON.stringify(m)).join('\n') + '\n')
-  const res = Object.fromEntries(r.out.trim().split('\n').map(l => JSON.parse(l)).filter(m => m.id).map(m => [m.id, m]))
-  assert.deepEqual(res[2].result.tools.map((x: any) => x.name).sort(), ['laki_ask_agent', 'laki_diff', 'laki_new_tab', 'laki_new_workspace', 'laki_screen', 'laki_send', 'laki_state', 'laki_wait'])
-  assert.equal(res[3].result.isError, undefined, res[3].result.content[0].text)
-  assert.equal(res[4].result.isError, undefined, res[4].result.content[0].text)
-  assert.match(res[5].result.content[0].text, /laki_archive isn't one of this client's tools/)
-  assert.equal(res[6].result.isError, undefined)
-  assert.equal((await rig.rpc('state')).workspaces.find((w: any) => w.id === 'from-mcp')?.client, 'Grok Bot')
 
   // its token read by an agent in its tab: that agent's call (S12's rule), not the client's
   const out = join(rig.home, 'agent-out')
