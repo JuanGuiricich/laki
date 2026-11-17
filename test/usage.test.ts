@@ -115,7 +115,7 @@ test('usage: read with the agents’ own sign-in, kept 5 minutes, per agent, nev
 
   // R4: one turned off isn't asked: its own numbers instead (none here)
   await rig.rpc('settingsSet', { usage: { claude: false, codex: true } })
-  assert.deepEqual((await rig.rpc('usage')).map((x: any) => [x.agent, x.source, x.error]), [['claude', 'own', "No numbers yet: they come with Claude Code's status line, as a tab works (Settings › Appearance › Read Claude's status line)"], ['codex', 'endpoint', undefined]])
+  assert.deepEqual((await rig.rpc('usage')).map((x: any) => [x.agent, x.source, x.error]), [['claude', 'own', "No numbers yet: they come with Claude Code's status line, as a tab works (Settings › Layout › Read Claude's status line)"], ['codex', 'endpoint', undefined]])
   assert.equal(hits.length, 2)
   await rig.stop()
   await rig.start()

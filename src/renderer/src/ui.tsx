@@ -3,7 +3,7 @@
 import { Component, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as KE, type MouseEvent, type PointerEvent as PE, type ReactNode } from 'react'
 import { EMOJIS, emojiOf, ICONS, iconLook, type IconLook, type IconName, iconOf, iconPx, isIconName, onIconLook } from '../../shared/icons'
 import { TAB_COLORS } from '../../shared/types'
-import { flushSync } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import { menuKeys, snap } from './text'
 import { keyShow, type KeyId } from '../../shared/keys'
 import { overUsual } from '../../shared/nextStep'
@@ -28,6 +28,15 @@ export const keep = (key: string, v: unknown) => {
 // its querySelector would throw at :popover-open)
 export const cardOpen = () => 'showPopover' in HTMLElement.prototype && !!document.querySelector('.help-card:popover-open')
 export const escapes = (e: KeyboardEvent) => e.key === 'Escape' && !e.defaultPrevented && !e.isComposing && !cardOpen()
+// a popup's backdrop, a click on it closes: in the window's .app, not where it opens, so no ancestor's backdrop-filter
+// (a status bar capsule's blur, every design but Frosted) is its fixed box, which placed it off screen
+export const Backdrop = ({ onClose, children }: { onClose: () => void; children: ReactNode }) =>
+  createPortal(
+    <div className="menu-backdrop" onPointerDown={e => e.target === e.currentTarget && onClose()}>
+      {children}
+    </div>,
+    document.querySelector('.app') ?? document.body,
+  )
 
 export type { IconName }
 export { isIconName } // an extension's icon
