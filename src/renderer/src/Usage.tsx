@@ -3,7 +3,7 @@
 // sign-in, at most every 5 minutes (usage.ts); Settings › Appearance picks the agents. Under them, today's tokens and
 // their ≈ cost at API prices (the daemon's meters, View.today); and the words a tab's context and usage are said in.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { IconButton, Page, act } from './ui'
+import { Backdrop, IconButton, Page, act } from './ui'
 
 import { type AgentUsage, HOME_ACCOUNT, type Today, type UsageWindow } from '../../shared/types'
 export type { AgentUsage, UsageWindow } // a window's note: what the % is of, for an amount rather than a rate limit (extra usage): the ring leaves it out
@@ -63,7 +63,8 @@ export function Ring({ p }: { p?: number }) {
 }
 
 // onUse: an account made the default for new sessions (the popup's Use); today: what was used today (none: hidden)
-export function UsageButton({ load, onUse, onDays, today, models = [] }: { load: () => Promise<AgentUsage[]>; onUse?: (agent: string, account: string) => void; onDays?: () => void; today?: Spent; models?: string[] }) {
+// asks: Settings' usage, the agents whose endpoint is asked
+export function UsageButton({ load, onUse, onDays, today, models = [], asks }: { load: () => Promise<AgentUsage[]>; onUse?: (agent: string, account: string) => void; onDays?: () => void; today?: Spent; models?: string[]; asks?: Record<string, boolean> }) {
   const [got, setRows] = useState<AgentUsage[] | null>(null)
   const rows = got && got.map(r => byUse(r, models)) // models: what the Gemini tabs use
   const [at, setAt] = useState<DOMRect | null>(null)
@@ -93,7 +94,7 @@ export function UsageButton({ load, onUse, onDays, today, models = [] }: { load:
       <button className="usage-btn" data-tip={tip} aria-label={tip} onClick={e => setAt(e.currentTarget.getBoundingClientRect())}>
         <Ring p={top} />
       </button>
-      {at && <UsagePop anchor={at} rows={rows} top={top} today={today} onDays={onDays} onUse={onUse && ((a, id) => (onUse(a, id), setRows(r => r?.map(x => (x.agent === a ? { ...x, default: (x.account ?? HOME_ACCOUNT) === id } : x)) ?? r)))} onClose={() => setAt(null)} />}
+      {at && <UsagePop anchor={at} rows={rows} top={top} today={today} asks={asks} onDays={onDays} onUse={onUse && ((a, id) => (onUse(a, id), setRows(r => r?.map(x => (x.agent === a ? { ...x, default: (x.account ?? HOME_ACCOUNT) === id } : x)) ?? r)))} onClose={() => setAt(null)} />}
     </>
   )
 }
@@ -119,7 +120,7 @@ function windowRow(w: UsageWindow, now: number) {
   )
 }
 
-function UsagePop({ anchor, rows, top, today, onUse, onDays, onClose }: { anchor: DOMRect; rows: AgentUsage[]; top?: number; today?: Spent; onUse?: (agent: string, account: string) => void; onDays?: () => void; onClose: () => void }) {
+function UsagePop({ anchor, rows, top, today, asks, onUse, onDays, onClose }: { anchor: DOMRect; rows: AgentUsage[]; top?: number; today?: Spent; asks?: Record<string, boolean>; onUse?: (agent: string, account: string) => void; onDays?: () => void; onClose: () => void }) {
   const box = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const f = (e: KeyboardEvent) => e.key === 'Escape' && (e.preventDefault(), e.stopPropagation(), onClose())
@@ -135,7 +136,7 @@ function UsagePop({ anchor, rows, top, today, onUse, onDays, onClose }: { anchor
   const now = Date.now()
   const ago = Math.round((now - Math.min(...rows.map(r => r.at))) / 60_000)
   return (
-    <div className="menu-backdrop" onPointerDown={e => e.target === e.currentTarget && onClose()}>
+    <Backdrop onClose={onClose}>
       <div className="tunnel-pop usage-pop" ref={box} role="dialog" aria-label="Plan limits">
         <div className="tunnel-head">
           <Ring p={top} />
@@ -196,10 +197,10 @@ function UsagePop({ anchor, rows, top, today, onUse, onDays, onClose }: { anchor
           </section>
         )}
         <p className="muted small">
-          {rows.some(r => r.source === 'endpoint') ? `Read ${ago < 1 ? 'just now' : `${ago} min ago`}; asked with each account's own sign-in where Appearance says so.` : "The agents' own numbers: Claude Code's status line, Codex's reports."} Settings › Agents & profiles has the accounts.
+          {rows.some(r => r.source === 'endpoint' || asks?.[r.agent] === true) ? `Read ${ago < 1 ? 'just now' : `${ago} min ago`}; asked with each account's own sign-in where Layout says so.` : "The agents' own numbers: Claude Code's status line, Codex's reports."}{rows.some(r => r.agent === 'claude' && r.windows.length > 0) && asks?.claude !== true && ` Claude's week per model (Fable's) only comes from Anthropic: Settings › Layout › Ask ${USAGE_HOSTS.claude}.`} Settings › Agents & profiles has the accounts.
         </p>
       </div>
-    </div>
+    </Backdrop>
   )
 }
 

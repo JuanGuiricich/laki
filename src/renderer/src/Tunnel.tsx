@@ -5,7 +5,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { qr, qrPath } from '../../shared/qr'
 import { MAIL_OK, parseMails, webmail } from './text'
-import { Icon, IconButton } from './ui'
+import { Backdrop, Icon, IconButton } from './ui'
 
 export type Tunnel = { port: number; url?: string; mails?: string[]; until?: number; host?: string; down?: string } // no url yet: starting; until: when it stops; host: a permanent one's; down: why it's reconnecting
 // version: missing when cloudflared isn't installed; mails: who the last tunnel let in (or git's user.email);
@@ -282,7 +282,7 @@ function TunnelPop({ anchor, port, tunnel, api, onClose }: { anchor: DOMRect; po
       </form>
     )
   return (
-    <div className="menu-backdrop" onPointerDown={e => e.target === e.currentTarget && onClose()}>
+    <Backdrop onClose={onClose}>
       <div className="tunnel-pop" ref={box} role="dialog" aria-label="Expose to the world">
         <div className="tunnel-head">
           <Icon name="globe" />
@@ -293,7 +293,7 @@ function TunnelPop({ anchor, port, tunnel, api, onClose }: { anchor: DOMRect; po
         {body}
         {err && <div className="tunnel-err">{err}</div>}
       </div>
-    </div>
+    </Backdrop>
   )
 }
 
@@ -364,7 +364,7 @@ export function SharePop({ name, share, api, onClose }: { name: string; share?: 
       </form>
     )
   return (
-    <div className="menu-backdrop" onPointerDown={e => e.target === e.currentTarget && onClose()}>
+    <Backdrop onClose={onClose}>
       <div className="tunnel-pop share-pop" role="dialog" aria-label={`Share ${name}`}>
         <div className="tunnel-head">
           <Icon name="globe" />
@@ -375,6 +375,6 @@ export function SharePop({ name, share, api, onClose }: { name: string; share?: 
         {body}
         {err && <div className="tunnel-err">{err}</div>}
       </div>
-    </div>
+    </Backdrop>
   )
 }

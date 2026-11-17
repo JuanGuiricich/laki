@@ -3,6 +3,10 @@
 version it builds, with the date. A version's first three lines are its What's new card after an update (U13): put
 the biggest first, and end a line with `[Try it](laki://…)` to give it a Try button there. -->
 
+## Next
+
+- Plan limits show Claude's per-model weeks (Fable's) while a tab works, when Laki asks Anthropic for them (Settings › Layout); off, the popup says where they come from. The popup, and the status bar's tunnel and background tasks popups, open in every design again, not only Frosted.
+
 ## 0.54.0 · Nov 15, 2026
 
 - Charts in extensions show a point's exact number on hover, can draw round-numbered ticks, axis labels and dashed threshold lines, place a line's points by their time, and run an action on a click on a point.

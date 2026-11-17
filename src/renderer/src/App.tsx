@@ -3743,7 +3743,7 @@ export function App() {
               ))}
             </>
           )}
-          {tracked.length > 0 && ws?.browser === undefined && <UsageButton key={tracked.join()} models={geminiModels} load={() => api.call<AgentUsage[]>('usage').then(limits)} onDays={() => setDialog('usage')} onUse={(agent, id) => call('settingsSet', { accountUse: { ...settings.accountUse, [agent]: id } }).catch(() => {})} today={costsOn && view.today ? { ...view.today, ws: view.today.ws.map(w => ({ ...w, name: (x => (x ? wsName(x) : 'a removed workspace'))(view.workspaces.find(x => x.id === w.ws)) })) } : undefined} /> /* remounts as agents are turned on or off */}
+          {tracked.length > 0 && ws?.browser === undefined && <UsageButton key={tracked.join()} models={geminiModels} asks={settings.usage} load={() => api.call<AgentUsage[]>('usage').then(limits)} onDays={() => setDialog('usage')} onUse={(agent, id) => call('settingsSet', { accountUse: { ...settings.accountUse, [agent]: id } }).catch(() => {})} today={costsOn && view.today ? { ...view.today, ws: view.today.ws.map(w => ({ ...w, name: (x => (x ? wsName(x) : 'a removed workspace'))(view.workspaces.find(x => x.id === w.ws)) })) } : undefined} /> /* remounts as agents are turned on or off */}
           {view.dnd && ( // U8: Do not disturb: until when; a click ends it now (its digest shows)
             <button className="sb-rec" data-tip="Do not disturb: no notifications, sounds or phone pushes, but an important workspace's ask · click: end now, and see what happened meanwhile" onClick={() => void call('dndSet', { off: true }).catch(() => {})}>
               <Icon name="moon" size={11} />

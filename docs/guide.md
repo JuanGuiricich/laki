@@ -947,12 +947,12 @@ days in `usage-days.json`; your plan bills its own way.
 **Plan limits** (the ring at the start of the status bar): the theme's accent color, its waiting color past 70%,
 its error color past 90%, filled to
 the 5-hour session of the agents' plans (the busier agent's). Click it for each agent's windows: Claude's 5-hour session, the week,
-the week per model and extra usage; Codex's 5-hour and weekly windows; Gemini CLI's quota per model (the models your
+the week per model (Fable's) and extra usage (those two only from Anthropic, below); Codex's 5-hour and weekly windows; Gemini CLI's quota per model (the models your
 Gemini tabs use first, the rest under *More*). Each shows when it resets. They come from what the agents report
 themselves: Claude Code's status line (*Read Claude's status line*, on) and what Codex writes as it works, so they show
 once a tab of that agent has run, with *As of* when they're older than 20 minutes. Laki asks no server for them unless
-you turn on *Ask Anthropic for Claude's plan limits* (or OpenAI's for Codex, Google's for Gemini CLI: the only way to
-get Gemini's) in Settings › Layout: undocumented endpoints that may break. Then the daemon
+you turn on *Ask api.anthropic.com for Claude Code's plan limits* (or chatgpt.com's for Codex, Google's for Gemini CLI:
+the only way to get Gemini's) in Settings › Layout: undocumented endpoints that may break. Then the daemon
 reads them with the sign-in the agent already keeps on this Mac (Claude Code's Keychain item or
 `~/.claude/.credentials.json`; Codex's `~/.codex/auth.json`), from the endpoint the agent's own `/usage` screen
 asks: Claude's every 7.5 minutes, Codex's every 5. While a Claude Code tab on that account redrew its status line in
